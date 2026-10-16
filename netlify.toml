@@ -1,0 +1,22 @@
+# The chess app's own Netlify site, built from this repo on every push to main.
+[build]
+  command = "node build.cjs"
+  publish = "out/site"
+  # Every production deploy costs credits: skip the ones where nothing that goes into the page changed
+  # (tests, docs, CLAUDE.md). Exit 0 = skip, 1 = build; the first deploy has no cached commit and builds.
+  ignore = "test -n \"$CACHED_COMMIT_REF\" && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- app src vendor openings openings-data.cjs babel build.cjs netlify.toml"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# the bare domain serves the app; its file name stays the same as on the old notes site
+[[redirects]]
+  from = "/"
+  to = "/chess-game-video.html"
+  status = 200
+
+# revalidate on every visit, so a deploy is live at once (Netlify answers 304 from the ETag)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
