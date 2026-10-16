@@ -381,7 +381,7 @@ function PlayerBar({ M, T, S, side, a, pieces }) {
     const n = (cap[opp][t] || 0) - (cap[side][t] || 0);
     pts += n * VALUE[t];
     // black pieces get a light rim so they read on the dark frame
-    for (let i = 0; i < n; i++) shown.push(<img key={t + i} src={img(opp, t)} alt="" style={{ width: 30, height: 30, marginRight: -8, filter: opp === 'b' ? C.rim : 'none' }} />);
+    for (let i = 0; i < n; i++) shown.push(<img key={t + i} src={img(opp, t)} alt="" style={{ width: 30, height: 30, flex: 'none', marginLeft: shown.length ? -8 : 0, filter: opp === 'b' ? C.rim : 'none' }} />);
   });
   const clk = M.hasClock ? clockOf(M, side, T, S) : null;
   const low = clk && clk.s < 60;
