@@ -717,7 +717,9 @@ function EndCard({ M, T, CUES }) {
 
 // ---------- composition ----------
 function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
-  const { T, CUES, authoredTotal, playing } = useComposition();
+  const { T, CUES, authoredTotal, playing: live } = useComposition();
+  // the export steps through a paused player; its frames look like playback (no paused-only hints or buttons)
+  const playing = live || !!tw.exporting;
   setLayout(useFrame()); // before the children render, which read the layout
   const S = useSchedule(M, CUES, d);
   // When the schedule changes (a Queen answer lengthens a move's hold), keep the board on the same move

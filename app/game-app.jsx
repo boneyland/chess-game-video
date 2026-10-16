@@ -215,7 +215,7 @@ function GameApp() {
   return (
     <React.Fragment>
       <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={tall ? menuEl : null} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
-        <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
+        <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
       {!tall && (
@@ -270,7 +270,7 @@ function GameApp() {
         <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, End jumps to the last move.</div>
         {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
         {(downloads || !IN_CLAUDE) && <TweakButton label={`Export video (MP4, ${exportFps} fps)`} disabled={video.busy} onClick={exportVideo} />}
-        {(downloads || !IN_CLAUDE) && <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil(TM.total * exportFps * 0.2))} for this game, longer on a phone. More frames per second play smoother and take longer. The camera push is left out.</div>}
+        {(downloads || !IN_CLAUDE) && <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil(TM.total * exportFps * 0.17))} for this game, longer on a phone. More frames per second play smoother and take longer. The camera push is left out.</div>}
         <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
         <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
         <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />

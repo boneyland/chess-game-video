@@ -104,9 +104,13 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
     return () => window.removeEventListener('keydown', onKey);
   }, [duration]);
 
-  // Page controls outside the stage (Queen panel) pause and seek through this event
+  // Page controls outside the stage (Queen panel, video export) pause and seek through this event;
+  // `sync` renders the new frame before dispatchEvent returns, so the export can draw it straight away
   React.useEffect(() => {
-    const onSeek = (e) => { setPlaying(false); if (e.detail && isFinite(e.detail.time)) setTime(clamp(e.detail.time, 0, duration)); };
+    const onSeek = (e) => {
+      const go = () => { setPlaying(false); if (e.detail && isFinite(e.detail.time)) setTime(clamp(e.detail.time, 0, duration)); };
+      if (e.detail && e.detail.sync) ReactDOM.flushSync(go); else go();
+    };
     window.addEventListener('chess-video:seek', onSeek);
     return () => window.removeEventListener('chess-video:seek', onSeek);
   }, [duration]);

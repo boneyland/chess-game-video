@@ -21,11 +21,8 @@ function loadExportLibs() {
   }
   return exportLibs;
 }
-// the seek lands through React state; two frames later the stage shows it
-const seekStage = (t) => new Promise((done) => {
-  window.dispatchEvent(new CustomEvent('chess-video:seek', { detail: { time: t } }));
-  requestAnimationFrame(() => requestAnimationFrame(done));
-});
+// the stage re-renders synchronously inside dispatchEvent, so the frame can be drawn straight after
+const seekStage = (t) => window.dispatchEvent(new CustomEvent('chess-video:seek', { detail: { time: t, sync: true } }));
 
 function useVideoExport({ total, fps, save, stem }) {
   const [state, setState] = React.useState(null); // { phase: 'load' | 'render' | 'save', done, N, eta } or { phase: 'error', msg }
@@ -49,12 +46,22 @@ function useVideoExport({ total, fps, save, stem }) {
       const src = new MB.CanvasSource(cv, { codec, bitrate: MB.QUALITY_HIGH });
       output.addVideoTrack(src, { frameRate: fps });
       await output.start();
+      // html2canvas copies the whole document every frame: leave out the scripts (the artifact inlines a 2.4 MB
+      // engine) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
+      const keep = (n) => n.tagName === 'STYLE' || n.tagName === 'LINK' || n.tagName === 'HEAD' || n.closest('head');
+      const skip = (n) => n.tagName === 'SCRIPT' || (!keep(n) && n !== el && !n.contains(el) && !el.contains(n));
       const N = Math.floor(total * fps) + 1, t0 = performance.now();
+      let prev = null;
       for (let i = 0; i < N; i++) {
         if (stopRef.current) { await output.cancel(); setState(null); return; }
-        await seekStage(i / fps);
-        const shot = await html2canvas(el, { scale: 1, width: W, height: H, logging: false, onclone: (doc, c) => { c.style.transform = 'none'; } });
-        cx.clearRect(0, 0, W, H); cx.drawImage(shot, 0, 0, W, H);
+        seekStage(i / fps);
+        // a frame whose markup matches the last one (holds, the title and end cards) reuses the canvas as it is
+        const html = el.innerHTML;
+        if (html !== prev) {
+          const shot = await html2canvas(el, { scale: 1, width: W, height: H, logging: false, ignoreElements: skip, onclone: (doc, c) => { c.style.transform = 'none'; } });
+          cx.clearRect(0, 0, W, H); cx.drawImage(shot, 0, 0, W, H);
+          prev = html;
+        }
         await src.add(i / fps, 1 / fps);
         const per = (performance.now() - t0) / (i + 1);
         setState({ phase: 'render', done: i + 1, N, eta: per * (N - i - 1) / 1000 });
