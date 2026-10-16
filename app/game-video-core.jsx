@@ -839,7 +839,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const enter = (i) => MOTION.enter(cl01((T - (CUES.Opening - 0.5 + i * 0.12)) / 0.7));
   let f = 0;
   if (tw.cameraPush) S.blunders.forEach((i) => {
-    const t0 = S.tp[i] - 0.3, t1 = i + 1 < S.N ? S.tp[i + 1] - 0.5 : CUES.Outro;
+    const t0 = S.tp[i] - 0.3, t1 = Math.min(S.tp[i] + S.md[i] + 0.8, i + 1 < S.N ? S.tp[i + 1] - 0.5 : CUES.Outro);
     f = Math.max(f, MOTION.move(cl01((T - t0) / 0.7)) * (1 - MOTION.move(cl01((T - t1) / 0.7))));
   });
   const c = lastPly(T, S);
