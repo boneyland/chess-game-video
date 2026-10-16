@@ -1,0 +1,132 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { loadUnit, fixture } = require('./load.cjs');
+loadUnit('chess-core.js');
+loadUnit('analysis-core.js');
+const A = window.AnalysisCore;
+const expected = fixture('rating-expected.json');
+
+for (const [name, g] of Object.entries(expected)) {
+  test(`rateMove reproduces Python on every move of ${name}`, () => {
+    g.moves.forEach((m, k) => {
+      const got = A.rateMove({ bestEval: m.best_eval, currentEval: m.current_eval, isWhite: m.is_white, playedIsBest: m.played_is_best, isCheckmate: m.is_checkmate });
+      assert.deepEqual(got, { evalLoss: m.eval_loss, classification: m.classification, mateAdvice: m.mate_advice }, `ply ${k + 1} ${m.move_san}`);
+    });
+  });
+
+  test(`playerStats reproduces accuracy for ${name}`, () => {
+    const side = (white) => g.moves.filter((m) => m.is_white === white).map((m) => ({ eval_loss: m.eval_loss, classification: m.classification }));
+    assert.ok(Math.abs(A.playerStats(side(true)).accuracy - g.white_accuracy) < 1e-9);
+    assert.ok(Math.abs(A.playerStats(side(false)).accuracy - g.black_accuracy) < 1e-9);
+  });
+
+  test(`mateLine reproduces Python for ${name}`, () => {
+    g.moves.filter((m) => m.mate_line).forEach((m) => {
+      assert.equal(A.mateLine(m.best_eval, m.best_line), m.mate_line, m.move_san);
+    });
+  });
+}
+
+test('infoToScore converts to White POV and encodes mates', () => {
+  assert.deepEqual(A.infoToScore('info depth 20 seldepth 30 multipv 1 score cp 35 nodes 1 nps 1 pv e2e4 e7e5', 'b'), { cp: -35, depth: 20, pv: ['e2e4', 'e7e5'], nodes: 1, timeMs: null });
+  const timed = A.infoToScore('info depth 22 seldepth 31 multipv 1 score cp 12 nodes 1520334 nps 512000 hashfull 210 time 2969 pv d2d4', 'w');
+  assert.equal(timed.nodes, 1520334);
+  assert.equal(timed.timeMs, 2969);
+  assert.equal(A.infoToScore('info depth 9 score mate 3 nodes 5 pv d1h5 g7g6 h5f7', 'w').cp, 9970);
+  assert.equal(A.infoToScore('info depth 9 score mate -2 nodes 5 pv a2a3', 'w').cp, -9980);
+  assert.equal(A.infoToScore('info depth 0 score mate 0', 'b').cp, 10000);
+  assert.equal(A.infoToScore('info depth 0 score mate 0', 'w').cp, -10000);
+  assert.deepEqual(A.infoToScore('info depth 0 score mate 0', 'w').pv, []);
+  assert.equal(A.infoToScore('info depth 18 seldepth 20 score cp 12 lowerbound nodes 1 pv e2e4', 'w'), null);
+  assert.equal(A.infoToScore('info string NNUE evaluation using nn.nnue', 'w'), null);
+});
+
+test('buildAnalysisJson has every key the --analyze JSON has', () => {
+  const ref = fixture('byrne-fischer_analysis.json');
+  const out = A.buildAnalysisJson({
+    headers: { White: 'W', Black: 'B' }, opening: null,
+    engine: { name: 'Stockfish 19 lite (browser)', depth: 22, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 },
+    moves: [{ ply: 1, move_san: 'e4', move_uci: 'e2e4', is_white_move: true, eval_before: 20, eval_after: 30, best_move_san: 'e4', best_move_uci: 'e2e4', best_eval: 20, eval_loss: 0, classification: 'best', is_capture: false, is_check: false, fen_after: '', pv_line: [], mate_advice: '', mate_line: '', search_depth: 22, search_depth_after: 22, best_line: ['e4'] }],
+  });
+  assert.deepEqual(Object.keys(out).sort(), Object.keys(ref).sort());
+  assert.deepEqual(Object.keys(out.moves[0]).sort(), Object.keys(ref.moves[0]).sort());
+});
+
+// ---------- runAnalysis ----------
+const fs = require('fs');
+const path = require('path');
+const { nodeWorker } = require('./node-worker.cjs');
+const { openingsTsv } = require('../openings-data.cjs');
+loadUnit('sf-engine.js');
+window.OPENINGS_TSV = openingsTsv();
+loadUnit('openings-core.js');
+
+const SCHOLAR = { ucis: ['e2e4', 'e7e5', 'f1c4', 'b8c6', 'd1h5', 'g8f6', 'h5f7'], sans: ['e4', 'e5', 'Bc4', 'Nc6', 'Qh5', 'Nf6', 'Qxf7#'] };
+const fakeEngine = (onSearch) => ({
+  calls: 0,
+  search(req) { this.calls++; if (onSearch) onSearch(req, this.calls); return { promise: Promise.resolve({ cp: 0, depth: 22, pv: [], best: null }), cancel() {} }; },
+});
+
+test('runAnalysis reports progress from (0, N) to (N, N)', async () => {
+  const seen = [];
+  await A.runAnalysis({ engine: fakeEngine(), ...SCHOLAR, headers: {}, signal: { aborted: false }, onProgress: (d, n) => seen.push([d, n]) });
+  assert.deepEqual(seen[0], [0, 7]);
+  assert.deepEqual(seen[seen.length - 1], [7, 7]);
+});
+
+test('runAnalysis stops when aborted and returns null', async () => {
+  const signal = { aborted: false };
+  const eng = fakeEngine((req, n) => { if (n === 2) signal.aborted = true; });
+  const out = await A.runAnalysis({ engine: eng, ...SCHOLAR, headers: {}, signal, onProgress: () => {} });
+  assert.equal(out, null);
+  assert.equal(eng.calls, 2);
+});
+
+test('runAnalysis searches each position at depth 22 / 3 s as game priority', async () => {
+  const reqs = [];
+  await A.runAnalysis({ engine: fakeEngine((r) => reqs.push(r)), ...SCHOLAR, headers: {}, signal: { aborted: false }, onProgress: () => {} });
+  assert.equal(reqs.length, 8);
+  assert.deepEqual(reqs.map((r) => [r.depth, r.movetimeMs, r.priority]), Array(8).fill([22, 3000, 'game']));
+  assert.deepEqual(reqs[3].moves, SCHOLAR.ucis.slice(0, 3));
+});
+
+test('runAnalysis with the real engine rates a mating game like Python', { timeout: 120000 }, async () => {
+  const engine = window.SFEngine.create(nodeWorker, {});
+  try {
+    await engine.ready();
+    const headers = { White: 'Scholar', Black: 'Victim', Result: '1-0' };
+    const out = await A.runAnalysis({ engine, ...SCHOLAR, headers, signal: { aborted: false }, onProgress: () => {} });
+    assert.equal(out.moves.length, 7);
+    const last = out.moves[6];
+    assert.equal(last.eval_after, 10000);
+    assert.notEqual(last.classification, 'blunder');
+    assert.equal(last.move_san, 'Qxf7#');
+    assert.equal(out.opening_name, "King's Pawn Game: Wayward Queen Attack"); // chess_openings.py's identify() for this line
+    assert.equal(out.opening_eco, 'C20');
+    assert.deepEqual(out.engine, { name: 'Stockfish 19 lite (browser)', depth: 22, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 });
+    assert.ok(out.moves.every((m) => m.search_depth > 0));
+    // the position after Qxf7# is mate: Stockfish reports no search for it
+    assert.ok(out.moves.slice(0, -1).every((m) => m.search_time_after_ms > 0 && m.search_nodes_after > 0), 'actual search stats kept for each position after a move');
+    assert.ok(out.moves.every((m) => m.search_maxdepth_after >= m.search_depth_after), 'deepest depth reached is kept too');
+    const dir = path.join(__dirname, 'out');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'scholar_analysis.json'), JSON.stringify(out));
+  } finally { engine.quit(); }
+});
+
+test('runAnalysis takes the best move from the line it reports, like Python (pv[0])', async () => {
+  // a search cut short can end on a bestmove that differs from its last complete line
+  const eng = { search: () => ({ promise: Promise.resolve({ cp: 20, depth: 22, pv: ['d2d4', 'd7d5'], best: 'e2e4', nodes: 1, timeMs: 1 }), cancel() {} }) };
+  const out = await A.runAnalysis({ engine: eng, ucis: ['e2e4'], sans: ['e4'], headers: {}, signal: { aborted: false }, onProgress: () => {} });
+  assert.equal(out.moves[0].best_move_uci, 'd2d4');
+  assert.equal(out.moves[0].best_move_san, 'd4');
+  assert.equal(out.moves[0].best_line[0], 'd4');
+  assert.equal(A.bestOf({ pv: [], best: 'e2e4' }), 'e2e4');
+  assert.equal(A.bestOf({ pv: [], best: null }), null);
+});
+
+test('infoStats reads depth, nodes and time from any info line, bound lines included', () => {
+  assert.deepEqual(A.infoStats('info depth 23 seldepth 30 multipv 1 score cp 20 lowerbound nodes 1600000 nps 533000 hashfull 300 time 3001 pv e2e4'), { depth: 23, nodes: 1600000, timeMs: 3001 });
+  assert.deepEqual(A.infoStats('info depth 5 currmove e2e4 currmovenumber 1'), { depth: 5, nodes: null, timeMs: null });
+  assert.equal(A.infoStats('info string NNUE evaluation'), null);
+});

@@ -1,0 +1,182 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { loadUnit } = require('./load.cjs');
+const { nodeWorker } = require('./node-worker.cjs');
+loadUnit('chess-core.js');
+loadUnit('analysis-core.js');
+loadUnit('sf-engine.js');
+const SF = window.SFEngine;
+
+// A scripted engine: answers uci/isready (unless silent); each `go` waits for finish(best, infoLine)
+function fakeWorker({ silent = false } = {}) {
+  const w = { posted: [], onmessage: null, onerror: null };
+  const say = (line) => setTimeout(() => w.onmessage && w.onmessage({ data: line }), 0);
+  w.postMessage = (s) => {
+    w.posted.push(s);
+    if (silent) return;
+    if (s === 'uci') say('uciok');
+    if (s === 'isready') say('readyok');
+  };
+  w.finish = (best, info = 'info depth 5 score cp 10 pv ' + best) => { say(info); say('bestmove ' + best); };
+  w.terminate = () => {};
+  return w;
+}
+const tick = () => new Promise((r) => setTimeout(r, 5));
+const positions = (w) => w.posted.filter((s) => s.startsWith('position'));
+
+test('positionCommand', () => {
+  assert.equal(SF.positionCommand([]), 'position startpos');
+  assert.equal(SF.positionCommand(['e2e4', 'e7e5']), 'position startpos moves e2e4 e7e5');
+});
+
+test('ready rejects after readyTimeoutMs when the worker is silent', async () => {
+  const e = SF.create(() => fakeWorker({ silent: true }), { readyTimeoutMs: 50 });
+  await assert.rejects(e.ready());
+});
+
+test('ready sets the hash size', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  assert.ok(w.posted.includes('setoption name Hash value 64'));
+});
+
+test('an own search runs before queued game searches but never interrupts one', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: ['e2e4'], depth: 22, movetimeMs: 3000, priority: 'game' });
+  const b = e.search({ moves: ['e2e4', 'e7e5'], depth: 22, movetimeMs: 3000, priority: 'game' });
+  await tick();
+  const c = e.search({ moves: ['d2d4'], depth: 24, movetimeMs: 3000, priority: 'own' });
+  await tick();
+  assert.equal(w.posted.filter((s) => s === 'stop').length, 0);
+  w.finish('e7e5'); await a.promise; await tick();
+  w.finish('d7d5'); await c.promise; await tick();
+  w.finish('g1f3'); await b.promise;
+  assert.deepEqual(positions(w), ['position startpos moves e2e4', 'position startpos moves d2d4', 'position startpos moves e2e4 e7e5']);
+  assert.ok(w.posted.includes('go depth 24 movetime 3000'));
+});
+
+test('a cancelled queued search never posts go and resolves null', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: [], depth: 20, movetimeMs: 3000, priority: 'game' });
+  const b = e.search({ moves: ['e2e4'], depth: 20, movetimeMs: 3000, priority: 'game' });
+  b.cancel();
+  w.finish('e2e4'); await a.promise; await tick();
+  assert.equal(await b.promise, null);
+  assert.deepEqual(positions(w), ['position startpos']);
+});
+
+test('cancelling the running search sends stop and resolves with its last score', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: [], depth: 20, movetimeMs: 3000, priority: 'own' });
+  await tick();
+  a.cancel();
+  assert.ok(w.posted.includes('stop'));
+  w.finish('d2d4', 'info depth 7 score cp 25 pv d2d4 d7d5');
+  assert.deepEqual(await a.promise, { cp: 25, depth: 7, maxDepth: 7, pv: ['d2d4', 'd7d5'], nodes: null, timeMs: null, best: 'd2d4' });
+});
+
+test('onInfo streams scores from White\'s point of view', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const seen = [];
+  const a = e.search({ moves: ['e2e4'], depth: 20, movetimeMs: 3000, priority: 'own', onInfo: (s) => seen.push(s.cp) });
+  await tick();
+  w.finish('e7e5', 'info depth 9 score cp 30 pv e7e5');
+  await a.promise;
+  assert.deepEqual(seen, [-30]);
+});
+
+test('real engine: castling rights survive a move list', { timeout: 60000 }, async () => {
+  const e = SF.create(nodeWorker, {});
+  try {
+    await e.ready();
+    const moves = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'g8f6'];
+    const r = await e.search({ moves, depth: 12, movetimeMs: 10000, priority: 'own' }).promise;
+    assert.equal(r.depth, 12);
+    let pos = window.ChessCore.posFromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w');
+    for (const u of moves) pos = window.ChessCore.applyUci(pos, u).pos;
+    assert.ok(window.ChessCore.applyUci(pos, r.best), r.best);
+  } finally { e.quit(); }
+});
+
+test('real engine: a mated position gives no move and a mate score', { timeout: 60000 }, async () => {
+  const e = SF.create(nodeWorker, {});
+  try {
+    await e.ready();
+    const r = await e.search({ moves: ['f2f3', 'e7e5', 'g2g4', 'd8h4'], depth: 12, movetimeMs: 3000, priority: 'own' }).promise;
+    assert.equal(r.best, null);
+    assert.equal(r.cp, -10000);
+  } finally { e.quit(); }
+});
+
+test('a search started before ready() finishes waits for readyok', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  const r = e.ready();
+  const a = e.search({ moves: [], depth: 20, movetimeMs: 3000, priority: 'own' });
+  await r; await tick();
+  const order = w.posted.filter((s) => s === 'isready' || s.startsWith('position'));
+  assert.deepEqual(order, ['isready', 'position startpos']);
+  w.finish('e2e4'); await a.promise;
+});
+
+test('a worker error resolves the running and queued searches with null', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: [], depth: 20, movetimeMs: 3000, priority: 'game' });
+  const b = e.search({ moves: ['e2e4'], depth: 20, movetimeMs: 3000, priority: 'game' });
+  await tick();
+  w.onerror(new Error('wasm crashed'));
+  assert.equal(await a.promise, null);
+  assert.equal(await b.promise, null);
+  assert.ok(e.failed());
+  assert.equal(await e.search({ moves: [], depth: 1, movetimeMs: 10, priority: 'own' }).promise, null);
+});
+
+test('a worker that misses the ready timeout is terminated', async () => {
+  let w;
+  const e = SF.create(() => { w = fakeWorker({ silent: true }); w.terminated = false; w.terminate = () => { w.terminated = true; }; return w; }, { readyTimeoutMs: 50 });
+  await assert.rejects(e.ready());
+  assert.equal(w.terminated, true);
+});
+
+test('the default ready timeout allows a slow download (30 s)', () => {
+  assert.equal(SF.READY_TIMEOUT_MS, 30000);
+});
+
+test('onFail reports an engine that dies after it started', async () => {
+  let w, reported = null;
+  const e = SF.create(() => (w = fakeWorker()), { onFail: (err) => { reported = err; } });
+  await e.ready();
+  const a = e.search({ moves: [], depth: 20, movetimeMs: 3000, priority: 'own' });
+  await tick();
+  w.onerror(new Error('wasm crashed'));
+  assert.equal(await a.promise, null);
+  assert.equal(reported && reported.message, 'wasm crashed');
+});
+
+test('a search cut off mid-depth reports the whole search: its time, nodes and the unfinished depth', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: [], depth: 24, movetimeMs: 3000, priority: 'own' });
+  await new Promise((r) => setTimeout(r, 5));
+  w.onmessage({ data: 'info depth 22 seldepth 30 multipv 1 score cp 30 nodes 1000000 nps 1 time 2400 pv e2e4 e7e5' });
+  w.onmessage({ data: 'info depth 23 seldepth 33 multipv 1 score cp 41 lowerbound nodes 1500000 nps 1 time 3000 pv e2e4' });
+  w.onmessage({ data: 'bestmove e2e4' });
+  const r = await a.promise;
+  assert.equal(r.cp, 30, 'eval from the last complete depth');
+  assert.equal(r.depth, 22);
+  assert.equal(r.maxDepth, 23);
+  assert.equal(r.nodes, 1500000);
+  assert.equal(r.timeMs, 3000);
+});

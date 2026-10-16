@@ -1,0 +1,9 @@
+# build output (node build.cjs)
+out/
+# written by the node tests
+tests/out/
+__pycache__/
+# local only
+games/
+.superpowers/
+.claude/
