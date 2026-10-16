@@ -1,6 +1,6 @@
 // ---------- Stockfish in the browser ----------
 // One engine per page, started on first use; a full-game analysis on request; the viewer's own moves.
-const SF_SITE_URL = 'https://boneyland.netlify.app/files/chess-game-video.html';
+const SF_SITE_URL = 'https://chess-replay.netlify.app/';
 const SF_SECONDS_PER_POSITION = 1.3; // measured on a laptop at depth 22 / 3 s (design doc, benchmarks)
 // the engine sits next to the page on the self-hosted copy; the claude.ai build sets window.SF_MAKE_WORKER
 const SF_FILE = 'stockfish-19-lite-single';

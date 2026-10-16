@@ -117,7 +117,7 @@ const uciToSan = (M, i, uci) => {
 const IN_CLAUDE = !!window.claude;
 const DIRECT_API = 'https://boneyland-queen-pawn-8.hf.space/gradio_api';
 // Public OAuth app (no secret) registered at huggingface.co/settings/applications; its redirect URL must match `redirect`
-const HF_OAUTH = { clientId: '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: 'https://boneyland.netlify.app/files/chess-game-video.html' };
+const HF_OAUTH = { clientId: '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: 'https://chess-replay.netlify.app/' };
 const AUTH_STORE = 'chess-video.hf-auth.v1', PKCE_STORE = 'chess-video.hf-pkce';
 
 async function directCall(moves, token, signal) {
@@ -148,8 +148,9 @@ async function directCall(moves, token, signal) {
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 function readAuth() { try { const a = JSON.parse(localStorage.getItem(AUTH_STORE) || 'null'); return a && a.token && a.expires > Date.now() ? a : null; } catch (e) { return null; } }
 
-// "Sign in with Hugging Face" (OAuth code flow with PKCE, no secret). In the notes-site iframe it opens the page
-// in a new tab, which signs in and stores the token; the iframe (same origin) picks it up from localStorage.
+// "Sign in with Hugging Face" (OAuth code flow with PKCE, no secret). Inside an iframe (the notes site embeds the
+// page) it opens the page in a new tab, which signs in there: the embedding site is another site, so the browser
+// keeps the iframe's storage separate and the token can't reach it.
 function useHfAuth() {
   const [auth, setAuth] = React.useState(readAuth);
   const [note, setNote] = React.useState('');
@@ -176,7 +177,7 @@ function useHfAuth() {
       const a = { token: t.access_token, expires: Date.now() + (t.expires_in || 28800) * 1000 - 60000, name: u.preferred_username || u.name || '' };
       try { localStorage.setItem(AUTH_STORE, JSON.stringify(a)); } catch (e) {}
       setAuth(a);
-      setNote(`Signed in to Hugging Face${a.name ? ' as ' + a.name : ''}.` + (window.opener ? ' You can close this tab and go back to your notes.' : ''));
+      setNote(`Signed in to Hugging Face${a.name ? ' as ' + a.name : ''}.` + (window.opener ? ' Ask Queen from this tab: the embedded copy can’t use this sign-in.' : ''));
     } catch (e) { setNote('Sign-in failed: ' + ((e && e.message) || e)); }
   };
   const signOut = () => { try { localStorage.removeItem(AUTH_STORE); } catch (e) {} setAuth(null); };

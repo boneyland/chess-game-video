@@ -1,6 +1,6 @@
 # Chess Game Video (artifact sources)
 
-The browser player behind the claude.ai artifact and boneyland.netlify.app. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
+The browser player behind the claude.ai artifact and https://chess-replay.netlify.app/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
 
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser)
 - `src/`: original Claude Design files (`support.js` is the Claude Design runtime; not used by the build)
@@ -15,6 +15,6 @@ The browser player behind the claude.ai artifact and boneyland.netlify.app. Migr
 
 Build: `node build.cjs` writes
 - `out/chess-game-video.html`: the claude.ai artifact (https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.2 MB with the engine inlined (base64 wasm, started from Blob URLs)
-- `out/site/`: the self-hosted copy — copy all three files into `~/Documents/Obsidian/personal/docs/files/` (https://boneyland.netlify.app/files/chess-game-video.html):
+- `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/:
   - `chess-game-video.html`
   - `stockfish-19-lite-single.js`, `stockfish-19-lite-single.wasm` (loaded from next to the page)
