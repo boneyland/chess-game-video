@@ -131,8 +131,8 @@ function useSchedule(M, CUES, d) {
       for (let i = g.a; i <= g.b; i++) { tp[i] = g.start + lead + (acc / tot) * span; acc += weightOf(M.plies[i], i); }
     });
     const md = tp.map((t, i) => Math.min(0.5, 0.6 * ((i + 1 < N ? tp[i + 1] : t + 1) - t)));
-    const keys = M.plies.map((p, i) => i).filter((i) => ['blunder', 'mistake', 'brilliant'].includes(M.plies[i].cls) || i === N - 1);
-    return { tp, md, N, keys };
+    const blunders = M.plies.map((p, i) => i).filter((i) => M.plies[i].cls === 'blunder');
+    return { tp, md, N, blunders };
   }, [M, CUES, d]);
 }
 const lastPly = (T, S) => { let k = -1; for (let i = 0; i < S.N; i++) { if (T >= S.tp[i]) k = i; else break; } return k; };
@@ -838,7 +838,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const pieces = React.useMemo(() => simulate(M), [M]);
   const enter = (i) => MOTION.enter(cl01((T - (CUES.Opening - 0.5 + i * 0.12)) / 0.7));
   let f = 0;
-  if (tw.cameraPush) S.keys.forEach((i) => {
+  if (tw.cameraPush) S.blunders.forEach((i) => {
     const t0 = S.tp[i] - 0.3, t1 = i + 1 < S.N ? S.tp[i + 1] - 0.5 : CUES.Outro;
     f = Math.max(f, MOTION.move(cl01((T - t0) / 0.7)) * (1 - MOTION.move(cl01((T - t1) / 0.7))));
   });
