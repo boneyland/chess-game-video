@@ -13,7 +13,7 @@ Browser player for annotated chess games: the claude.ai artifact and the boneyla
 2. Netlify: copy `out/site/chess-game-video.html` (plus the two `stockfish-19-lite-single.*` files if `vendor/` changed) into `~/Documents/Obsidian/personal/docs/files/`, commit and push that vault (needs the sandbox disabled). Production deploys are manual and cost the user credits: say it's ready, don't poll the live site
 
 ## Workflow
-- Small commits on `main`; no remote yet, don't push unless asked
+- Small commits on `main`; remote is `origin` (github.com/boneyland/chess-game-video), push only when asked
 - Visual changes: screenshot desktop (1440×900) and phone layouts and show the PNG paths before committing; the user usually tweaks sizes
 - Board/overlay checks: drive with real `page.mouse` input, not `dispatchEvent` (synthetic events once hid an overlay swallowing taps)
 
