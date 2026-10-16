@@ -1,7 +1,8 @@
 // ---------- video export ----------
 // Steps the player through every frame, draws the stage into a canvas with html2canvas-pro and encodes it in
 // the browser (WebCodecs, muxed by Mediabunny). Both libraries load from the CDN on the first export only.
-const EXPORT_FPS = 8;
+// frame rates offered in Settings; each frame takes about 0.2 s to draw, so the export time scales with it
+const EXPORT_FPS_OPTIONS = [8, 12, 15, 24, 30];
 const EXPORT_LIBS = {
   html2canvas: 'https://cdn.jsdelivr.net/npm/html2canvas-pro@2.5.0/dist/html2canvas-pro.min.js',
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
@@ -26,7 +27,7 @@ const seekStage = (t) => new Promise((done) => {
   requestAnimationFrame(() => requestAnimationFrame(done));
 });
 
-function useVideoExport({ total, save, stem }) {
+function useVideoExport({ total, fps, save, stem }) {
   const [state, setState] = React.useState(null); // { phase: 'load' | 'render' | 'save', done, N, eta } or { phase: 'error', msg }
   const stopRef = React.useRef(false);
   const run = async () => {
@@ -46,15 +47,15 @@ function useVideoExport({ total, save, stem }) {
       const cx = cv.getContext('2d');
       output = new MB.Output({ format: avc ? new MB.Mp4OutputFormat() : new MB.WebMOutputFormat(), target: new MB.BufferTarget() });
       const src = new MB.CanvasSource(cv, { codec, bitrate: MB.QUALITY_HIGH });
-      output.addVideoTrack(src, { frameRate: EXPORT_FPS });
+      output.addVideoTrack(src, { frameRate: fps });
       await output.start();
-      const N = Math.floor(total * EXPORT_FPS) + 1, t0 = performance.now();
+      const N = Math.floor(total * fps) + 1, t0 = performance.now();
       for (let i = 0; i < N; i++) {
         if (stopRef.current) { await output.cancel(); setState(null); return; }
-        await seekStage(i / EXPORT_FPS);
+        await seekStage(i / fps);
         const shot = await html2canvas(el, { scale: 1, width: W, height: H, logging: false, onclone: (doc, c) => { c.style.transform = 'none'; } });
         cx.clearRect(0, 0, W, H); cx.drawImage(shot, 0, 0, W, H);
-        await src.add(i / EXPORT_FPS, 1 / EXPORT_FPS);
+        await src.add(i / fps, 1 / fps);
         const per = (performance.now() - t0) / (i + 1);
         setState({ phase: 'render', done: i + 1, N, eta: per * (N - i - 1) / 1000 });
       }
