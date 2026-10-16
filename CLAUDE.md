@@ -10,7 +10,7 @@ Browser player for annotated chess games: the claude.ai artifact and the boneyla
 
 ## Publishing (only when asked)
 1. Artifact: publish `out/chess-game-video.html` to https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT (Artifact tool, `url` set). In a new session the first publish is refused and returns the live diff; check it holds only your changes. The next unchanged resend is refused too (a deliberate double-check); send it a third time and it goes through
-2. Netlify: the app has its own Netlify site, built from this repo by `netlify.toml` on every push to `main` (pushes that touch nothing in the page are skipped by its `ignore` rule). Each deploy costs the user credits: batch changes into one push, and don't poll the live site. The old copy in the Obsidian vault (`docs/files/`) is no longer updated
+2. Netlify: the app has its own Netlify site, built from this repo by `netlify.toml` on every push to `main` (pushes that touch nothing in the page are skipped by its `ignore` rule). Production publishing is locked: a push builds a deploy, and the user publishes it from the Deploys page; deploy previews are cheap. Say a push is ready to publish, don't poll the live site. The old copy in the Obsidian vault (`docs/files/`) is no longer updated
 
 ## Workflow
 - Small commits on `main`; remote is `origin` (github.com/boneyland/chess-game-video), push only when asked
