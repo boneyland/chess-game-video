@@ -105,6 +105,15 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 
 .drop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .drop-box { padding: 40px 60px; margin: 0 16px; border: 2px dashed var(--accent); border-radius: 12px; text-align: center; font: 500 20px/1.6 var(--mono); color: var(--ink); }
+.export { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: var(--scrim); }
+.export-box { width: min(420px, calc(100% - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 20px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 10px 30px var(--shadow); }
+.export-title { font: 600 16px var(--sans); color: var(--ink); }
+.export-bar { height: 6px; border-radius: 3px; background: var(--raise); overflow: hidden; }
+.export-bar div { height: 100%; background: var(--accent); transition: width 0.2s; }
+.export-line { font: 500 13px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.export-err { color: var(--danger); font-family: var(--sans); }
+.export-note { font: 13px/1.4 var(--sans); color: var(--dim); }
+.export-box .twk-btn { align-self: flex-end; }
 .drop-box span { color: var(--dim); font-size: 15px; }
 
 .twk-panel {

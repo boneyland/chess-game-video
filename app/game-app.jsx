@@ -155,6 +155,7 @@ function GameApp() {
       setAi({ busy: false, err: msg, chars: 0 });
     }
   };
+  // txt is a string or a Blob
   const saveFile = async (name, txt, type) => {
     if (!downloads) {
       const a = document.createElement('a');
@@ -181,6 +182,8 @@ function GameApp() {
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
   const [book, setBook] = React.useState(null);
   React.useEffect(() => { setBook(null); const id = setTimeout(() => { try { setBook(window.Openings.book().byPly(M.plies.map((p) => p.uci))); } catch (e) {} }, 50); return () => clearTimeout(id); }, [M]);
+  const video = useVideoExport({ total: TM.total, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
+  const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run(); };
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
   const sf = { engine, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
@@ -211,7 +214,7 @@ function GameApp() {
   return (
     <React.Fragment>
       <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={tall ? menuEl : null} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
-        <GameVideo M={MV} tw={t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
+        <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
       {!tall && (
@@ -228,6 +231,7 @@ function GameApp() {
           <div className="drop-box">Drop PGN, analysis JSON and notes<br /><span>one file or all three at once · if dropping doesn’t work here, use Load game…</span></div>
         </div>
       )}
+      <ExportOverlay x={video} />
       {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} />}
       <TweaksPanel open={panel} onClose={closePanel}>
         <TweakSection label="Appearance" />
@@ -263,6 +267,8 @@ function GameApp() {
         <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
         <TweakSection label="Video" />
         <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, End jumps to the last move.</div>
+        {(downloads || !IN_CLAUDE) && <TweakButton label="Export video (MP4, 8 fps)" disabled={video.busy} onClick={exportVideo} />}
+        {(downloads || !IN_CLAUDE) && <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil(TM.total * EXPORT_FPS * 0.2))} for this game, longer on a phone. The camera push is left out.</div>}
         <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
         <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
         <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
