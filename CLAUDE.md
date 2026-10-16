@@ -9,7 +9,7 @@ Browser player for annotated chess games: the claude.ai artifact and the boneyla
 - Preview: `python3 -m http.server 8765 --bind 127.0.0.1 --directory out/site` with the sandbox disabled (a sandboxed server is unreachable from Playwright, and `file://` is blocked); phone layout = 390×844 viewport
 
 ## Publishing (only when asked)
-1. Artifact: publish `out/chess-game-video.html` to https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT (Artifact tool, `url` set). In a new session the first publish is refused and returns the live diff; check it holds only your changes, then publish again
+1. Artifact: publish `out/chess-game-video.html` to https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT (Artifact tool, `url` set). In a new session the first publish is refused and returns the live diff; check it holds only your changes. The next unchanged resend is refused too (a deliberate double-check); send it a third time and it goes through
 2. Netlify: copy `out/site/chess-game-video.html` (plus the two `stockfish-19-lite-single.*` files if `vendor/` changed) into `~/Documents/Obsidian/personal/docs/files/`, commit and push that vault (needs the sandbox disabled). Production deploys are manual and cost the user credits: say it's ready, don't poll the live site
 
 ## Workflow
