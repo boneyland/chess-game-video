@@ -114,7 +114,7 @@ The repo's `openings/*.tsv` is Lichess's chess-openings data (CC0, 3,820 lines, 
 
 ## Engine plumbing
 
-- Vendor the two release files from v19.0.1 into `artifact/vendor/` (pinned; record the SHA-256 in the README). Include the GPL notice: a "Stockfish 19 (GPL-3.0) · source" link in the page's Settings or end-of-panel note, pointing to the nmrugg repo.
+- Vendor the two release files from v19.0.1 into `vendor/` (pinned; record the SHA-256 in the README). Include the GPL notice: a "Stockfish 19 (GPL-3.0) · source" link in the page's Settings or end-of-panel note, pointing to the nmrugg repo.
 - **Netlify copy:** `build.cjs` copies both files into `out/site/` beside `chess-game-video.html`; deploying means copying all three into the vault's `docs/files/`. The page creates `new Worker('stockfish-19-lite-single.js')` relative to itself, lazily on the first own move or Analyse press.
 - **claude.ai artifact (best effort):** Workers must be same-origin there, so try a blob Worker with the glue inlined and the wasm passed as bytes (base64 inlined, ~2.5 MB, within the 16 MB limit) — e.g. via the Emscripten `wasmBinary`/`locateFile` hooks. If it can't be made to run, detect failure (worker error or no `uciok` within a timeout) and show: "Stockfish can't run inside claude.ai. Open the self-hosted copy to analyse." with a link to the Netlify URL. Own-move evals are then simply absent.
 - One engine instance for the page. Own-move searches and the full-game analysis share it: while an analysis runs, an own-move search goes next after the current position (≤ 3 s wait) — my call.

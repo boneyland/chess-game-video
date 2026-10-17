@@ -8,12 +8,12 @@
 
 **Tech Stack:** Plain JS + React 18 (precompiled by `build.cjs` with @babel/standalone), stockfish.js v19.0.1 `lite-single`, `node --test` (Node 22) for JS tests, `unittest` in `.venv` for the Python-side check.
 
-**Spec:** `artifact/docs/2026-10-16-browser-stockfish-design.md` (approved 2026-10-16). Read it first; this plan argues from it.
+**Spec:** `docs/2026-10-16-browser-stockfish-design.md` (approved 2026-10-16). Read it first; this plan argues from it.
 
 ## Global Constraints
 
 - `artifact/` is local only (`.git/info/exclude`). **Never `git add` anything under `artifact/` or `.superpowers/`.** There are no commits in this plan; each task ends with its tests green and `node build.cjs` succeeding.
-- Engine: stockfish.js **v19.0.1** `stockfish-19-lite-single.js` (SHA-256 `ccb130d7ff29408531c47d859a49f91d59d4f482d05a53eb1a3231a4f624c91a`) + `.wasm` (`ee4f115bdb2d32cadf96cada104a05b5ec257d7ad6f57582190b49bc71f096de`), vendored in `artifact/vendor/`; GPL-3.0.
+- Engine: stockfish.js **v19.0.1** `stockfish-19-lite-single.js` (SHA-256 `ccb130d7ff29408531c47d859a49f91d59d4f482d05a53eb1a3231a4f624c91a`) + `.wasm` (`ee4f115bdb2d32cadf96cada104a05b5ec257d7ad6f57582190b49bc71f096de`), vendored in `vendor/`; GPL-3.0.
 - Search limits: full game `go depth 22 movetime 3000`; own moves `go depth 24 movetime 3000`; `setoption name Hash value 64` once; one engine instance per page.
 - Engine label: `"Stockfish 19 lite (browser)"`; header text "Stockfish 19 lite · browser · depth 22, max 3s per position".
 - Evals in centipawns from White's point of view; mate = `±(10000 − 10·N)`; the Python constants (`BEST_MAX_LOSS_CP = 5`, win-drop 0.10/0.20/0.30, `K = 0.00368208`, `MAX_EVAL_LOSS_FOR_ACCURACY = 1500`, `MATE_INACCURACY_CP = 999`, `MATE_MISTAKE_CP = 700`, `MATE_BAND_CP = 1000`, `MATE_STEP_CP = 10`, `BEST_LINE_MAX_PLIES = 12`, `MATE_LINE_MAX_PLIES = 9`, mate advice strings) copied verbatim from `chess_game_analyzer.py`.
@@ -34,10 +34,10 @@
 ### Task 1: `analysis-core.js` — Python rating, stats and JSON, ported
 
 **Files:**
-- Create: `artifact/app/analysis-core.js`
-- Create: `artifact/tests/analysis-core.test.cjs`
-- Create: `artifact/tests/fixtures/` — copy `sample_game_analysis.json` and `games/soda-vs-neo_analysis.json` (10 mate-advice moves) as `byrne-fischer_analysis.json`, `soda-neo_analysis.json`
-- Create: `artifact/tests/load.cjs` — test helper: `loadUnit(relPath)` sets `global.window = globalThis` and `require`s a plain-script unit
+- Create: `app/analysis-core.js`
+- Create: `tests/analysis-core.test.cjs`
+- Create: `tests/fixtures/` — copy `sample_game_analysis.json` and `games/soda-vs-neo_analysis.json` (10 mate-advice moves) as `byrne-fischer_analysis.json`, `soda-neo_analysis.json`
+- Create: `tests/load.cjs` — test helper: `loadUnit(relPath)` sets `global.window = globalThis` and `require`s a plain-script unit
 
 **Interfaces:**
 - Produces `window.AnalysisCore`:
@@ -54,36 +54,36 @@
   - `infoToScore`: `('info depth 20 seldepth 30 score cp 35 nodes 1 pv e2e4 e7e5', 'b')` → `{ cp: -35, depth: 20, pv: ['e2e4','e7e5'] }`; `('… score mate 3 … pv …', 'w')` → `cp: 9970`; `('… score mate -2 …', 'w')` → `-9980`; `score mate 0` with side to move `'b'` (Black is mated) → `10000`; with `'w'` → `-10000`; a `lowerbound` line → `null`.
   - `buildAnalysisJson keys`: the result's top-level keys and the first move's keys equal those of the Byrne–Fischer fixture (order-insensitive).
 
-- [ ] **Step 2: Run** `node --test artifact/tests/` — expected FAIL (`AnalysisCore` undefined).
+- [ ] **Step 2: Run** `node --test tests/` — expected FAIL (`AnalysisCore` undefined).
 
 - [ ] **Step 3: Implement** `analysis-core.js` as an IIFE assigning `window.AnalysisCore`, porting `winning_chances`, `_classify_move`, `mate_advice`, the `eval_loss` block of `analyze_game` (mate-in-N step adjustment, clamp, zero when played is best, cap 1500), `_calculate_player_stats`. `rateMove` skips mate rules when `playedIsBest` or `isCheckmate`, exactly as `analyze_game` does.
 
-- [ ] **Step 4: Run** `node --test artifact/tests/` — expected PASS.
+- [ ] **Step 4: Run** `node --test tests/` — expected PASS.
 
 ### Task 2: `openings-core.js` — the Lichess opening book, ported
 
 **Files:**
-- Create: `artifact/app/openings-core.js`
-- Create: `artifact/tests/openings-core.test.cjs`
-- Create: `artifact/tests/fixtures/openings-expected.json` — generated once by `artifact/tests/make_openings_expected.py` (run with `.venv/bin/python`): for each `games/*.pgn` game and `sample_game.pgn`, `{ ucis, byPly: [name|null…], identify: {eco,name}|null }` from `chess_openings.OpeningBook.load()`
-- Modify: `artifact/build.cjs` — new unit `openings-data.js` = `window.OPENINGS_TSV = <JSON string of the five ../openings/*.tsv concatenated, header rows removed>`
-- Modify: `artifact/app/chess-core.js` — export on `window.ChessCore`: `applySan(pos, san) → { pos, uci }` (wraps `sanToMove` + `applyMove`) and `applyUci(pos, uci) → { pos, san } | null` (null when illegal; SAN via the existing `sanOf`)
+- Create: `app/openings-core.js`
+- Create: `tests/openings-core.test.cjs`
+- Create: `tests/fixtures/openings-expected.json` — generated once by `tests/make_openings_expected.py` (run with `.venv/bin/python`): for each `games/*.pgn` game and `sample_game.pgn`, `{ ucis, byPly: [name|null…], identify: {eco,name}|null }` from `chess_openings.OpeningBook.load()`
+- Modify: `build.cjs` — new unit `openings-data.js` = `window.OPENINGS_TSV = <JSON string of the five ../openings/*.tsv concatenated, header rows removed>`
+- Modify: `app/chess-core.js` — export on `window.ChessCore`: `applySan(pos, san) → { pos, uci }` (wraps `sanToMove` + `applyMove`) and `applyUci(pos, uci) → { pos, san } | null` (null when illegal; SAN via the existing `sanOf`)
 
 **Interfaces:**
 - Produces `window.Openings`: `book() → Book` (lazy, cached; builds from `window.OPENINGS_TSV`), `Book.byPly(ucis: string[]) → ({eco,name}|null)[]`, `Book.identify(ucis) → {eco,name}|null`.
 - Position key must equal python-chess `board.epd()` semantics: placement, side, castling rights (tracked: lost when the king moves or a rook leaves / is captured on its home square), and the en-passant square **only when a legal en-passant capture exists**.
 
 - [ ] **Step 1: Write the failing tests**: `byPly and identify match Python on every fixture game` (deep-equal per game); `build time`: `book()` from cold under 300 ms (print the measured ms either way).
-- [ ] **Step 2: Run** the generator, then `node --test artifact/tests/` — expected FAIL.
+- [ ] **Step 2: Run** the generator, then `node --test tests/` — expected FAIL.
 - [ ] **Step 3: Implement** `openings-core.js` (port of `OpeningBook.from_rows`: name the last position of each line; every position takes the deepest named position before it on its line, first in data on ties). Replay SAN with `ChessCore.applySan`; track castling rights and legal en passant in the key yourself.
 - [ ] **Step 4: Run** tests — expected PASS. If the build time is over 300 ms, move the table build into `build.cjs` (emit the EPD→opening map instead of the TSV), re-run, and note the page-size change.
 
 ### Task 3: `sf-engine.js` — UCI over a Worker, with a priority queue
 
 **Files:**
-- Create: `artifact/vendor/stockfish-19-lite-single.js`, `artifact/vendor/stockfish-19-lite-single.wasm` (from the v19.0.1 release; verify the SHA-256s above)
-- Create: `artifact/app/sf-engine.js`
-- Create: `artifact/tests/sf-engine.test.cjs`, `artifact/tests/node-worker.cjs` (adapter: spawns `node vendor/stockfish-19-lite-single.js` with `detached: true`, exposes `postMessage(str)`, `onmessage = ({data})`, `terminate()`)
+- Create: `vendor/stockfish-19-lite-single.js`, `vendor/stockfish-19-lite-single.wasm` (from the v19.0.1 release; verify the SHA-256s above)
+- Create: `app/sf-engine.js`
+- Create: `tests/sf-engine.test.cjs`, `tests/node-worker.cjs` (adapter: spawns `node vendor/stockfish-19-lite-single.js` with `detached: true`, exposes `postMessage(str)`, `onmessage = ({data})`, `terminate()`)
 
 **Interfaces:**
 - Consumes: `AnalysisCore.infoToScore`.
@@ -102,9 +102,9 @@
 ### Task 4: Full-game analysis runner
 
 **Files:**
-- Modify: `artifact/app/analysis-core.js` — add `runAnalysis`
-- Modify: `artifact/tests/analysis-core.test.cjs`
-- Create: `artifact/tests/check_browser_json.py` (unittest, run with `.venv/bin/python -m unittest artifact/tests/check_browser_json.py`)
+- Modify: `app/analysis-core.js` — add `runAnalysis`
+- Modify: `tests/analysis-core.test.cjs`
+- Create: `tests/check_browser_json.py` (unittest, run with `.venv/bin/python -m unittest tests/check_browser_json.py`)
 
 **Interfaces:**
 - Consumes: `Engine.search`, `rateMove`, `mateLine`, `playerStats`, `buildAnalysisJson`, `Openings.book()`, `ChessCore.applySan`, `ChessCore.applyUci` (SAN of best lines and PVs).
@@ -116,21 +116,21 @@
 ### Task 5: Page wiring — analyse button, progress, keep & save
 
 **Files:**
-- Create: `artifact/app/stockfish.jsx` — hooks: `useEngine()` (lazy `SFEngine.create`, returns `{ get(): Promise<Engine>, status: 'idle'|'loading'|'ready'|'unavailable' }`), `useGameAnalysis(M, files, commit, engine)` → `{ state: 'idle'|'running'|'done', done, total, etaSec, start(), stop() }`
-- Modify: `artifact/build.cjs` — units in order: `analysis-core.js`, `openings-data.js`, `openings-core.js`, `sf-engine.js` after `chess-core.js`; `stockfish.jsx` concatenated into the `game-video.jsx` unit before `game-app.jsx`; copy both `vendor/` files into `out/site/`
-- Modify: `artifact/app/game-app.jsx` — wire the hooks; on finish `commit({ ...files, analysis: json, analysisName: '<White>_<Black>_analysis.json' })` (persists via the existing store); **Save analysis** button in Settings › Game next to "Save commentary as notes file", same download path as `downloadNotes`; changing `files` aborts a running analysis
-- Modify: `artifact/app/game-video-core.jsx` — `Analysis` empty state: while paused, "No engine analysis for this game." + primary **Analyse with Stockfish · about N min** (N = ⌈plies × 1.3 s / 60⌉) + "Stockfish 19 lite runs in your browser."; while running: "Analysing d / N · about X left" + bar + **Stop** (paused only); when the engine is `unavailable`: "Stockfish can't run here." + link to `https://boneyland.netlify.app/files/chess-game-video.html` when `IN_CLAUDE`
-- Modify: `artifact/app/chess-core.js` — engine label: with both `depth` and `time_limit`, `depth 22, max 3s per position` (Python `describe_search`)
+- Create: `app/stockfish.jsx` — hooks: `useEngine()` (lazy `SFEngine.create`, returns `{ get(): Promise<Engine>, status: 'idle'|'loading'|'ready'|'unavailable' }`), `useGameAnalysis(M, files, commit, engine)` → `{ state: 'idle'|'running'|'done', done, total, etaSec, start(), stop() }`
+- Modify: `build.cjs` — units in order: `analysis-core.js`, `openings-data.js`, `openings-core.js`, `sf-engine.js` after `chess-core.js`; `stockfish.jsx` concatenated into the `game-video.jsx` unit before `game-app.jsx`; copy both `vendor/` files into `out/site/`
+- Modify: `app/game-app.jsx` — wire the hooks; on finish `commit({ ...files, analysis: json, analysisName: '<White>_<Black>_analysis.json' })` (persists via the existing store); **Save analysis** button in Settings › Game next to "Save commentary as notes file", same download path as `downloadNotes`; changing `files` aborts a running analysis
+- Modify: `app/game-video-core.jsx` — `Analysis` empty state: while paused, "No engine analysis for this game." + primary **Analyse with Stockfish · about N min** (N = ⌈plies × 1.3 s / 60⌉) + "Stockfish 19 lite runs in your browser."; while running: "Analysing d / N · about X left" + bar + **Stop** (paused only); when the engine is `unavailable`: "Stockfish can't run here." + link to `https://boneyland.netlify.app/files/chess-game-video.html` when `IN_CLAUDE`
+- Modify: `app/chess-core.js` — engine label: with both `depth` and `time_limit`, `depth 22, max 3s per position` (Python `describe_search`)
 
-- [ ] **Step 1: Build and serve:** `node artifact/build.cjs`; serve `artifact/out/site/` with `python3 -m http.server` from that directory.
+- [ ] **Step 1: Build and serve:** `node build.cjs`; serve `out/site/` with `python3 -m http.server` from that directory.
 - [ ] **Step 2: Browser check (Playwright, one browser):** load a PGN with no evals (`games/lichess_pgn_2026.09.28_boneyland_vs_Futur_ist.NWhLXQYC.pgn` stripped of `%eval` if present) → button shows only while paused → run completes → ratings, eval plot and accuracy appear; reload → analysis is back, no button; Save analysis downloads a file that `check_browser_json.py` accepts; start a run then "Back to sample game" → sample shows unchanged, no late write.
 - [ ] **Step 3: Fix what failed, repeat Step 2.**
 
 ### Task 6: Own-move evaluation
 
 **Files:**
-- Modify: `artifact/app/stockfish.jsx` — `useMoveEval(engine, baseUcis: string[], line: {uci}[], upto: number)` → `{ before: Score|null, after: Score|null, pending: boolean }`; searches the positions before and after `line[upto]` at `depth 24, movetime 3000, priority 'own'`; caches by the move list joined with spaces; cancels on change; streams `onInfo`
-- Modify: `artifact/app/game-video-core.jsx` — `Analysis` when `vline.src === 'you' && vline.upto >= 0`: the move in `lineAccent('you')`, "YOUR MOVE · −N CP vs <best SAN>" + rating colour (from `rateMove` on the two scores), **EVAL** (“…” until the first info), **Stockfish replies** chips (≤ 8 plies of `after.pv`, clickable through the existing `onLine` path)
+- Modify: `app/stockfish.jsx` — `useMoveEval(engine, baseUcis: string[], line: {uci}[], upto: number)` → `{ before: Score|null, after: Score|null, pending: boolean }`; searches the positions before and after `line[upto]` at `depth 24, movetime 3000, priority 'own'`; caches by the move list joined with spaces; cancels on change; streams `onInfo`
+- Modify: `app/game-video-core.jsx` — `Analysis` when `vline.src === 'you' && vline.upto >= 0`: the move in `lineAccent('you')`, "YOUR MOVE · −N CP vs <best SAN>" + rating colour (from `rateMove` on the two scores), **EVAL** (“…” until the first info), **Stockfish replies** chips (≤ 8 plies of `after.pv`, clickable through the existing `onLine` path)
 
 - [ ] **Step 1: Browser check:** pause on the sample game, drag a move → eval appears within ~0.5 s and settles by 3 s; a reply chip plays the line; castle in an own line from the start position (1.e4 e5 2.Nf3 Nc6 3.Bc4 Nf6 4.O-O) → sane eval; Esc returns to the game; a second move in the line is evaluated too; during a full-game analysis, an own move answers within ~3 s.
 - [ ] **Step 2: Fix and repeat.**
@@ -138,9 +138,9 @@
 ### Task 7: Start paused, Ask Queen in the panel, per-ply book name
 
 **Files:**
-- Modify: `artifact/app/engine.jsx` — `Stage`: `playing` initial `false`; initial time = the value passed as a new prop `startTime` (when given) instead of the stored playhead; first Play on that untouched frame seeks to 0 then plays
-- Modify: `artifact/app/game-video-core.jsx` / `game-app.jsx` — pass `startTime = settled(-1)` (`S.tp[0] − 0.3`); Ask Queen button in the `Analysis` panel header (paused only, every game), removed from `dockItems`; the existing opening line shows `Openings.book().byPly(ucis)[c]` while in book, nothing after
-- Modify: `artifact/app/chess-core.js` `buildGame` — when the `Opening` header is missing/`?`/`Unknown`, fill `eco`/`opening` from `Openings.book().identify`
+- Modify: `app/engine.jsx` — `Stage`: `playing` initial `false`; initial time = the value passed as a new prop `startTime` (when given) instead of the stored playhead; first Play on that untouched frame seeks to 0 then plays
+- Modify: `app/game-video-core.jsx` / `game-app.jsx` — pass `startTime = settled(-1)` (`S.tp[0] − 0.3`); Ask Queen button in the `Analysis` panel header (paused only, every game), removed from `dockItems`; the existing opening line shows `Openings.book().byPly(ucis)[c]` while in book, nothing after
+- Modify: `app/chess-core.js` `buildGame` — when the `Opening` header is missing/`?`/`Unknown`, fill `eco`/`opening` from `Openings.book().identify`
 
 - [ ] **Step 1: Browser check** at 1280×800 and 390×844: page opens paused with all panels and both buttons; first Play starts at the title card; Ask Queen opens the Queen panel and is tappable at phone width; the dock has no Ask Queen; a PGN without `Opening` header shows the book name; the opening line changes ply by ply and disappears out of book.
 - [ ] **Step 2: Fix and repeat.**
@@ -148,9 +148,9 @@
 ### Task 8: Ship — Netlify copy, artifact best effort, docs
 
 **Files:**
-- Modify: `artifact/app/sf-engine.js` / `stockfish.jsx` — `makeWorker` for claude.ai: Blob Worker from the inlined glue, wasm as a Blob URL passed in the hash (`new Worker(glueURL + '#' + encodeURIComponent(wasmURL))` — the glue reads `self.location.hash`), wasm bytes inlined as base64 by `build.cjs` in the artifact build only
-- Modify: `artifact/README.md` — vendor files + SHA-256s, the three deploy files, the GPL note; Settings gets "Stockfish 19 (GPL-3.0) · source" linking https://github.com/nmrugg/stockfish.js
+- Modify: `app/sf-engine.js` / `stockfish.jsx` — `makeWorker` for claude.ai: Blob Worker from the inlined glue, wasm as a Blob URL passed in the hash (`new Worker(glueURL + '#' + encodeURIComponent(wasmURL))` — the glue reads `self.location.hash`), wasm bytes inlined as base64 by `build.cjs` in the artifact build only
+- Modify: `README.md` — vendor files + SHA-256s, the three deploy files, the GPL note; Settings gets "Stockfish 19 (GPL-3.0) · source" linking https://github.com/nmrugg/stockfish.js
 
-- [ ] **Step 1:** `node --test artifact/tests/` and the Python check — PASS; `node artifact/build.cjs`.
+- [ ] **Step 1:** `node --test tests/` and the Python check — PASS; `node build.cjs`.
 - [ ] **Step 2:** Ask the user before deploying: copy `out/site/chess-game-video.html` and both `stockfish-19-lite-single.*` into `~/Documents/Obsidian/personal/docs/files/`; after their Netlify deploy, `curl -I` the `.wasm` → `200` with `content-type: application/wasm`.
 - [ ] **Step 3:** Publish `out/chess-game-video.html` to https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT; ask the user to try an own move there. If the engine doesn't start, confirm the fallback note shows, drop the inlined wasm from the artifact build (back to ~250 KB), and record the reason in the README.

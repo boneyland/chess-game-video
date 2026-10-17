@@ -12,7 +12,6 @@ const units = [
   ['openings-core.js', read(path.join(app, 'openings-core.js'))],
   ['sf-engine.js', read(path.join(app, 'sf-engine.js'))],
   ['sample-game.js', read(path.join(src, 'sample-game.js'))],
-  ['game-data.js', read(path.join(src, 'game-data.js'))],
   ['sample-analysis.js', read(path.join(app, 'sample-analysis.js'))],
   ['engine.jsx', jsx(read(path.join(app, 'engine.jsx')), 'engine.jsx')],
   ['tweaks.jsx', jsx(read(path.join(app, 'tweaks.jsx')), 'tweaks.jsx')],
