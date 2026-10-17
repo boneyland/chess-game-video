@@ -335,7 +335,8 @@ function LineChips({ name, nameColor, accent, moves, c, legal, sel, onPick }) {
           <span key={j} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             {(white || j === 0) && <span style={{ color: C.dim, marginLeft: j ? 6 : 0, font: `500 15px ${MONO}` }}>{num}{white ? '.' : '…'}</span>}
             <span className={ok ? 'mv' : undefined} role={ok ? 'button' : undefined} title={ok ? `Show ${name.toLowerCase()} on the board up to ${m}` : 'Not a legal move in this line'}
-              onClick={ok ? (e) => { e.stopPropagation(); onPick(j); } : undefined}
+              onClick={ok ? (e) => { e.stopPropagation(); onPick(j); } : undefined} tabIndex={ok ? 0 : undefined}
+              onKeyDown={ok ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onPick(j); } } : undefined}
               style={{ cursor: ok ? 'pointer' : 'default', opacity: ok ? 1 : 0.4, padding: '2px 8px', borderRadius: 4, font: `${j === 0 || on ? 700 : 600} 16px ${MONO}`, background: white ? '#f1ebe1' : '#2a2320', color: white ? '#15100d' : '#efe8de', boxShadow: on ? `0 0 0 3px ${C.last}` : 'none', border: j === 0 ? `2px solid ${accent}` : `1px solid ${white ? 'rgba(60,40,20,0.22)' : 'rgba(255,236,214,0.22)'}` }}>{m}</span>
           </span>
         );
@@ -439,7 +440,8 @@ function MoveList({ M, T, S, a, paused, onPick }) {
       const P = M.plies[i], cur = i === c;
       const shown = cl01((T - S.tp[i]) / 0.15);
       return (
-        <span className="mv" role="button" title={`Go to ${label(M, i)}`} onClick={(e) => { e.stopPropagation(); onPick(i); }}
+        <span className="mv" role="button" tabIndex={0} title={`Go to ${label(M, i)}`} onClick={(e) => { e.stopPropagation(); onPick(i); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(i); } }}
           style={{ opacity: paused ? Math.max(shown, 0.35) : shown, padding: '3px 8px', borderRadius: 4, justifySelf: 'start', cursor: 'pointer', background: cur ? 'rgba(227,181,91,0.18)' : 'transparent', color: P.cls === 'none' ? C.ink : clsColor(P.cls), fontWeight: cur ? 700 : 500 }}>{P.san}{P.mark || ''}</span>
       );
     };
