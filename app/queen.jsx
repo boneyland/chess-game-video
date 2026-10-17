@@ -116,8 +116,9 @@ const uciToSan = (M, i, uci) => {
 // Space's Gradio API itself, signed in with Hugging Face (the visitor's ZeroGPU quota) or anonymously.
 const IN_CLAUDE = !!window.claude;
 const DIRECT_API = 'https://boneyland-queen-pawn-8.hf.space/gradio_api';
-// Public OAuth app (no secret) registered at huggingface.co/settings/applications; its redirect URL must match `redirect`
-const HF_OAUTH = { clientId: '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: 'https://chess-replay.netlify.app/' };
+// Public OAuth app (no secret) registered at huggingface.co/settings/applications. Sign-in returns to the folder the
+// page is served from (https://chess-replay.netlify.app/, the Codeberg Pages copy); each must be a redirect URL there
+const HF_OAUTH = { clientId: '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: location.origin + location.pathname.replace(/[^/]*$/, '') };
 const AUTH_STORE = 'chess-video.hf-auth.v1', PKCE_STORE = 'chess-video.hf-pkce';
 
 async function directCall(moves, token, signal) {

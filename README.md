@@ -1,9 +1,9 @@
 # Chess Game Video (artifact sources)
 
-The browser player behind the claude.ai artifact and https://chess-replay.netlify.app/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
+The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/ and its Codeberg Pages copy. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
 
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser)
-- `src/`: original Claude Design files (`support.js` is the Claude Design runtime; not used by the build)
+- `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, `game-data.js` go into the build); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
 - `babel/babel.min.js`: @babel/standalone 7.29.0, used only to precompile the JSX
 - `vendor/`: stockfish.js v19.0.1 `lite-single` (GPL-3.0, https://github.com/nmrugg/stockfish.js), unchanged release files
   - `stockfish-19-lite-single.js` sha256 `ccb130d7ff29408531c47d859a49f91d59d4f482d05a53eb1a3231a4f624c91a`
@@ -18,3 +18,7 @@ Build: `node build.cjs` writes
 - `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/:
   - `chess-game-video.html`
   - `stockfish-19-lite-single.js`, `stockfish-19-lite-single.wasm` (loaded from next to the page)
+
+Codeberg Pages: `./pages.sh` builds, commits `out/site/` to the `pages` branch (the page renamed `index.html`, plus `LICENSE`) and pushes `main` and `pages` to the `codeberg` remote (`--no-push` to only commit).
+
+Licence: GPL-3.0-or-later (`LICENSE`), the same as the bundled Stockfish.
