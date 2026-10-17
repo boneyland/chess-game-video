@@ -17,7 +17,7 @@ function useTweaks(defaults) {
   return [values, setTweak];
 }
 
-function TweaksPanel({ open, onClose, title = 'Settings', children }) {
+function TweaksPanel({ open, onClose, title = 'Settings', wide = false, children }) {
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -26,7 +26,7 @@ function TweaksPanel({ open, onClose, title = 'Settings', children }) {
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <aside className="twk-panel" aria-label={title}>
+    <aside className={'twk-panel' + (wide ? ' twk-wide' : '')} aria-label={title}>
       <div className="twk-hd">
         <b>{title}</b>
         <button type="button" className="twk-x" aria-label="Close settings" onClick={onClose}>✕</button>
@@ -36,7 +36,8 @@ function TweaksPanel({ open, onClose, title = 'Settings', children }) {
   );
 }
 
-function TweakSection({ label }) { return <div className="twk-sect">{label}</div>; }
+// a titled group of rows; the wide panel lays groups out in columns, never splitting one, and `column` starts a new one
+function TweakSection({ label, column = false, children }) { return <section className={'twk-group' + (column ? ' twk-col' : '')}><div className="twk-sect">{label}</div>{children}</section>; }
 
 function TweakRow({ label, value, children }) {
   return (

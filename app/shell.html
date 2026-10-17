@@ -129,8 +129,16 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 .twk-body { display: flex; flex-direction: column; gap: 10px; padding: 2px 14px 14px; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
 /* a scrolling flex column squeezes its children before it scrolls: a wrapped two-line button lost its second line */
 .twk-body > * { flex-shrink: 0; }
-.twk-sect { padding-top: 10px; font: 600 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
-.twk-sect:first-child { padding-top: 0; }
+.twk-group { display: flex; flex-direction: column; gap: 10px; }
+.twk-group + .twk-group { padding-top: 10px; }
+.twk-sect { font: 600 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+/* desktop: Settings flows its groups into columns, so the panel is wide and short rather than a long scroll */
+@media (min-width: 900px) {
+  .twk-wide { width: min(940px, calc(100% - 32px)); }
+  .twk-wide .twk-body { display: block; columns: 3 260px; column-gap: 28px; padding-top: 4px; }
+  .twk-wide .twk-group { break-inside: avoid; padding: 0 0 20px; }
+  .twk-wide .twk-col { break-before: column; }
+}
 .twk-row { display: flex; flex-direction: column; gap: 5px; }
 .twk-row-h { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
 .twk-lbl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: var(--ink); font-weight: 500; }

@@ -263,51 +263,57 @@ function GameApp() {
       )}
       <ExportOverlay x={video} />
       {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} />}
-      <TweaksPanel open={panel} onClose={closePanel}>
-        <TweakSection label="Appearance" />
-        <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
-        <TweakSection label="Game" />
-        <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
-        <TweakButton label="Load game (PGN)…" onClick={() => inputRef.current.click()} />
-        <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel. Analysis, notes and Queen answer files saved from this page load here too.</div>
-        {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
-        {M.canChooseSource && (
-          <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
-        )}
-        {M.gameCount > 1 && (
-          <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
-        )}
-        <TweakSection label="Commentary" />
-        {sample && <>
-          <TweakRadio id="tw-tone" label="Style" value={t.aiTone || 'Broadcast'} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
-          <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || 'Beginners'} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
-          <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || 'Key moments'} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
-        </>}
-        {sample
-          ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
-          : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
-        {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
-        {M.hasNotes && <div className="twk-note">Your notes file takes priority over Claude's comments on the same move.</div>}
-        {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
-        {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save commentary as notes file" onClick={downloadNotes} />}
-        {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
-        {saveMsg && <div className="twk-note">{saveMsg}</div>}
-        <TweakSection label="Pace" />
-        <div className="twk-note">Video length {fmtLen(TM.total)}{TM.capped ? ' (capped at 5:00)' : ''}</div>
-        <TweakSlider id="tw-spm" label="Seconds per move" value={t.secondsPerMove} min={0.5} max={4} step={0.1} unit="s" onChange={(v) => setTweak('secondsPerMove', v)} />
-        <TweakSlider id="tw-hold" label="Extra hold on marked moves" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
-        <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
-        <TweakSection label="Video" />
-        <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, End jumps to the last move.</div>
-        {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
-        {(downloads || !IN_CLAUDE) && <TweakButton label={`Export video (MP4, ${exportFps} fps)`} disabled={video.busy} onClick={exportVideo} />}
-        {(downloads || !IN_CLAUDE) && <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil(TM.total * exportFps * 0.17))} for this game, longer on a phone. More frames per second play smoother and take longer. The camera push is left out.</div>}
-        <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
-        <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
-        <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
-        <div className="twk-note">Shows Queen’s answers in Commentary and Analysis on the moves it has analysed. Moves with a Queen sentence stay on screen longer.</div>
-        <TweakSection label="Engine" />
-        <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite running in your browser: depth 22 or 3 s per position for a game, depth 24 or 3 s for your moves. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+      <TweaksPanel open={panel} onClose={closePanel} wide>
+        <TweakSection label="Appearance">
+          <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
+        </TweakSection>
+        <TweakSection label="Game">
+          <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
+          <TweakButton label="Load game (PGN)…" onClick={() => inputRef.current.click()} />
+          <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel. Analysis, notes and Queen answer files saved from this page load here too.</div>
+          {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
+          {M.canChooseSource && (
+            <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
+          )}
+          {M.gameCount > 1 && (
+            <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
+          )}
+        </TweakSection>
+        <TweakSection label="Commentary" column>
+          {sample && <>
+            <TweakRadio id="tw-tone" label="Style" value={t.aiTone || 'Broadcast'} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
+            <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || 'Beginners'} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
+            <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || 'Key moments'} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
+          </>}
+          {sample
+            ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
+            : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
+          {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
+          {M.hasNotes && <div className="twk-note">Your notes file takes priority over Claude's comments on the same move.</div>}
+          {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
+          {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save commentary as notes file" onClick={downloadNotes} />}
+          {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
+          {saveMsg && <div className="twk-note">{saveMsg}</div>}
+        </TweakSection>
+        <TweakSection label="Pace">
+          <div className="twk-note">Video length {fmtLen(TM.total)}{TM.capped ? ' (capped at 5:00)' : ''}</div>
+          <TweakSlider id="tw-spm" label="Seconds per move" value={t.secondsPerMove} min={0.5} max={4} step={0.1} unit="s" onChange={(v) => setTweak('secondsPerMove', v)} />
+          <TweakSlider id="tw-hold" label="Extra hold on marked moves" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
+          <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
+        </TweakSection>
+        <TweakSection label="Engine">
+          <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite running in your browser: depth 22 or 3 s per position for a game, depth 24 or 3 s for your moves. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+        </TweakSection>
+        <TweakSection label="Video" column>
+          <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, End jumps to the last move.</div>
+          {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
+          {(downloads || !IN_CLAUDE) && <TweakButton label={`Export video (MP4, ${exportFps} fps)`} disabled={video.busy} onClick={exportVideo} />}
+          {(downloads || !IN_CLAUDE) && <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil(TM.total * exportFps * 0.17))} for this game, longer on a phone. More frames per second play smoother and take longer. The camera push is left out.</div>}
+          <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
+          <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
+          <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
+          <div className="twk-note">Shows Queen’s answers in Commentary and Analysis on the moves it has analysed. Moves with a Queen sentence stay on screen longer.</div>
+        </TweakSection>
       </TweaksPanel>
     </React.Fragment>
   );
