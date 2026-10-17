@@ -196,8 +196,21 @@ function useHfAuth() {
   return { auth, enabled, start, signOut, note, clearNote: () => setNote('') };
 }
 
+// answers are kept oldest first; past QUEEN_MAX the oldest go, so the cache can't crowd out the saved game
+const QUEEN_MAX = 200;
 function readQueenCache() { try { return JSON.parse(localStorage.getItem(QUEEN_STORE) || '{}') || {}; } catch (e) { return {}; } }
-function writeQueenCache(c) { try { localStorage.setItem(QUEEN_STORE, JSON.stringify(c)); } catch (e) {} }
+// false when the storage is full even after dropping the older half again and again; true, or null with no storage
+function writeQueenCache(c) {
+  let keys = Object.keys(c);
+  for (;;) {
+    try { localStorage.setItem(QUEEN_STORE, JSON.stringify(Object.fromEntries(keys.map((k) => [k, c[k]])))); return true; }
+    catch (e) {
+      if (!e || (e.name !== 'QuotaExceededError' && e.name !== 'NS_ERROR_DOM_QUOTA_REACHED')) return null;
+      if (keys.length <= 1) return false;
+      keys = keys.slice(Math.ceil(keys.length / 2));
+    }
+  }
+}
 
 // at = number of plies played; the position is the one before ply index `at`
 function useQueen(M, mcp, hf) {
@@ -240,8 +253,12 @@ function useQueen(M, mcp, hf) {
             seconds: p.seconds || null, source: p.move_source || 'best_move', at,
           };
           note({ at, ok: true, secs: Math.round((Date.now() - started) / 1000), gpu: p.seconds ? Math.round(p.seconds) : null, tokens: p.generated_tokens || null });
-          cacheRef.current = { ...cacheRef.current, [key]: r };
-          writeQueenCache(cacheRef.current); setCache(cacheRef.current);
+          let next = { ...cacheRef.current, [key]: r };
+          const keys = Object.keys(next);
+          if (keys.length > QUEEN_MAX) next = Object.fromEntries(keys.slice(-QUEEN_MAX).map((k) => [k, next[k]]));
+          cacheRef.current = next;
+          if (writeQueenCache(next) === false) setErr('The browser’s storage is full: this answer is kept until you leave the page, not after a reload.');
+          setCache(next);
           return r;
         } catch (e) {
           const secs = Math.round((Date.now() - started) / 1000);

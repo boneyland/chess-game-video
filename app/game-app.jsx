@@ -18,11 +18,28 @@ function useCapability(name) {
   return cap;
 }
 
-// Auto follows the viewer's claude.ai theme (data-theme on the root) or the system setting; Light/Dark override both
+// An embedding page on another origin (the notes site) can't be read, so it posts its scheme instead:
+// this page sends { type: 'chess-replay:scheme?' } once, and the parent answers, then posts again on each toggle,
+//   { type: 'chess-replay:scheme', scheme: 'dark' | 'light' }
+const SCHEME_MSG = 'chess-replay:scheme';
+let postedScheme = null;
+const schemeListeners = new Set();
+if (window.parent !== window && !IN_CLAUDE) {
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (e.source !== window.parent || !d || d.type !== SCHEME_MSG || (d.scheme !== 'dark' && d.scheme !== 'light')) return;
+    postedScheme = d.scheme;
+    schemeListeners.forEach((f) => f());
+  });
+  try { window.parent.postMessage({ type: SCHEME_MSG + '?' }, '*'); } catch (e) {}
+}
+
+// Auto follows the embedding page, the viewer's claude.ai theme (data-theme on the root) or the system setting; Light/Dark override all
 function useScheme(pref) {
-  // the notes site embeds this page in an iframe; its Material palette toggle sets data-md-color-scheme
+  // a same-origin embed with a Material palette toggle (data-md-color-scheme) is read directly
   const parentScheme = () => {
-    try { const b = window.parent !== window && window.parent.document.body; const s = b && b.getAttribute('data-md-color-scheme'); return s ? (s === 'slate' ? 'dark' : 'light') : null; } catch (e) { return null; }
+    try { const b = window.parent !== window && window.parent.document.body; const s = b && b.getAttribute('data-md-color-scheme'); if (s) return s === 'slate' ? 'dark' : 'light'; } catch (e) {}
+    return postedScheme;
   };
   const read = () => {
     if (pref === 'Light') return 'light';
@@ -47,7 +64,8 @@ function useScheme(pref) {
     const mo = new MutationObserver(update);
     mo.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
     try { if (window.parent !== window && window.parent.document.body) mo.observe(window.parent.document.body, { attributes: true, attributeFilter: ['data-md-color-scheme'] }); } catch (e) {}
-    return () => { try { if (mq) mq.removeEventListener('change', update); } catch (e) {} mo.disconnect(); };
+    schemeListeners.add(update);
+    return () => { try { if (mq) mq.removeEventListener('change', update); } catch (e) {} mo.disconnect(); schemeListeners.delete(update); };
   }, [pref]);
   return mode;
 }
