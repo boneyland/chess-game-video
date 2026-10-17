@@ -113,7 +113,7 @@ function ExportOverlay({ x }) {
         <div className="export-title">Exporting video</div>
         <div className="export-bar"><div style={{ width: pct + '%' }} /></div>
         <div className="export-line">{line}</div>
-        <div className="export-note">Keep this tab open and visible: the export pauses while it is hidden.</div>
+        <div className="export-note">Keep this tab open and visible: the export pauses while it is hidden. Resizing the window or turning the phone changes the layout, and the video with it.</div>
         {s.phase === 'render' && <button type="button" className="twk-btn secondary" onClick={x.cancel}>Cancel</button>}
       </div>
     </div>
