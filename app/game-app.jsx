@@ -231,7 +231,7 @@ function GameApp() {
       )}
       {drag && (
         <div className="drop">
-          <div className="drop-box">Drop PGN, analysis JSON and notes<br /><span>one file or all three at once · if dropping doesn’t work here, use Load game…</span></div>
+          <div className="drop-box">Drop a PGN<br /><span>with this page’s analysis or notes files too, if you have them · if dropping doesn’t work here, use Load game…</span></div>
         </div>
       )}
       <ExportOverlay x={video} />
@@ -241,7 +241,8 @@ function GameApp() {
         <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
         <TweakSection label="Game" />
         <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
-        <TweakButton label="Load PGN / analysis / notes…" onClick={() => inputRef.current.click()} />
+        <TweakButton label="Load game (PGN)…" onClick={() => inputRef.current.click()} />
+        <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel. Analysis and notes files saved from this page load here too.</div>
         {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
         {M.canChooseSource && (
           <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />

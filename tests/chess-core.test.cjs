@@ -88,3 +88,17 @@ test('analysis mate scores keep their distance (±(10000 − 10·N) is mate in N
   assert.equal(at('Nc3+').mate, -1);  // -9990
   assert.equal(at('Rc2#').checkmate, true);
 });
+
+// formats from cutechess's MoveEvaluation::scoreText and evalString: M is plies to mate (UCI mate 3 → +M5, mate -2 → -M4)
+test('cutechess engine comments give evals, turned to White’s point of view', () => {
+  const M = CC.buildGame({ pgn: '[Result "*"]\n\n1. e4 {book} e5 {book} 2. Nf3 {+0.31/20 1.2s} Nc6 {-0.25/18 0.95s} 3. Bc4 {-M4/12 0.081s} Nf6 {+M5/30 2.0s Book exit} 4. d3 {0.00/1 0s} *' });
+  assert.deepEqual(M.plies.map((p) => p.cp ?? (p.mate != null ? 'M' + p.mate : null)), [null, null, 31, 25, 'M-2', 'M-3', 0]);
+  assert.ok(!M.plies[0].comment);
+  assert.equal(M.hasEval, true);
+});
+
+test('an engine comment is not shown as commentary, the text after it is', () => {
+  const P = CC.buildGame({ pgn: '[Result "*"]\n\n1. e4 {+0.31/20 1.2s Book exit} e5 {Played 1/2 the time} *' });
+  assert.equal(P.plies[0].comment, 'Book exit');
+  assert.equal(P.plies[1].cp, undefined);
+});

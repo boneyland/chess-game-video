@@ -281,10 +281,17 @@
     const addComment = (raw) => {
       if (depth > 0) return;
       const ev = raw.match(/\[%eval\s+([^\]\s]+)/), ck = raw.match(/\[%clk\s+([\d:.]+)/);
-      const txt = raw.replace(/\[%[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+      // cutechess engine comments: {+0.25/20 1.2s}, {+M5/30 0.8s} (M counts plies), {book}; cutechess
+      // stores them for the side that just moved (its whitepov option only fixes engines that report White's view)
+      const ae = ev ? null : raw.match(/^\s*([+-]?)(?:(\d+(?:\.\d+)?)|M(\d+))\/\d+(?:\s+[\d.]+s\b)?/);
+      const txt = (ae ? raw.slice(ae[0].length) : raw).replace(/\[%[^\]]*\]/g, '').replace(/^\s*book\s*$/, '').replace(/\s+/g, ' ').trim();
       const t = plies[plies.length - 1];
       if (!t) { if (txt) intro = (intro + ' ' + txt).trim(); return; }
       if (ev) { if (ev[1][0] === '#') t.mate = parseInt(ev[1].slice(1), 10); else t.cp = Math.round(parseFloat(ev[1]) * 100); }
+      if (ae) {
+        const sign = (ae[1] === '-' ? -1 : 1) * ((plies.length - 1) % 2 ? -1 : 1);
+        if (ae[3]) t.mate = sign * Math.ceil(parseInt(ae[3], 10) / 2); else t.cp = sign * Math.round(parseFloat(ae[2]) * 100);
+      }
       if (ck) t.clk = ck[1].split(':').map(Number).reduce((a, x) => a * 60 + x, 0);
       if (txt) t.comment = (t.comment ? t.comment + ' ' : '') + txt;
     };
