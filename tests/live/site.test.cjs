@@ -100,7 +100,7 @@ for (const base of SITES) {
 
     await t.test('desktop: Next and Previous step through the moves', async () => {
       const label = page.locator('.plabel');
-      await page.getByRole('button', { name: 'Back to start (0)' }).click();
+      await page.getByRole('button', { name: 'Back to start (Home)' }).click();
       await page.getByRole('button', { name: 'Next move (→)' }).click();
       await assert.doesNotReject(label.filter({ hasText: /^1\.\s*\S/ }).waitFor({ timeout: 5000 }));
       await page.getByRole('button', { name: 'Previous move (←)' }).click();
