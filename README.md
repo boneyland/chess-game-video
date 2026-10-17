@@ -4,6 +4,20 @@
 
 The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](https://github.com/boneyland/chess-animator) (the Python/Manim renderer) on 2026-10-17.
 
+## Build
+
+Needs Node 22 or later; nothing to install (Babel and Stockfish are in the repo) and no network.
+
+1. `git clone https://github.com/boneyland/chess-game-video && cd chess-game-video`
+2. `node build.cjs`, which writes
+   - `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.2 MB with the engine inlined (base64 wasm, started from Blob URLs)
+   - `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/: `chess-game-video.html`, plus `stockfish-19-lite-single.js` and `.wasm` (loaded from next to the page)
+3. Serve `out/site/` over HTTP, e.g. `python3 -m http.server 8765 --directory out/site`, and open http://localhost:8765/chess-game-video.html (don't open the file directly: Chromium-based browsers won't start the engine's worker from `file://`)
+
+Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sign-in only returns to URLs registered with an OAuth app, so on your own host it calls Queen without signing in, unless you register an app and put its client ID in `HF_OAUTH` (`app/queen.jsx`); a static Hugging Face Space with `hf_oauth: true` in its README supplies its own.
+
+## Layout
+
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser)
 - `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, `game-data.js` go into the build); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
 - `babel/babel.min.js`: @babel/standalone 7.29.0, used only to precompile the JSX
@@ -14,12 +28,6 @@ The browser player behind the claude.ai artifact, https://chess-replay.netlify.a
 - `docs/`: design and plan for browser Stockfish (2026-10-16; paths in them predate the split, when this was `artifact/`)
 - `media/preview.webp`: the README preview, the sample game playing moves 25–29 (1440×900 page at 2× pixel density, scaled to 1676 wide to fill GitHub's 838 px README column on 2× screens; 12 fps, WebP quality 90)
 - `games/`: local PGNs (not committed)
-- `tests/`: `node --test --test-concurrency=1 tests/*.test.cjs`, then `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` (from the repo root). The Python checks import chess-animator, which must be checked out next to this repo. `make_rating_expected.py` and `make_openings_expected.py` regenerate the fixtures from the Python code.
-
-Build: `node build.cjs` writes
-- `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.2 MB with the engine inlined (base64 wasm, started from Blob URLs)
-- `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/:
-  - `chess-game-video.html`
-  - `stockfish-19-lite-single.js`, `stockfish-19-lite-single.wasm` (loaded from next to the page)
+- `tests/`: `node --test --test-concurrency=1 tests/*.test.cjs`, then `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` (from the repo root). The Python checks import chess-animator, which must be checked out next to this repo. `make_rating_expected.py` and `make_openings_expected.py` regenerate the fixtures from the Python code. Building doesn't need chess-animator.
 
 Licence: GPL-3.0-or-later (`LICENSE`), the same as the bundled Stockfish.
