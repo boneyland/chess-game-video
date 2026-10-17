@@ -116,3 +116,18 @@ test('a best move from a PGN variation keeps its promotion piece', () => {
   const N = CC.buildGame({ pgn: '1. e4 d5 2. exd5 c6 3. dxc6 Qd6 4. cxb7 Qd5 5. Nc3 (5. bxa8=Q) *' });
   assert.equal(N.plies[8].best.uci, 'b7a8q');
 });
+
+test('clip range: the whole game spans the video, and a move range sits between its moves', () => {
+  const fx = (f) => require('fs').readFileSync(require('path').join(__dirname, 'fixtures', f), 'utf8');
+  const M = CC.buildGame({ pgn: fx('byrne-fischer.pgn'), analysis: fx('byrne-fischer_analysis.json') });
+  const TM = CC.timing(M, { secondsPerMove: 1.6, keyHold: 1.5 });
+  const at = CC.clipRange(M, TM), N = M.plies.length;
+  const S = CC.schedule(M, CC.cues(TM.scenes), TM.d);
+  assert.deepEqual(at(-1, N), { start: 0, end: TM.total });
+  const r = at(20, 29);
+  assert.ok(r.start < S.tp[20] && r.start > S.tp[19], 'starts just before ply 20');
+  assert.ok(r.end > S.tp[29] + S.md[29] && r.end < S.tp[30], 'ends once ply 29 has settled, before ply 30');
+  const last = at(N - 1, N - 1);
+  assert.ok(last.end < CC.cues(TM.scenes).Outro, 'the last move alone stops before the end card');
+  assert.ok(at(5, 5).end > at(5, 5).start);
+});

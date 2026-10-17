@@ -113,27 +113,8 @@ function simulate(M) {
 }
 
 // ---------- schedule ----------
-const AFTER = { Opening: 'Middlegame', Middlegame: 'Critical', Critical: 'Endgame', Endgame: 'Outro' };
 function useSchedule(M, CUES, d) {
-  const weightOf = (p, i) => d[i];
-  return React.useMemo(() => {
-    const N = M.plies.length, tp = new Array(N), groups = [];
-    let pendingStart = null;
-    window.ChessCore.plan(M).forEach(([name, a, b]) => {
-      if (b >= a) { groups.push({ a, b, start: pendingStart != null ? pendingStart : CUES[name], end: CUES[AFTER[name]] }); pendingStart = null; }
-      else if (groups.length) groups[groups.length - 1].end = CUES[AFTER[name]];
-      else if (pendingStart == null) pendingStart = CUES[name];
-    });
-    groups.forEach((g, gi) => {
-      const lead = gi === 0 ? 1.2 : 0.6, tail = gi === groups.length - 1 ? 2.6 : 0.5;
-      let tot = 0; for (let i = g.a; i <= g.b; i++) tot += weightOf(M.plies[i], i);
-      const span = g.end - g.start - lead - tail; let acc = 0;
-      for (let i = g.a; i <= g.b; i++) { tp[i] = g.start + lead + (acc / tot) * span; acc += weightOf(M.plies[i], i); }
-    });
-    const md = tp.map((t, i) => Math.min(0.5, 0.6 * ((i + 1 < N ? tp[i + 1] : t + 1) - t)));
-    const blunders = M.plies.map((p, i) => i).filter((i) => M.plies[i].cls === 'blunder');
-    return { tp, md, N, blunders };
-  }, [M, CUES, d]);
+  return React.useMemo(() => window.ChessCore.schedule(M, CUES, d), [M, CUES, d]);
 }
 const lastPly = (T, S) => { let k = -1; for (let i = 0; i < S.N; i++) { if (T >= S.tp[i]) k = i; else break; } return k; };
 const cpOf = (M, i) => (i < 0 ? M.evalStart : plyCp(M.plies[i]));

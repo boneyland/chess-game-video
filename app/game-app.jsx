@@ -214,8 +214,23 @@ function GameApp() {
   const soundSet = window.Sfx.SETS.includes(t.soundSet) ? t.soundSet : window.Sfx.SETS[0];
   const soundVolume = Number.isFinite(+t.soundVolume) ? +t.soundVolume : 70;
   const exportFps = EXPORT_FPS_OPTIONS.includes(+t.exportFps) ? +t.exportFps : 8;
-  const video = useVideoExport({ total: TM.total, fps: exportFps, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
-  const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run(); };
+  const video = useVideoExport({ fps: exportFps, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
+  // the stretch to export, in plies: from -1 starts on the title card, to N (the ply count) ends after the end card
+  const [clip, setClip] = React.useState({ from: -1, to: Infinity });
+  React.useEffect(() => { setClip({ from: -1, to: Infinity }); }, [M]);
+  const NP = MV.plies.length, clipFrom = Math.min(clip.from, NP - 1), clipTo = Math.max(clipFrom, Math.min(clip.to, NP));
+  const clipOpts = React.useMemo(() => {
+    const at = window.ChessCore.clipRange(MV, TM), ply = MV.plies.map((p, i) => ({ i, l: label(MV, i), t: at(i, i) }));
+    return {
+      at,
+      from: [{ i: -1, s: 'Title card · 0:00' }].concat(ply.map((o) => ({ i: o.i, s: `${o.l} · ${fmtLen(o.t.start)}` }))),
+      to: ply.map((o) => ({ i: o.i, s: `${o.l} · ${fmtLen(o.t.end)}` })).concat([{ i: NP, s: `End card · ${fmtLen(TM.total)}` }]),
+    };
+  }, [MV, TM]);
+  const clipT = clipOpts.at(clipFrom, clipTo), clipFromOpts = clipOpts.from, clipToOpts = clipOpts.to.filter((o) => o.i >= clipFrom);
+  const plyTag = (i) => `${Math.floor(i / 2) + 1}${i % 2 ? 'b' : 'w'}`;
+  const clipSuffix = clipFrom < 0 && clipTo >= NP ? '' : `_${clipFrom < 0 ? 'start' : plyTag(clipFrom)}-${clipTo >= NP ? 'end' : plyTag(clipTo)}`;
+  const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run({ start: clipT.start, end: clipT.end, suffix: clipSuffix }); };
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
   // landscape: the Queen panel opens centred over its button in the transport bar, kept on screen
   const queenBtn = React.useRef(null);
@@ -331,8 +346,12 @@ function GameApp() {
         <TweakSection label="Video" column>
           <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, End jumps to the last move.</div>
           {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
-          {(downloads || !IN_CLAUDE) && <TweakButton label={`Export video (MP4, ${exportFps} fps)`} disabled={video.busy} onClick={exportVideo} />}
-          {(downloads || !IN_CLAUDE) && <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil(TM.total * exportFps * 0.17))} for this game, longer on a phone. More frames per second play smoother and take longer. The camera push is left out.</div>}
+          {(downloads || !IN_CLAUDE) && <>
+            <TweakSelect id="tw-clip-from" label="Export from" value={clipFromOpts.find((o) => o.i === clipFrom).s} options={clipFromOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, from: clipFromOpts.find((o) => o.s === v).i }))} />
+            <TweakSelect id="tw-clip-to" label="Export to" value={clipToOpts.find((o) => o.i === clipTo).s} options={clipToOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, to: clipToOpts.find((o) => o.s === v).i }))} />
+            <TweakButton label={`Export video (MP4, ${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
+            <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. More frames per second play smoother and take longer. A move’s clip starts just before it is played and ends once the board settles. The camera push is left out.</div>
+          </>}
           <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
           <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
           <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />

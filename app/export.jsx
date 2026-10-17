@@ -26,10 +26,11 @@ function loadExportLibs() {
 // the stage re-renders synchronously inside dispatchEvent, so the frame can be drawn straight after
 const seekStage = (t) => window.dispatchEvent(new CustomEvent('chess-video:seek', { detail: { time: t, sync: true } }));
 
-function useVideoExport({ total, fps, save, stem }) {
+// run() takes the stretch of the timeline to export in seconds ({ start, end }) and a file name suffix
+function useVideoExport({ fps, save, stem }) {
   const [state, setState] = React.useState(null); // { phase: 'load' | 'render' | 'save', done, N, eta } or { phase: 'error', msg }
   const stopRef = React.useRef(false);
-  const run = async () => {
+  const run = async ({ start, end, suffix = '' }) => {
     if (state && state.phase !== 'error') return;
     stopRef.current = false;
     setState({ phase: 'load', done: 0, N: 0 });
@@ -52,11 +53,11 @@ function useVideoExport({ total, fps, save, stem }) {
       // engine) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
       const keep = (n) => n.tagName === 'STYLE' || n.tagName === 'LINK' || n.tagName === 'HEAD' || n.closest('head');
       const skip = (n) => n.tagName === 'SCRIPT' || (!keep(n) && n !== el && !n.contains(el) && !el.contains(n));
-      const N = Math.floor(total * fps) + 1, t0 = performance.now();
+      const N = Math.floor((end - start) * fps) + 1, t0 = performance.now();
       let prev = null;
       for (let i = 0; i < N; i++) {
         if (stopRef.current) { await output.cancel(); setState(null); return; }
-        seekStage(i / fps);
+        seekStage(start + i / fps);
         // a frame whose markup matches the last one (holds, the title and end cards) reuses the canvas as it is
         const html = el.innerHTML;
         if (html !== prev) {
@@ -70,7 +71,7 @@ function useVideoExport({ total, fps, save, stem }) {
       }
       setState({ phase: 'save', done: N, N });
       await output.finalize();
-      await save(stem + (avc ? '.mp4' : '.webm'), new Blob([output.target.buffer], { type: avc ? 'video/mp4' : 'video/webm' }));
+      await save(stem + suffix + (avc ? '.mp4' : '.webm'), new Blob([output.target.buffer], { type: avc ? 'video/mp4' : 'video/webm' }));
       setState(null);
     } catch (e) {
       try { if (output && output.state === 'started') await output.cancel(); } catch (_) {}

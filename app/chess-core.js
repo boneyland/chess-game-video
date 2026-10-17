@@ -497,6 +497,44 @@
     return { d, scenes, capped, total: scenes.reduce((s, x) => s + x.dur, 0) };
   }
 
+  // When each ply plays on the timeline (tp) and how long its move animates (md). CUES is each scene's start time.
+  const AFTER = { Opening: 'Middlegame', Middlegame: 'Critical', Critical: 'Endgame', Endgame: 'Outro' };
+  function schedule(M, CUES, d) {
+    const N = M.plies.length, tp = new Array(N), groups = [];
+    let pendingStart = null;
+    plan(M).forEach(([name, a, b]) => {
+      if (b >= a) { groups.push({ a, b, start: pendingStart != null ? pendingStart : CUES[name], end: CUES[AFTER[name]] }); pendingStart = null; }
+      else if (groups.length) groups[groups.length - 1].end = CUES[AFTER[name]];
+      else if (pendingStart == null) pendingStart = CUES[name];
+    });
+    groups.forEach((g, gi) => {
+      const lead = gi === 0 ? 1.2 : 0.6, tail = gi === groups.length - 1 ? 2.6 : 0.5;
+      let tot = 0; for (let i = g.a; i <= g.b; i++) tot += d[i];
+      const span = g.end - g.start - lead - tail; let acc = 0;
+      for (let i = g.a; i <= g.b; i++) { tp[i] = g.start + lead + (acc / tot) * span; acc += d[i]; }
+    });
+    const md = tp.map((t, i) => Math.min(0.5, 0.6 * ((i + 1 < N ? tp[i + 1] : t + 1) - t)));
+    const blunders = M.plies.map((p, i) => i).filter((i) => M.plies[i].cls === 'blunder');
+    return { tp, md, N, blunders };
+  }
+  // the scene start times the stage derives from timing()'s scenes (deriveCues in engine.jsx)
+  function cues(scenes) {
+    let start = 0; const table = {};
+    scenes.forEach((s) => { if (!(s.name in table)) table[s.name] = Math.round(start * 1000) / 1000; start += s.dur; });
+    return table;
+  }
+  // Seconds of the video to export for plies from..to: from -1 starts on the title card, to N ends after the end card.
+  // A move's clip starts just before it is played and ends once it has settled, as the player shows it on a jump.
+  // Returns a function of (from, to), so that the schedule is worked out once.
+  function clipRange(M, TM) {
+    const CUES = cues(TM.scenes), S = schedule(M, CUES, TM.d), N = S.N;
+    return (from, to) => {
+      const start = from < 0 ? 0 : Math.max(0, S.tp[from] - 0.3);
+      const end = to >= N ? TM.total : to + 1 < N ? S.tp[to + 1] - 0.12 : Math.min(S.tp[to] + S.md[to] + 3, CUES.Outro - 0.1);
+      return { start, end: Math.max(start, end) };
+    };
+  }
+
   // ---------- AI commentary ----------
   const fmtCp = (p) => (p.checkmate ? 'checkmate' : p.mate != null ? (p.mate > 0 ? '+M' : '-M') + Math.abs(p.mate) : p.cp != null ? (p.cp >= 0 ? '+' : '') + (p.cp / 100).toFixed(2) : 'n/a');
   const fmtClk = (s) => (s == null ? '' : Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'));
@@ -630,5 +668,5 @@
     return { san: r.san, uci, board: r.pos.b.slice(), checkSq: check ? idxSq(kingIdx(r.pos.b, r.pos.turn)) : null, pos: r.pos };
   }
 
-  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, winChance, plyCp, MARK_CLASS };
+  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS };
 })();
