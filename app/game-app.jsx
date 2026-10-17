@@ -215,6 +215,21 @@ function GameApp() {
   const video = useVideoExport({ total: TM.total, fps: exportFps, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
   const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run(); };
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
+  // landscape: the Queen panel opens centred over its button in the transport bar, kept on screen
+  const queenBtn = React.useRef(null);
+  const [queenLeft, setQueenLeft] = React.useState(null);
+  React.useLayoutEffect(() => {
+    if (!queenOpen || tall) { setQueenLeft(null); return; }
+    const place = () => {
+      const b = queenBtn.current && queenBtn.current.getBoundingClientRect();
+      if (!b) return;
+      const w = Math.min(400, window.innerWidth - 32);
+      setQueenLeft(Math.round(Math.max(16, Math.min(b.left + b.width / 2 - w / 2, window.innerWidth - 16 - w))));
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [queenOpen, tall]);
   const sf = { engine, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
   const status = `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
@@ -224,7 +239,7 @@ function GameApp() {
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); inputRef.current.click(); }}>Load game…</button>
-      <button type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>
+      <button ref={queenBtn} type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>
       <button type="button" className="dock-btn" aria-expanded={panel} onClick={() => { setMenu(false); setPanel((p) => !p); setQueenOpen(false); }}>Settings</button>
     </div>
   );
@@ -240,19 +255,20 @@ function GameApp() {
       {dockItems}
     </div>
   );
+  // landscape: the buttons sit at the end of the transport bar, with the game's status above them on hover or error
+  const deskDock = (
+    <div className={'pdock' + (shownErr ? ' pdock-err' : '')}>
+      <span className="dock-status" role={shownErr ? 'alert' : undefined}>{shownErr || status}</span>
+      {dockItems}
+    </div>
+  );
 
   return (
     <React.Fragment>
-      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={tall ? menuEl : null} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
+      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={tall ? menuEl : deskDock} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
         <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
-      {!tall && (
-        <div className={'dock' + (shownErr ? ' dock-err' : '')}>
-          <span className="dock-status">{shownErr || status}</span>
-          {dockItems}
-        </div>
-      )}
       {hf.note && (
         <div className="signin-note" role="status">{hf.note}<button type="button" className="twk-x" aria-label="Dismiss" onClick={hf.clearNote}>✕</button></div>
       )}
@@ -262,7 +278,7 @@ function GameApp() {
         </div>
       )}
       <ExportOverlay x={video} />
-      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} />}
+      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} wide>
         <TweakSection label="Appearance">
           <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
