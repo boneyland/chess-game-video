@@ -3,6 +3,8 @@
 // capability, the notes file through `downloads`, and settings open from a page button.
 const STORE = 'chess-video.files.v1';
 const SAMPLE = { pgn: window.SAMPLE_PGN, analysis: window.SAMPLE_ANALYSIS, sampleNotes: window.SAMPLE_NOTES, sample: true };
+// the published claude.ai artifact, where the `sample` capability lets Claude write commentary
+const CLAUDE_URL = 'https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT';
 function readStored() { try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s && (s.pgn || s.analysis)) return s; } catch (e) {} return SAMPLE; }
 const PLAYBACK = '{"mode":"loop"}';
 
@@ -254,7 +256,7 @@ function GameApp() {
         <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || 'Key moments'} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
         {sample
           ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
-          : <div className="twk-note">Open this page on claude.ai to have Claude write the commentary.</div>}
+          : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
         {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
         {M.hasNotes && <div className="twk-note">Your notes file takes priority over Claude's comments on the same move.</div>}
         {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
