@@ -7,8 +7,9 @@
   const KINDS = ['move', 'capture', 'check', 'victory', 'draw'];
   const END_DELAY = 0.6; // seconds between the last move's sound and the end of the game's
   // Sounds closer together than this make a quick run (browsing fast, dragging the playhead). A move sound is a click
-  // with a soft swoosh after it, and in a run each click hides the swoosh before it: a typewriter instead of moves
-  const RUN_GAP_MS = 200;
+  // with a soft swoosh after it, and in a run each click hides the swoosh before it: a typewriter instead of moves.
+  // Playback's own next move is never part of a run (it can be 0.275 s per move, under this gap)
+  const RUN_GAP_MS = 400;
 
   // played together: the move or capture, and a check on top
   const kinds = (san) => [/x/.test(san || '') ? 'capture' : 'move'].concat(/[+#]/.test(san || '') ? ['check'] : []);
@@ -22,10 +23,12 @@
     return { kinds: kinds(M.plies[to].san), end };
   }
 
-  // A quick run plays its first sound at once and its last one when it stops (RUN_GAP_MS after it), none between
+  // A quick run plays its first sound at once and its last one when it stops (RUN_GAP_MS after it), none between;
+  // a steady sound (playback's next move) plays at once and ends any run waiting
   function runs(fire, gapMs) {
     let lastAsk = -Infinity, timer = null;
-    return (...args) => {
+    return (steady, ...args) => {
+      if (steady) { clearTimeout(timer); fire(...args); return; }
       const now = Date.now(), quick = now - lastAsk < gapMs;
       lastAsk = now;
       clearTimeout(timer);
@@ -108,7 +111,7 @@
       // still decoding (the first sound of a newly picked set): play it if it's ready soon, else let it go
       if (buf && typeof buf.then === 'function') { const asked = Date.now(); buf.then((b) => { if (Date.now() - asked < 300) go(b); }); } else go(buf);
     }
-    const play = runs((set, kindList, volume, end) => {
+    const run = runs((set, kindList, volume, end) => {
       if (!ctx || ctx.state !== 'running') return; // before the first gesture: nothing queues up to burst out later
       set = SETS.includes(set) ? set : SETS[0];
       if (set !== wanted) prepare(set);
@@ -119,6 +122,8 @@
       kindList.forEach((k) => start(set, k, 0, gain));
       if (end) start(set, end, END_DELAY, gain);
     }, RUN_GAP_MS);
+    // steady: playback's next move
+    const play = (set, kindList, volume, end, steady) => run(!!steady, set, kindList, volume, end);
     return { play, prepare, unlock };
   }
 

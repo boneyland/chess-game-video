@@ -67,15 +67,27 @@ test('synth: every Wood sound is short, audible, never clips, and the same every
 test('runs: the first sound of a quick run plays at once, the rest wait, and only the last one plays when it stops', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const heard = [];
-  const ask = X.runs((x) => heard.push(x), 200);
-  ask('a'); assert.deepEqual(heard, ['a']);
-  t.mock.timers.tick(120); ask('b');
-  t.mock.timers.tick(120); ask('c');
-  t.mock.timers.tick(120); ask('d');
+  const ask = X.runs((x) => heard.push(x), 400);
+  ask(false, 'a'); assert.deepEqual(heard, ['a']);
+  t.mock.timers.tick(300); ask(false, 'b');
+  t.mock.timers.tick(300); ask(false, 'c');
+  t.mock.timers.tick(300); ask(false, 'd');
   assert.deepEqual(heard, ['a']); // the run goes on: nothing yet
-  t.mock.timers.tick(199); assert.deepEqual(heard, ['a']);
+  t.mock.timers.tick(399); assert.deepEqual(heard, ['a']);
   t.mock.timers.tick(1); assert.deepEqual(heard, ['a', 'd']); // it stopped: the move it stopped on
-  t.mock.timers.tick(500); ask('e'); assert.deepEqual(heard, ['a', 'd', 'e']); // slow steps each play at once
-  t.mock.timers.tick(300); ask('f'); assert.deepEqual(heard, ['a', 'd', 'e', 'f']);
+  t.mock.timers.tick(700); ask(false, 'e'); assert.deepEqual(heard, ['a', 'd', 'e']); // slow steps each play at once
+  t.mock.timers.tick(500); ask(false, 'f'); assert.deepEqual(heard, ['a', 'd', 'e', 'f']);
   t.mock.timers.tick(1000); assert.deepEqual(heard, ['a', 'd', 'e', 'f']); // and nothing plays twice
+});
+
+// playback can be 0.275 s per move: its sounds are steady, each plays at once, and one ends a run still waiting
+test('runs: steady sounds always play at once', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const heard = [];
+  const ask = X.runs((x) => heard.push(x), 400);
+  ask(true, 'a'); t.mock.timers.tick(275); ask(true, 'b'); t.mock.timers.tick(275); ask(true, 'c');
+  assert.deepEqual(heard, ['a', 'b', 'c']);
+  t.mock.timers.tick(1000); ask(false, 'd'); t.mock.timers.tick(100); ask(false, 'e'); // a run, 'e' waiting
+  t.mock.timers.tick(100); ask(true, 'f');
+  t.mock.timers.tick(1000); assert.deepEqual(heard, ['a', 'b', 'c', 'd', 'f']);
 });
