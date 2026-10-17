@@ -1,5 +1,7 @@
 # Chess Game Video (artifact sources)
 
+![The sample game playing through 28. Qxb5??: move rating, best line, commentary and eval graph](media/preview.webp)
+
 The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
 
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser)
@@ -10,6 +12,7 @@ The browser player behind the claude.ai artifact, https://chess-replay.netlify.a
   - `stockfish-19-lite-single.wasm` sha256 `ee4f115bdb2d32cadf96cada104a05b5ec257d7ad6f57582190b49bc71f096de`
 - `openings-data.cjs`: embeds `openings/*.tsv` (Lichess chess-openings, CC0; a copy of chess-animator's) into the page
 - `docs/`: design and plan for browser Stockfish (2026-10-16; paths in them predate the split, when this was `artifact/`)
+- `media/preview.webp`: the README preview, a screencast of the sample game (moves 25–29, 1440×900 scaled to 960, 12 fps, lossless)
 - `games/`: local PGNs (not committed)
 - `tests/`: `node --test --test-concurrency=1 tests/*.test.cjs`, then `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` (from the repo root). The Python checks import chess-animator, which must be checked out next to this repo. `make_rating_expected.py` and `make_openings_expected.py` regenerate the fixtures from the Python code.
 
