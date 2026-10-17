@@ -2,7 +2,7 @@
 
 ![The sample game playing through 28. Qxb5??: move rating, best line, commentary and eval graph](media/preview.webp)
 
-The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
+The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](https://github.com/boneyland/chess-animator) (the Python/Manim renderer) on 2026-10-17.
 
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser)
 - `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, `game-data.js` go into the build); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
@@ -17,7 +17,7 @@ The browser player behind the claude.ai artifact, https://chess-replay.netlify.a
 - `tests/`: `node --test --test-concurrency=1 tests/*.test.cjs`, then `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` (from the repo root). The Python checks import chess-animator, which must be checked out next to this repo. `make_rating_expected.py` and `make_openings_expected.py` regenerate the fixtures from the Python code.
 
 Build: `node build.cjs` writes
-- `out/chess-game-video.html`: the claude.ai artifact (https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.2 MB with the engine inlined (base64 wasm, started from Blob URLs)
+- `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.2 MB with the engine inlined (base64 wasm, started from Blob URLs)
 - `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/:
   - `chess-game-video.html`
   - `stockfish-19-lite-single.js`, `stockfish-19-lite-single.wasm` (loaded from next to the page)
