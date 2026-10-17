@@ -130,3 +130,16 @@ test('infoStats reads depth, nodes and time from any info line, bound lines incl
   assert.deepEqual(A.infoStats('info depth 5 currmove e2e4 currmovenumber 1'), { depth: 5, nodes: null, timeMs: null });
   assert.equal(A.infoStats('info string NNUE evaluation'), null);
 });
+
+test('runAnalysis resumes from earlier searches and reports each search so far', async () => {
+  const reqs = [], saved = [], seen = [];
+  const earlier = [0, 1, 2].map((i) => ({ cp: 10 * i, depth: 22, pv: [], best: null }));
+  const out = await A.runAnalysis({ engine: fakeEngine((r) => reqs.push(r)), ...SCHOLAR, headers: {}, signal: { aborted: false }, earlier,
+    onSearched: (R) => saved.push(R.length), onProgress: (d, n) => seen.push([d, n]) });
+  assert.equal(reqs.length, 5); // positions 3..7
+  assert.deepEqual(reqs[0].moves, SCHOLAR.ucis.slice(0, 3));
+  assert.deepEqual(saved, [4, 5, 6, 7, 8]);
+  assert.deepEqual(seen[0], [2, 7]);
+  assert.equal(out.moves[0].eval_before, 0);
+  assert.equal(out.moves[1].eval_after, 20); // from the earlier searches
+});

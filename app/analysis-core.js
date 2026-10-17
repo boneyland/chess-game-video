@@ -127,15 +127,18 @@
 
   // Analyse every position of a game (ucis/sans from the start), as analyze_game does: the search after a
   // move is also the search before the next one. Returns the --analyze JSON, or null when signal.aborted.
-  async function runAnalysis({ engine, ucis, sans, headers, signal, onProgress }) {
-    const N = ucis.length, R = [];
-    onProgress(0, N);
-    for (let k = 0; k <= N; k++) {
+  // earlier: searches of the first positions from a run that stopped, to resume from; onSearched gets every
+  // search so far after each new one, so a run that stops can be resumed
+  async function runAnalysis({ engine, ucis, sans, headers, signal, onProgress, earlier = [], onSearched }) {
+    const N = ucis.length, R = earlier.slice(0, N + 1);
+    onProgress(Math.max(0, R.length - 1), N);
+    for (let k = R.length; k <= N; k++) {
       if (signal.aborted) return null;
       const r = await engine.search({ moves: ucis.slice(0, k), depth: ENGINE.depth, movetimeMs: ENGINE.time_limit * 1000, priority: 'game' }).promise;
       if (signal.aborted) return null;
       if (!r || r.cp == null) throw new Error('Stockfish stopped before the analysis finished');
       R.push(r);
+      if (onSearched) onSearched(R.slice());
       if (k > 0) onProgress(k, N);
     }
     const CC = window.ChessCore;

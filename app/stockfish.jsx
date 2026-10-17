@@ -36,28 +36,48 @@ const sfIsBrowserAnalysis = (analysis) => {
   try { const a = typeof analysis === 'string' ? JSON.parse(analysis) : analysis; return !!(a && a.engine && a.engine.name === window.AnalysisCore.ENGINE.name); } catch (e) { return false; }
 };
 
-// The full-game analysis. Loading other files (another game, the sample) abandons a run in progress.
+// The searches of a run that stopped part-way, kept for one game (the latest) so starting again resumes it; a page
+// reload keeps them too. Keyed by the game's moves and the engine settings, so they never fill in another game.
+const SF_PARTIAL_STORE = 'chess-video.sf-partial.v1';
+const sfPartialKey = (ucis) => JSON.stringify([window.AnalysisCore.ENGINE, ucis]);
+function readSfPartial(ucis) {
+  try { const s = JSON.parse(localStorage.getItem(SF_PARTIAL_STORE) || 'null'); return s && s.key === sfPartialKey(ucis) && Array.isArray(s.searched) ? s.searched : []; } catch (e) { return []; }
+}
+function writeSfPartial(ucis, searched) {
+  try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
+}
+
+// The full-game analysis. Loading other files (another game, the sample) abandons a run in progress; its searches
+// so far are kept, and starting it again resumes from them.
 // getFiles: the loaded files as they are now (notes or commentary may have changed during the run)
 function useGameAnalysis(M, files, getFiles, commit, engine) {
   const idle = { state: 'idle', done: 0, total: 0, etaSec: null, err: '' };
   const [st, setSt] = React.useState(idle);
   const run = React.useRef(null);
+  const ucisKey = M.plies.map((p) => p.uci).join(' ');
+  // moves already analysed by a run that stopped
+  const [resumeAt, setResumeAt] = React.useState(0);
+  React.useEffect(() => { setResumeAt(Math.max(0, readSfPartial(M.plies.map((p) => p.uci)).length - 1)); }, [ucisKey]);
   React.useEffect(() => () => { if (run.current) { run.current.signal.aborted = true; run.current = null; } setSt(idle); }, [files.pgn, files.gameIndex || 0, !!files.sample, files.analysis]);
   const start = async () => {
     if (run.current) return;
     const me = { signal: { aborted: false } };
     run.current = me;
     const ucis = M.plies.map((p) => p.uci), sans = M.plies.map((p) => p.san), N = ucis.length, t0 = Date.now();
-    setSt({ state: 'running', done: 0, total: N, etaSec: Math.round((N + 1) * SF_SECONDS_PER_POSITION), err: '' });
+    const earlier = readSfPartial(ucis), d0 = Math.max(0, earlier.length - 1);
+    setSt({ state: 'running', done: d0, total: N, etaSec: Math.round((N + 1 - earlier.length) * SF_SECONDS_PER_POSITION), err: '' });
     try {
       const eng = await engine.get();
       const json = await window.AnalysisCore.runAnalysis({
-        engine: eng, ucis, sans, headers: M.headers, signal: me.signal,
-        onProgress: (d, n) => { if (run.current === me && d > 0) setSt((s) => ({ ...s, done: d, total: n, etaSec: Math.round(((Date.now() - t0) / 1000 / (d + 1)) * (n - d)) })); },
+        engine: eng, ucis, sans, headers: M.headers, signal: me.signal, earlier,
+        onSearched: (R) => { writeSfPartial(ucis, R); setResumeAt(Math.max(0, R.length - 1)); },
+        onProgress: (d, n) => { if (run.current === me && d > d0) setSt((s) => ({ ...s, done: d, total: n, etaSec: Math.round(((Date.now() - t0) / 1000 / (d - d0 + (d0 ? 0 : 1))) * (n - d)) })); },
       });
       if (run.current !== me) return;
       run.current = null;
       if (!json) { setSt(idle); return; }
+      writeSfPartial(ucis, null);
+      setResumeAt(0);
       const name = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_') + '_analysis.json';
       setSt(idle);
       commit({ ...getFiles(), analysis: json, analysisName: name });
@@ -68,7 +88,8 @@ function useGameAnalysis(M, files, getFiles, commit, engine) {
     }
   };
   const stop = () => { if (run.current) { run.current.signal.aborted = true; run.current = null; } setSt(idle); };
-  return { ...st, start, stop, estimateMin: Math.max(1, Math.ceil((M.plies.length + 1) * SF_SECONDS_PER_POSITION / 60)) };
+  const left = M.plies.length + 1 - (resumeAt ? resumeAt + 1 : 0);
+  return { ...st, start, stop, resumeAt, plies: M.plies.length, estimateMin: Math.max(1, Math.ceil(left * SF_SECONDS_PER_POSITION / 60)) };
 }
 
 // A button inside the video frame (frame pixels, theme colours)
@@ -112,7 +133,8 @@ function EngineEmptyState({ sf, paused, compact }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
       {text}
-      <FrameButton primary onClick={sf.start}>Analyse with Stockfish · about {sf.estimateMin} min</FrameButton>
+      <FrameButton primary onClick={sf.start}>{run.resumeAt ? `Resume analysis from move ${Math.floor(run.resumeAt / 2) + 1} · about ${sf.estimateMin} min` : `Analyse with Stockfish · about ${sf.estimateMin} min`}</FrameButton>
+      {run.resumeAt > 0 && <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>{run.resumeAt} of {run.plies} moves analysed so far.</span>}
       {!compact && <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>Stockfish 19 lite runs in your browser.</span>}
       {run.err && <span style={{ font: `500 15px ${MONO}`, color: C.blunder }}>{run.err}</span>}
     </div>
