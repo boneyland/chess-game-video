@@ -194,6 +194,11 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </NavButton>
       )}
+      {nav && nav.current && (
+        <button type="button" className="pbtn" disabled={!nav.current.hasLast} onClick={() => nav.current.last()} aria-label="Last move (End)" title="Last move (End)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 2v10M2 2l7 5-7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
+        </button>
+      )}
       {nav && nav.current && <span className="plabel" style={{ color: nav.current.color }} aria-live="polite">{nav.current.label}</span>}
       <span className="ptime">{fmt(time)}</span>
       <div ref={trackRef} className="ptrack" role="slider" aria-label="Playhead" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)}

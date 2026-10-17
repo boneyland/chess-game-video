@@ -800,12 +800,14 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
     nav.current = vline ? {
       label: vline.upto < 0 ? 'Your move' : (vline.src === 'you' ? 'You ' : 'Line ') + lineLabel(vline.at, vline.upto, vline.moves[vline.upto].san), color: lineAccent(vline.src),
       hasPrev: true, hasNext: vline.upto < vline.moves.length - 1, prev: () => stepLine(-1), next: () => stepLine(1),
+      hasLast: true, last: () => goTo(S.N - 1),
     } : {
       label: cc < 0 ? 'Start' : label(M, cc), color: cc >= 0 && M.plies[cc].mark ? clsColor(M.plies[cc].cls) : C.last,
       hasPrev: cc >= 0, hasNext: cc < S.N - 1, prev: () => goTo(cc - 1), next: () => goTo(cc + 1),
+      hasLast: cc < S.N - 1, last: () => goTo(S.N - 1),
     };
   }
-  const navSig = nav && nav.current ? `${nav.current.label}|${nav.current.hasPrev}|${nav.current.hasNext}` : '';
+  const navSig = nav && nav.current ? `${nav.current.label}|${nav.current.hasPrev}|${nav.current.hasNext}|${nav.current.hasLast}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);
   React.useEffect(() => {
     const onKey = (e) => {
