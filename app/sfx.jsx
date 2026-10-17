@@ -16,7 +16,7 @@ function useMoveSounds(M, T, S, tw, playing, vline) {
     if (!on || p.M !== M) return;
     if (lineKey) { if (lineKey !== p.lineKey) sfxPlayer.play(tw.soundSet, window.Sfx.kinds(step.san), tw.soundVolume); return; }
     const c = window.Sfx.cue(M, p.ply, ply, playing);
-    if (c) sfxPlayer.play(tw.soundSet, c.kinds, tw.soundVolume, c.end, playing && ply === p.ply + 1);
+    if (c) sfxPlayer.play(tw.soundSet, c.kinds, tw.soundVolume, c.end);
   }, [M, ply, lineKey]);
 }
 

@@ -6,9 +6,9 @@
   const SET_DIR = { 'Lichess sfx': 'sfx', 'Lichess piano': 'piano', 'Lichess NES': 'nes', 'Lichess futuristic': 'futuristic' };
   const KINDS = ['move', 'capture', 'check', 'victory', 'draw'];
   const END_DELAY = 0.6; // seconds between the last move's sound and the end of the game's
-  // scrubbing (dragging the playhead, holding an arrow key) lands moves in a quick run: those play quieter
-  const SCRUB_GAP_MS = 250, SCRUB_GAIN = 0.5;
-  const scrubbed = (sinceMs, steady) => !steady && sinceMs < SCRUB_GAP_MS;
+  // Sounds closer together than this make a quick run (browsing fast, dragging the playhead). A move sound is a click
+  // with a soft swoosh after it, and in a run each click hides the swoosh before it: a typewriter instead of moves
+  const RUN_GAP_MS = 200;
 
   // played together: the move or capture, and a check on top
   const kinds = (san) => [/x/.test(san || '') ? 'capture' : 'move'].concat(/[+#]/.test(san || '') ? ['check'] : []);
@@ -20,6 +20,17 @@
     if (to === from || to < 0 || to >= M.plies.length) return null;
     const end = playing && to > from && to === M.plies.length - 1 ? endKind(M.result) : null;
     return { kinds: kinds(M.plies[to].san), end };
+  }
+
+  // A quick run plays its first sound at once and its last one when it stops (RUN_GAP_MS after it), none between
+  function runs(fire, gapMs) {
+    let lastAsk = -Infinity, timer = null;
+    return (...args) => {
+      const now = Date.now(), quick = now - lastAsk < gapMs;
+      lastAsk = now;
+      clearTimeout(timer);
+      if (quick) timer = setTimeout(() => fire(...args), gapMs); else fire(...args);
+    };
   }
 
   // ---- Wood: knocks of a piece on a board, bells for check and the end ----
@@ -65,7 +76,7 @@
 
   // ---- the player: Web Audio, started by the viewer's first tap or key (browsers keep it silent until then) ----
   function createPlayer(data) {
-    let ctx = null, last = -1e9, wanted = SETS[0];
+    let ctx = null, wanted = SETS[0];
     const cache = new Map(); // `${set}/${kind}` → AudioBuffer, or a promise while it decodes
     function load(set, kind) {
       const key = set + '/' + kind;
@@ -97,23 +108,19 @@
       // still decoding (the first sound of a newly picked set): play it if it's ready soon, else let it go
       if (buf && typeof buf.then === 'function') { const asked = Date.now(); buf.then((b) => { if (Date.now() - asked < 300) go(b); }); } else go(buf);
     }
-    // steady: playback's next move or a settings preview, never played as a scrub
-    function play(set, kindList, volume, end, steady) {
+    const play = runs((set, kindList, volume, end) => {
       if (!ctx || ctx.state !== 'running') return; // before the first gesture: nothing queues up to burst out later
-      const now = Date.now(), scrub = scrubbed(now - last, steady);
-      if (now - last < 60) return; // faster than this, even a scrub's sounds are dropped
-      last = now;
       set = SETS.includes(set) ? set : SETS[0];
       if (set !== wanted) prepare(set);
-      // a gain per sound, so a quiet scrub sound doesn't turn down one still ringing
+      // a gain per sound, so moving the volume slider doesn't change one still ringing
       const gain = ctx.createGain();
-      gain.gain.value = Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100)) * (scrub ? SCRUB_GAIN : 1);
+      gain.gain.value = Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100));
       gain.connect(ctx.destination);
-      (scrub ? kindList.slice(0, 1) : kindList).forEach((k) => start(set, k, 0, gain)); // a scrub skips the check on top
+      kindList.forEach((k) => start(set, k, 0, gain));
       if (end) start(set, end, END_DELAY, gain);
-    }
+    }, RUN_GAP_MS);
     return { play, prepare, unlock };
   }
 
-  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, scrubbed, synth, createPlayer };
+  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, runs, synth, createPlayer };
 })();

@@ -63,9 +63,19 @@ test('synth: every Wood sound is short, audible, never clips, and the same every
   assert.throws(() => X.synth('nope', 48000));
 });
 
-test('scrubbed: a sound hard on the heels of the last one, unless it is steady playback or a preview', () => {
-  assert.equal(X.scrubbed(100, false), true); // dragging the playhead, or holding an arrow key
-  assert.equal(X.scrubbed(249, false), true);
-  assert.equal(X.scrubbed(250, false), false); // a step or a move of your own
-  assert.equal(X.scrubbed(100, true), false); // playback's next move, or the settings preview
+// a quick run of sounds (browsing fast, dragging the playhead) masks each one's tail behind the next one's click
+test('runs: the first sound of a quick run plays at once, the rest wait, and only the last one plays when it stops', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const heard = [];
+  const ask = X.runs((x) => heard.push(x), 200);
+  ask('a'); assert.deepEqual(heard, ['a']);
+  t.mock.timers.tick(120); ask('b');
+  t.mock.timers.tick(120); ask('c');
+  t.mock.timers.tick(120); ask('d');
+  assert.deepEqual(heard, ['a']); // the run goes on: nothing yet
+  t.mock.timers.tick(199); assert.deepEqual(heard, ['a']);
+  t.mock.timers.tick(1); assert.deepEqual(heard, ['a', 'd']); // it stopped: the move it stopped on
+  t.mock.timers.tick(500); ask('e'); assert.deepEqual(heard, ['a', 'd', 'e']); // slow steps each play at once
+  t.mock.timers.tick(300); ask('f'); assert.deepEqual(heard, ['a', 'd', 'e', 'f']);
+  t.mock.timers.tick(1000); assert.deepEqual(heard, ['a', 'd', 'e', 'f']); // and nothing plays twice
 });

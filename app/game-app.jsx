@@ -321,8 +321,8 @@ function GameApp() {
         </TweakSection>
         <TweakSection label="Sound">
           <TweakToggle id="tw-sound" label="Move sounds" value={t.sound !== false} onChange={(v) => setTweak('sound', v)} />
-          <TweakSelect id="tw-sset" label="Sound set" value={soundSet} options={window.Sfx.SETS} onChange={(v) => { setTweak('soundSet', v); sfxPlayer.play(v, ['move'], soundVolume, null, true); }} />
-          <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v, null, true); }} />
+          <TweakSelect id="tw-sset" label="Sound set" value={soundSet} options={window.Sfx.SETS} onChange={(v) => { setTweak('soundSet', v); sfxPlayer.play(v, ['move'], soundVolume); }} />
+          <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v); }} />
           <div className="twk-note">The Lichess sets are by <a href="https://github.com/Enigmahack" target="_blank" rel="noopener">Enigmahack</a>, from <a href="https://github.com/lichess-org/lila" target="_blank" rel="noopener">Lichess’s source</a>, under the AGPL-3.0-or-later. Wood is made in your browser.</div>
         </TweakSection>
         <TweakSection label="Engine">
