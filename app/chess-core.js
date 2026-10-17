@@ -472,13 +472,12 @@
     const spm = o.secondsPerMove || 1.6, hold = o.keyHold == null ? 2.5 : o.keyHold, read = o.readSpeed || 16;
     const ranges = plan(M);
     let d = M.plies.map((p) => {
-      let t = spm;
-      if (KEY_CLS.includes(p.cls) || p.checkmate) t += hold * (p.cls === 'blunder' || p.checkmate ? 1.3 : 1);
-      // reading time for the comment, plus at most QUEEN_HOLD s for Queen's sentence
+      // reading time for the comment, plus at most QUEEN_HOLD s for Queen's sentence; on a marked move it stands in
+      // for the extra hold, which only a marked move with nothing to read gets
       const tc = p.comment ? 0.6 + p.comment.length / read : 0;
       const tq = p.queenText ? Math.min(QUEEN_HOLD, (p.queenText.length + 5) / read) : 0;
-      if (tc || tq) t = Math.max(t, (tc || 0.6) + tq);
-      return t;
+      if (tc || tq) return Math.max(spm, (tc || 0.6) + tq);
+      return KEY_CLS.includes(p.cls) || p.checkmate ? spm + hold * (p.cls === 'blunder' || p.checkmate ? 1.3 : 1) : spm;
     });
     if (o.fastOpening) { const [, a, b] = ranges[0]; for (let i = a; i <= b; i++) if (!M.plies[i].comment && !M.plies[i].mark) d[i] *= 0.55; }
     const live = ranges.filter((r) => r[2] >= r[1]);
