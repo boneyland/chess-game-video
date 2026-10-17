@@ -385,7 +385,7 @@
       // the move played was the engine's choice: keep its line, which starts with that move
       else if (am && am.best_line && am.best_line.length) ply.line = am.best_line;
       else if (!useA && pp.variation && pp.variation.length) {
-        try { const bm = sanToMove(before, pp.variation[0]); ply.best = { uci: idxSq(bm.from) + idxSq(bm.to), line: pp.variation }; } catch (e) {}
+        try { const bm = sanToMove(before, pp.variation[0]); ply.best = { uci: idxSq(bm.from) + idxSq(bm.to) + (bm.promo || ''), line: pp.variation }; } catch (e) {}
       }
       if (am && am.mate_advice) ply.advice = am.mate_advice;
       // the search of the position after the move, as it actually ran
