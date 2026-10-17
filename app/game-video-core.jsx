@@ -261,8 +261,9 @@ function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
 const LINE_CACHE = new Map();
 function playLineCached(M, c, moves) {
-  const fen = c === 0 ? START_FEN : M.plies[c - 1].fen, castle = c === 0 ? 'KQkq' : M.plies[c - 1].castle, key = fen + ' ' + castle + '|' + moves.join(' ');
-  if (!LINE_CACHE.has(key)) LINE_CACHE.set(key, window.ChessCore.playLine(fen, moves, castle));
+  const P = c === 0 ? null : M.plies[c - 1];
+  const fen = P ? P.fen : START_FEN, castle = P ? P.castle : 'KQkq', ep = P ? P.ep : -1, key = fen + ' ' + castle + ' ' + ep + '|' + moves.join(' ');
+  if (!LINE_CACHE.has(key)) LINE_CACHE.set(key, window.ChessCore.playLine(fen, moves, castle, ep));
   return LINE_CACHE.get(key);
 }
 const lineLabel = (c, j, san) => { const ply = c + j; return `${Math.floor(ply / 2) + 1}${ply % 2 ? '…' : '.'} ${san}`; };
@@ -748,7 +749,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const [sel, setSel] = React.useState(null); // selected square (0 = a8)
   const [drag, setDrag] = React.useState(null); // { from, x, y, x0, y0, moved } in board pixels
   React.useEffect(() => { if (!vline) { setSel(null); setDrag(null); } }, [vline]);
-  const gamePos = (cc) => (cc < 0 ? window.ChessCore.posFromFen(START_FEN) : { ...window.ChessCore.posFromFen(M.plies[cc].fen), castle: M.plies[cc].castle });
+  const gamePos = (cc) => (cc < 0 ? window.ChessCore.posFromFen(START_FEN) : { ...window.ChessCore.posFromFen(M.plies[cc].fen), castle: M.plies[cc].castle, ep: M.plies[cc].ep });
   const curPos = () => (vline ? (vline.upto >= 0 ? vline.moves[vline.upto].pos : vline.base) : gamePos(cNow));
   const newLine = () => ({ c: cNow, at: cNow + 1, src: 'you', moves: [], upto: -1, base: gamePos(cNow) });
   const explore = () => { tl.setPlaying(false); if (!vline) setVline(newLine()); };
