@@ -1,6 +1,6 @@
 # Chess Game Video (artifact sources)
 
-The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/ and its Codeberg Pages copy. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
+The browser player behind the claude.ai artifact, https://chess-replay.netlify.app/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](../chess-animator) (the Python/Manim renderer) on 2026-10-17.
 
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser)
 - `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, `game-data.js` go into the build); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
@@ -18,7 +18,5 @@ Build: `node build.cjs` writes
 - `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/:
   - `chess-game-video.html`
   - `stockfish-19-lite-single.js`, `stockfish-19-lite-single.wasm` (loaded from next to the page)
-
-Codeberg Pages: `./pages.sh` builds, commits `out/site/` to the `pages` branch (the page renamed `index.html`, plus `LICENSE`) and pushes `main` and `pages` to the `codeberg` remote (`--no-push` to only commit). Codeberg's git-pages server deploys the branch when a Forgejo webhook on the repo (target `https://boneyland.codeberg.page/chess-replay`, branch filter `pages`) reports a push; the site is https://boneyland.codeberg.page/chess-replay/.
 
 Licence: GPL-3.0-or-later (`LICENSE`), the same as the bundled Stockfish.
