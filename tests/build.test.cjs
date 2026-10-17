@@ -18,6 +18,13 @@ test('the sample commentary has an intro and comments on moves', () => {
   assert.ok((window.SAMPLE_NOTES.match(/^\[\d+\] /gm) || []).length >= 5);
 });
 
+// String.replace would expand $' or $& in a script; both pages must carry each unit's code as written
+test('the built pages inline the units verbatim', () => {
+  const unit = fs.readFileSync(path.join(ROOT, 'app', 'chess-core.js'), 'utf8');
+  assert.match(unit, /'\$' \+ nag/);
+  for (const f of [['out', 'site', 'chess-game-video.html'], ['out', 'chess-game-video.html']]) assert.ok(fs.readFileSync(path.join(ROOT, ...f), 'utf8').includes(unit), f.join('/'));
+});
+
 // The self-hosted page keeps a Hugging Face token in localStorage, so no CDN script may run unchecked
 test('every script from a CDN is pinned by an integrity hash', () => {
   const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');

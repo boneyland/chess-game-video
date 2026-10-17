@@ -74,13 +74,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 .stage:not(.stage-tall) .pbar { max-width: 1200px; }
 .pdock { position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding-left: 10px; border-left: 1px solid var(--line); }
 .dock-status {
-  position: absolute; z-index: 50; right: -6px; bottom: calc(100% + 12px); display: none; width: max-content; max-width: min(640px, calc(100vw - 32px));
+  position: absolute; z-index: 50; right: -6px; bottom: calc(100% + 12px); width: max-content; max-width: min(640px, calc(100vw - 32px));
   padding: 6px 10px; border-radius: 8px; background: var(--panel-glass); border: 1px solid var(--line); box-shadow: 0 8px 24px var(--shadow);
-  font: 500 12px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  font: 500 12px var(--mono); color: var(--danger); white-space: normal; overflow: hidden; pointer-events: none;
 }
-.pdock:hover .dock-status, .pdock-err .dock-status { display: block; }
-.pdock-err .dock-status { color: var(--danger); white-space: normal; }
-.pdock:not(.pdock-err):has([aria-expanded="true"]) .dock-status { display: none; }
 /* landscape: panels open above the transport bar, so they leave its buttons uncovered */
 body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 86px); }
 .dock-btn { flex: none; font: 600 12px var(--mono); padding: 6px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
@@ -234,6 +231,6 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script>
-window.TWEAK_DEFAULTS = { bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 1.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8, sound: true, soundSet: 'Lichess sfx', soundVolume: 70, sfDepth: 22, sfTime: 3, sfOwnDepth: 24, sfOwnTime: 3, sfHash: 64 };
+window.TWEAK_DEFAULTS = { bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 1.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8, blunderGlow: true, commentary: true, sound: true, soundSet: 'Lichess sfx', soundVolume: 70, sfDepth: 22, sfTime: 3, sfOwnDepth: 24, sfOwnTime: 3, sfHash: 64 };
 </script>
 <!--SCRIPTS-->

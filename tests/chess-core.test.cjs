@@ -131,3 +131,18 @@ test('clip range: the whole game spans the video, and a move range sits between 
   assert.ok(last.end < CC.cues(TM.scenes).Outro, 'the last move alone stops before the end card');
   assert.ok(at(5, 5).end > at(5, 5).start);
 });
+
+test('annotatedPgn writes marks as NAGs, evals, clocks, notes and the better line, and reads back the same game', () => {
+  const pgn = '[White "A"]\n[Black "B"]\n[Result "*"]\n\n1. e4 { [%eval 0.3] [%clk 0:05:00] } e5 { [%eval 0.25] [%clk 0:04:58] } 2. Qh5 { [%eval -0.1] } Ke7?? { [%eval 5.0] } ( 2... Nc6 3. Bc4 ) *';
+  const M = CC.buildGame({ pgn, notes: '[INTRO]\nA {short} game.\n[4]\nThe king walks.' });
+  const out = CC.annotatedPgn(M);
+  assert.match(out, /^\[Event "\?"\]\n\[Site "\?"\]\n\[Round "\?"\]\n\[White "A"\]\n\[Black "B"\]\n\[Result "\*"\]/);
+  const moves = out.split('\n\n')[1].replace(/\n/g, ' ');
+  assert.ok(out.split('\n').every((l) => l.length <= 80));
+  assert.match(moves, /^\{A \(short\) game\.\} 1\. e4 \{\[%eval 0\.30\] \[%clk 0:05:00\]\} 1\.\.\. e5/);
+  assert.match(moves, /Ke7 \$4 \{\[%eval 5\.00\] The king walks\.\} \(2\.\.\. Nc6 3\. Bc4\) \* $/);
+  const back = CC.buildGame({ pgn: out });
+  assert.deepEqual(back.plies.map((p) => p.san + (p.mark || '')), ['e4', 'e5', 'Qh5', 'Ke7??']);
+  assert.equal(back.plies[3].cp, 500);
+  assert.equal(back.plies[0].clk, 300);
+});

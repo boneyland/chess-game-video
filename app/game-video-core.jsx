@@ -833,7 +833,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   });
   const c = lastPly(T, S);
   if (probe) probe.current = { S, c };
-  const flash = c >= 0 && (M.plies[c].cls === 'blunder' || M.plies[c].checkmate) ? Math.max(0, 1 - Math.abs(T - S.tp[c] - S.md[c] - 0.25) / 0.6) : 0;
+  const flash = tw.blunderGlow !== false && c >= 0 && (M.plies[c].cls === 'blunder' || M.plies[c].checkmate) ? Math.max(0, 1 - Math.abs(T - S.tp[c] - S.md[c] - 0.25) / 0.6) : 0;
   const cx = BX + BW / 2, cy = BY + BW / 2, sc = 1 + 0.1 * f;
   const fade = 1 - cl01((T - (authoredTotal - 0.9)) / 0.8);
   return (

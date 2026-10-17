@@ -29,7 +29,7 @@ const scripts = units.map(([name, code]) => {
   return `<script>\n// ${name}\n(function () {\n${code}\n})();\n</script>`;
 }).join('\n');
 const page = read(path.join(app, 'shell.html'));
-const out = page.replace('<!--SCRIPTS-->', scripts);
+const out = page.replace('<!--SCRIPTS-->', () => scripts); // a function, so $' or $& in the code stay as they are
 // claude.ai can't load a worker from a file next to the page: the artifact carries the engine inline and
 // starts it from Blob URLs (the glue reads its wasm URL from the worker's #hash)
 const esc = (str) => JSON.stringify(str).replace(/</g, '\\u003c');
@@ -46,7 +46,7 @@ const sfInline = `<script>
   };
 })();
 </script>`;
-const artifactOut = page.replace('<!--SCRIPTS-->', sfInline + '\n' + scripts);
+const artifactOut = page.replace('<!--SCRIPTS-->', () => sfInline + '\n' + scripts);
 fs.mkdirSync(path.join(dir, 'out', 'site'), { recursive: true });
 fs.writeFileSync(path.join(dir, 'out', 'chess-game-video.html'), artifactOut);
 // Self-hosted copy: claude.ai wraps artifacts in this document shell itself, so a standalone file needs its own

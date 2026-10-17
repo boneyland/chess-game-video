@@ -62,7 +62,8 @@ for (const base of SITES) {
       const buf = new Uint8Array(await r.arrayBuffer());
       return { status: r.status, type: r.headers.get('content-type') || '', cache: r.headers.get('cache-control') || '', text: new TextDecoder().decode(buf), sha: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buf))).map((x) => x.toString(16).padStart(2, '0')).join('') };
     }, base + p);
-    const loaded = () => page.locator('.dock-status').filter({ hasText: 'plies' }).waitFor({ state: 'attached' });
+    // the page has rendered and the board has its pieces
+    const loaded = async () => { await page.locator('.dock-primary').waitFor({ state: 'attached' }); await page.waitForFunction(() => document.querySelectorAll('img').length >= 32); };
 
     await t.test('desktop: the sample game loads with no console errors', async () => {
       await page.goto(base, { waitUntil: 'load' });

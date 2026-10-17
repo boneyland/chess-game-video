@@ -114,7 +114,12 @@ function GameApp() {
   const ES = React.useMemo(() => window.AnalysisCore.engineSettings(t), [t.sfDepth, t.sfTime, t.sfOwnDepth, t.sfOwnTime, t.sfHash]);
   const engine = useEngine(ES.game.hash_mb);
   const queenInVideo = t.queenInVideo !== false;
-  const MV = React.useMemo(() => (queenInVideo ? withQueen(M, Q.resultAt) : M), [M, Q.cache, queenInVideo]);
+  const showCommentary = t.commentary !== false;
+  // commentary off: no comments, intro or conclusion, so the video's timing drops their reading time too
+  const MV = React.useMemo(() => {
+    const G = queenInVideo ? withQueen(M, Q.resultAt) : M;
+    return showCommentary ? G : { ...G, intro: '', conclusion: '', plies: G.plies.map((p) => ({ ...p, comment: '' })) };
+  }, [M, Q.cache, queenInVideo, showCommentary]);
   const TM = React.useMemo(() => window.ChessCore.timing(MV, { secondsPerMove: t.secondsPerMove, keyHold: t.keyHold, fastOpening: t.fastOpening }), [MV, t.secondsPerMove, t.keyHold, t.fastOpening]);
   const scenes = JSON.stringify(TM.scenes);
   const fmtLen = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
@@ -207,6 +212,7 @@ function GameApp() {
     const a = typeof files.analysis === 'string' ? files.analysis : JSON.stringify(files.analysis, null, 2);
     saveFile(files.analysisName || fileStem + '_analysis.json', a, 'application/json');
   };
+  const savePgn = () => saveFile(fileStem + '_annotated.pgn', window.ChessCore.annotatedPgn(MV), 'application/x-chess-pgn');
   const saveQueen = () => saveFile(fileStem + '_queen.json', JSON.stringify(Q.saved(), null, 1), 'application/json');
   const analysis = useGameAnalysis(M, files, () => filesRef.current, commit, engine, ES.game);
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
@@ -276,10 +282,10 @@ function GameApp() {
       {dockItems}
     </div>
   );
-  // landscape: the buttons sit at the end of the transport bar, with the game's status above them on hover or error
+  // landscape: the buttons sit at the end of the transport bar, with an error above them
   const deskDock = (
     <div className={'pdock' + (shownErr ? ' pdock-err' : '')}>
-      <span className="dock-status" role={shownErr ? 'alert' : undefined}>{shownErr || status}</span>
+      {shownErr && <span className="dock-status" role="alert">{shownErr}</span>}
       {dockItems}
     </div>
   );
@@ -335,6 +341,7 @@ function GameApp() {
           <div className="twk-note">New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes only with the settings it started with. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
         </TweakSection>
         <TweakSection label="Commentary" column>
+          <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
           {sample && <>
             <TweakRadio id="tw-tone" label="Style" value={t.aiTone || 'Broadcast'} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
             <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || 'Beginners'} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
@@ -348,6 +355,7 @@ function GameApp() {
           {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
           {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save commentary as notes file" onClick={downloadNotes} />}
           {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
+          {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save as annotated PGN" onClick={savePgn} />}
           {saveMsg && <div className="twk-note">{saveMsg}</div>}
         </TweakSection>
         <TweakSection label="Pace">
@@ -373,6 +381,7 @@ function GameApp() {
           </>}
           <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
           <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
+          <TweakToggle id="tw-glow" label="Red glow on blunders and mates" value={t.blunderGlow !== false} onChange={(v) => setTweak('blunderGlow', v)} />
           <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
           <div className="twk-note">Shows Queen’s answers in Commentary and Analysis on the moves it has analysed. Moves with a Queen sentence stay on screen longer.</div>
         </TweakSection>

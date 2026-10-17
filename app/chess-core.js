@@ -585,6 +585,53 @@
     return out.join('\n\n') + '\n';
   }
 
+  // ---------- annotated PGN ----------
+  const NB = '\u00a0';
+  const pgnEsc = (t) => String(t).replace(/[{}]/g, (c) => (c === '{' ? '(' : ')')).replace(/\s+/g, ' ').trim();
+  // the game as PGN: marks as NAGs, evals and clocks as [%eval]/[%clk], commentary (and Queen's sentence) as
+  // comments, the engine's better line on !?/?/?? moves as a variation; wrapped at 80 columns
+  function annotatedPgn(M) {
+    const H = { ...(M.headers || {}) };
+    const set = (k, v) => { if (!H[k] && v) H[k] = v; };
+    set('Event', M.event || '?'); set('Site', M.site || '?'); set('Round', M.round || '?');
+    set('White', M.white.name); set('Black', M.black.name); set('WhiteElo', M.white.elo); set('BlackElo', M.black.elo);
+    set('ECO', M.eco); set('Opening', M.opening);
+    H.Result = M.result || '*';
+    const order = ['Event', 'Site', 'Date', 'Round', 'White', 'Black', 'Result'];
+    const keys = order.filter((k) => H[k] != null).concat(Object.keys(H).filter((k) => !order.includes(k)));
+    const head = keys.map((k) => `[${k} "${String(H[k]).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`).join('\n');
+    const clk = (s) => { const t = Math.round(s); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
+    const toks = [];
+    if (M.intro) toks.push(`{${pgnEsc(M.intro)}}`);
+    M.plies.forEach((p, i) => {
+      const n = Math.floor(i / 2) + 1;
+      // a move number and its move stay on one line (NB is a no-break space until the wrap)
+      toks.push((i % 2 === 0 ? n + '.' + NB : /[})]$/.test(toks[toks.length - 1]) ? n + '...' + NB : '') + p.san); const nag = Object.keys(NAG).find((k) => NAG[k] === p.mark); if (nag) toks.push('$' + nag);
+      const tags = [];
+      if (!p.checkmate && p.mate != null) tags.push(`[%eval #${p.mate}]`);
+      else if (!p.checkmate && p.cp != null) tags.push(`[%eval ${(p.cp / 100).toFixed(2)}]`);
+      if (p.clk != null) tags.push(`[%clk ${clk(p.clk)}]`);
+      const words = tags.concat([p.comment, p.queenText ? 'Queen: ' + p.queenText : ''].filter(Boolean).map(pgnEsc));
+      if (words.length) toks.push(`{${words.join(' ')}}`);
+      if (p.best && p.best.line && p.best.line.length && ['inaccuracy', 'mistake', 'blunder'].includes(p.cls)) {
+        const before = i ? M.plies[i - 1] : null;
+        const line = playLine(before ? before.fen : START + ' w KQkq - 0 1', p.best.line, before ? before.castle : 'KQkq', before ? before.ep : -1);
+        if (line.length) {
+          const v = [];
+          line.forEach((m, j) => { const k = i + j; v.push((k % 2 === 0 ? Math.floor(k / 2) + 1 + '.' + NB : j === 0 ? Math.floor(k / 2) + 1 + '...' + NB : '') + m.san); });
+          toks.push('(' + v.join(' ') + ')');
+        }
+      }
+    });
+    if (M.conclusion) toks.push(`{${pgnEsc(M.conclusion)}}`);
+    toks.push(H.Result);
+    const lines = []; let cur = '';
+    // comments may run past 80 columns as one token; break them on spaces
+    toks.join(' ').split(' ').forEach((w) => { if (cur && cur.length + 1 + w.length > 80) { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; });
+    if (cur) lines.push(cur);
+    return head + '\n\n' + lines.join('\n').replace(/\u00a0/g, ' ') + '\n';
+  }
+
   // castle: the castling rights before the line (the page's FENs don't carry them); omitted = all
   function playLine(fen, sans, castle, ep) {
     let pos = { b: fromFen(fen), ep: ep == null ? -1 : ep, turn: fen.split(' ')[1] || 'w', castle: castle == null ? 'KQkq' : castle };
@@ -668,5 +715,5 @@
     return { san: r.san, uci, board: r.pos.b.slice(), checkSq: check ? idxSq(kingIdx(r.pos.b, r.pos.turn)) : null, pos: r.pos };
   }
 
-  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS };
+  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();
