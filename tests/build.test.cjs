@@ -17,3 +17,14 @@ test('the sample commentary has an intro and comments on moves', () => {
   assert.match(window.SAMPLE_NOTES, /^\[INTRO\]\n/);
   assert.ok((window.SAMPLE_NOTES.match(/^\[\d+\] /gm) || []).length >= 5);
 });
+
+// The self-hosted page keeps a Hugging Face token in localStorage, so no CDN script may run unchecked
+test('every script from a CDN is pinned by an integrity hash', () => {
+  const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');
+  const tags = page.match(/<script\b[^>]*\ssrc="https:[^"]*"[^>]*>/g) || [];
+  assert.ok(tags.length >= 2);
+  for (const tag of tags) assert.match(tag, /\sintegrity="sha384-[\w+/=]+"\s+crossorigin="anonymous"/, tag);
+  const importmap = JSON.parse(page.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]);
+  for (const url of page.match(/https:\/\/cdn\.jsdelivr\.net\/npm\/[^'"]+\.mjs/g)) assert.match(importmap.integrity[url] || '', /^sha384-/, url);
+  assert.match(page, /\.integrity = EXPORT_LIBS\.html2canvasHash/);
+});

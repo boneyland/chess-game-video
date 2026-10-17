@@ -150,6 +150,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 .twk-btn.secondary { background: var(--raise); color: var(--ink); border: 1px solid var(--line); }
 .twk-btn:disabled { opacity: 0.6; cursor: progress; }
 .mv:hover { outline: 1px solid rgba(227, 181, 91, 0.6); }
+.mv:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .dock-queen { border-color: rgba(224, 96, 159, 0.55); color: var(--queen); }
 
 .q-panel { left: max(16px, env(safe-area-inset-left, 0px)); right: auto; width: min(400px, calc(100% - 32px)); }
@@ -210,8 +211,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 @media (prefers-reduced-motion: reduce) { .twk-seg-thumb, .twk-toggle, .twk-toggle i, .dock { transition: none; } }
 </style>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<!-- every script from a CDN is pinned by hash, so a changed file is refused rather than run (the self-hosted
+     page keeps a Hugging Face token in localStorage); mediabunny is import()ed by export.jsx, so its hash is here -->
+<script type="importmap">{ "integrity": { "https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs": "sha384-dgXqh40lPRThVN6GITp7isudOPkdn0tmG6I1Q82V90ioA/xmApk2YnPzIZJ/hOWL" } }</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script>
 window.TWEAK_DEFAULTS = { bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 2.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8 };
 </script>

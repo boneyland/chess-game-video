@@ -111,3 +111,8 @@ test('en passant is playable from a game position after a double pawn push', () 
   assert.equal(CC.userMove(pos, CC.sqIndex('e5'), CC.sqIndex('d6')).san, 'exd6');
   assert.deepEqual(CC.playLine(P.fen, ['exd6', 'exd6'], P.castle, P.ep).map((s) => s.san), ['exd6', 'exd6']);
 });
+
+test('a best move from a PGN variation keeps its promotion piece', () => {
+  const N = CC.buildGame({ pgn: '1. e4 d5 2. exd5 c6 3. dxc6 Qd6 4. cxb7 Qd5 5. Nc3 (5. bxa8=Q) *' });
+  assert.equal(N.plies[8].best.uci, 'b7a8q');
+});

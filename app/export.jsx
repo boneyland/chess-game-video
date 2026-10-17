@@ -3,8 +3,10 @@
 // the browser (WebCodecs, muxed by Mediabunny). Both libraries load from the CDN on the first export only.
 // frame rates offered in Settings; each frame takes about 0.2 s to draw, so the export time scales with it
 const EXPORT_FPS_OPTIONS = [8, 12, 15, 24, 30];
+// a new version needs a new hash: html2canvas-pro's here, mediabunny's in the import map in shell.html
 const EXPORT_LIBS = {
   html2canvas: 'https://cdn.jsdelivr.net/npm/html2canvas-pro@2.5.0/dist/html2canvas-pro.min.js',
+  html2canvasHash: 'sha384-IT/7L8+t0nqitKnKyUD1rh3hC/qPQehh1Et4A2dTqUuxKbomoRs73yhSQoALaYeI',
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
 };
 let exportLibs = null;
@@ -13,7 +15,7 @@ function loadExportLibs() {
     const script = new Promise((ok, fail) => {
       if (window.html2canvas) return ok();
       const s = document.createElement('script');
-      s.src = EXPORT_LIBS.html2canvas; s.onload = ok; s.onerror = () => fail(new Error('could not load html2canvas-pro'));
+      s.src = EXPORT_LIBS.html2canvas; s.integrity = EXPORT_LIBS.html2canvasHash; s.crossOrigin = 'anonymous'; s.onload = ok; s.onerror = () => fail(new Error('could not load html2canvas-pro'));
       document.head.appendChild(s);
     });
     exportLibs = Promise.all([script, import(EXPORT_LIBS.mediabunny)]).then(([, MB]) => ({ html2canvas: window.html2canvas, MB }));
