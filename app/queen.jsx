@@ -117,8 +117,9 @@ const uciToSan = (M, i, uci) => {
 const IN_CLAUDE = !!window.claude;
 const DIRECT_API = 'https://boneyland-queen-pawn-8.hf.space/gradio_api';
 // Public OAuth app (no secret) registered at huggingface.co/settings/applications. Sign-in returns to the folder the
-// page is served from (https://chess-replay.netlify.app/); each host's URL must be a redirect URL there
-const HF_OAUTH = { clientId: '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: location.origin + location.pathname.replace(/[^/]*$/, '') };
+// page is served from (https://chess-replay.netlify.app/); each host's URL must be a redirect URL there. A static HF Space
+// with `hf_oauth: true` in its README gets its own app, whose ID HF injects as window.huggingface.variables
+const HF_OAUTH = { clientId: (window.huggingface && window.huggingface.variables || {}).OAUTH_CLIENT_ID || '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: location.origin + location.pathname.replace(/[^/]*$/, '') };
 const AUTH_STORE = 'chess-video.hf-auth.v1', PKCE_STORE = 'chess-video.hf-pkce';
 
 async function directCall(moves, token, signal) {
