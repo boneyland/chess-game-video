@@ -4,6 +4,9 @@ const dir = __dirname, src = path.join(dir, 'src'), app = path.join(dir, 'app');
 const Babel = require(path.join(dir, 'babel', 'babel.min.js'));
 const jsx = (code, name) => Babel.transform(code, { filename: name, presets: ['react'] }).code;
 const read = (p) => fs.readFileSync(p, 'utf8');
+// Lichess's Enigmahack sound sets (AGPL-3.0-or-later, vendor/sounds), inlined as base64 MP3s: { sfx: { move: '…' }, … }
+const SOUNDS = path.join(dir, 'vendor', 'sounds');
+const soundsData = () => Object.fromEntries(['futuristic', 'nes', 'piano', 'sfx'].map((set) => [set, Object.fromEntries(['Move', 'Capture', 'Check', 'Victory', 'Draw'].map((f) => [f.toLowerCase(), fs.readFileSync(path.join(SOUNDS, set, f + '.mp3')).toString('base64')]))]));
 const units = [
   ['pieces.js', read(path.join(src, 'pieces.js'))],
   ['chess-core.js', read(path.join(app, 'chess-core.js'))],
@@ -12,12 +15,14 @@ const units = [
   ['openings-core.js', read(path.join(app, 'openings-core.js'))],
   ['sf-engine.js', read(path.join(app, 'sf-engine.js'))],
   ['queen-core.js', read(path.join(app, 'queen-core.js'))],
+  ['sounds-data.js', 'window.SFX_DATA = ' + JSON.stringify(soundsData()) + ';'],
+  ['sfx-core.js', read(path.join(app, 'sfx-core.js'))],
   ['sample-game.js', read(path.join(src, 'sample-game.js'))],
   ['game-data.js', read(path.join(src, 'game-data.js'))],
   ['sample-analysis.js', read(path.join(app, 'sample-analysis.js'))],
   ['engine.jsx', jsx(read(path.join(app, 'engine.jsx')), 'engine.jsx')],
   ['tweaks.jsx', jsx(read(path.join(app, 'tweaks.jsx')), 'tweaks.jsx')],
-  ['game-video.jsx', jsx(read(path.join(app, 'game-video-core.jsx')) + '\n' + read(path.join(app, 'queen.jsx')) + '\n' + read(path.join(app, 'stockfish.jsx')) + '\n' + read(path.join(app, 'export.jsx')) + '\n' + read(path.join(app, 'game-app.jsx')), 'game-video.jsx')],
+  ['game-video.jsx', jsx(read(path.join(app, 'game-video-core.jsx')) + '\n' + read(path.join(app, 'queen.jsx')) + '\n' + read(path.join(app, 'stockfish.jsx')) + '\n' + read(path.join(app, 'sfx.jsx')) + '\n' + read(path.join(app, 'export.jsx')) + '\n' + read(path.join(app, 'game-app.jsx')), 'game-video.jsx')],
 ];
 const scripts = units.map(([name, code]) => {
   if (/<\/script/i.test(code)) throw new Error(name + ' contains </script');

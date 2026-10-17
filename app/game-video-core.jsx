@@ -740,6 +740,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const [vline, setVline] = React.useState(null); // { c, src, moves, upto } while a line is shown on the board
   const cNow = lastPly(T, S);
   React.useEffect(() => { if (vline && (playing || cNow !== vline.c)) setVline(null); }, [playing, cNow]);
+  useMoveSounds(M, T, S, tw, playing, vline);
   const onLine = (src, moves, j) => { if (j < moves.length) { tl.setPlaying(false); setSel(null); setVline({ c: cNow, at: cNow, src, moves, upto: j }); } };
   // a line steps back to its first move (the viewer's own line back to its starting position), then closes
   const stepLine = (d) => setVline((v) => {

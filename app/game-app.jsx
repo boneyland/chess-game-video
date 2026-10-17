@@ -211,6 +211,8 @@ function GameApp() {
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
   const [book, setBook] = React.useState(null);
   React.useEffect(() => { setBook(null); const id = setTimeout(() => { try { setBook(window.Openings.book().byPly(M.plies.map((p) => p.uci))); } catch (e) {} }, 50); return () => clearTimeout(id); }, [M]);
+  const soundSet = window.Sfx.SETS.includes(t.soundSet) ? t.soundSet : window.Sfx.SETS[0];
+  const soundVolume = Number.isFinite(+t.soundVolume) ? +t.soundVolume : 70;
   const exportFps = EXPORT_FPS_OPTIONS.includes(+t.exportFps) ? +t.exportFps : 8;
   const video = useVideoExport({ total: TM.total, fps: exportFps, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
   const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run(); };
@@ -265,7 +267,7 @@ function GameApp() {
 
   return (
     <React.Fragment>
-      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={tall ? menuEl : deskDock} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
+      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
         <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
@@ -316,6 +318,12 @@ function GameApp() {
           <TweakSlider id="tw-spm" label="Seconds per move" value={t.secondsPerMove} min={0.5} max={4} step={0.1} unit="s" onChange={(v) => setTweak('secondsPerMove', v)} />
           <TweakSlider id="tw-hold" label="Extra hold on marked moves" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
           <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
+        </TweakSection>
+        <TweakSection label="Sound">
+          <TweakToggle id="tw-sound" label="Move sounds" value={t.sound !== false} onChange={(v) => setTweak('sound', v)} />
+          <TweakSelect id="tw-sset" label="Sound set" value={soundSet} options={window.Sfx.SETS} onChange={(v) => { setTweak('soundSet', v); sfxPlayer.play(v, ['move'], soundVolume); }} />
+          <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v); }} />
+          <div className="twk-note">The Lichess sets are by <a href="https://github.com/Enigmahack" target="_blank" rel="noopener">Enigmahack</a>, from <a href="https://github.com/lichess-org/lila" target="_blank" rel="noopener">Lichess’s source</a>, under the AGPL-3.0-or-later. Wood is made in your browser.</div>
         </TweakSection>
         <TweakSection label="Engine">
           <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite running in your browser: depth 22 or 3 s per position for a game, depth 24 or 3 s for your moves. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>

@@ -28,3 +28,14 @@ test('every script from a CDN is pinned by an integrity hash', () => {
   for (const url of page.match(/https:\/\/cdn\.jsdelivr\.net\/npm\/[^'"]+\.mjs/g)) assert.match(importmap.integrity[url] || '', /^sha384-/, url);
   assert.match(page, /\.integrity = EXPORT_LIBS\.html2canvasHash/);
 });
+
+// The Lichess sound sets travel inside the page (the artifact can't load files next to it)
+test('the built page carries the four Lichess sound sets as MP3s, and the Wood set needs no data', () => {
+  const page = fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8');
+  const data = JSON.parse(page.match(/window\.SFX_DATA = (\{.*?\});\n/)[1]);
+  assert.deepEqual(Object.keys(data), ['futuristic', 'nes', 'piano', 'sfx']);
+  for (const [set, sounds] of Object.entries(data)) {
+    assert.deepEqual(Object.keys(sounds), ['move', 'capture', 'check', 'victory', 'draw'], set);
+    for (const [kind, b64] of Object.entries(sounds)) assert.equal(Buffer.from(b64, 'base64').subarray(0, 3).toString(), 'ID3', `${set}/${kind}`);
+  }
+});

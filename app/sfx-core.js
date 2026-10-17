@@ -1,0 +1,113 @@
+// Move sounds: which sounds a move makes, when its piece lands, the built-in Wood set (synthesized here) and the
+// player. The Lichess sets are Enigmahack's (AGPL-3.0-or-later), inlined by build.cjs as window.SFX_DATA.
+(function () {
+  // the first is the default
+  const SETS = ['Lichess sfx', 'Lichess piano', 'Lichess NES', 'Lichess futuristic', 'Wood'];
+  const SET_DIR = { 'Lichess sfx': 'sfx', 'Lichess piano': 'piano', 'Lichess NES': 'nes', 'Lichess futuristic': 'futuristic' };
+  const KINDS = ['move', 'capture', 'check', 'victory', 'draw'];
+  const END_DELAY = 0.6; // seconds between the last move's sound and the end of the game's
+
+  // played together: the move or capture, and a check on top
+  const kinds = (san) => [/x/.test(san || '') ? 'capture' : 'move'].concat(/[+#]/.test(san || '') ? ['check'] : []);
+  const endKind = (result) => (result === '1-0' || result === '0-1' ? 'victory' : result === '1/2-1/2' ? 'draw' : null);
+  // the last ply whose piece has reached its square (pieces move from S.tp[i] for S.md[i] seconds)
+  const landed = (T, S) => { let k = -1; for (let i = 0; i < S.N; i++) { if (T >= S.tp[i] + S.md[i]) k = i; else break; } return k; };
+  // what to play when the board's landed ply goes from `from` to `to`; the end sound only when playback reaches it
+  function cue(M, from, to, playing) {
+    if (to === from || to < 0 || to >= M.plies.length) return null;
+    const end = playing && to > from && to === M.plies.length - 1 ? endKind(M.result) : null;
+    return { kinds: kinds(M.plies[to].san), end };
+  }
+
+  // ---- Wood: knocks of a piece on a board, bells for check and the end ----
+  // seeded noise, so the set sounds the same every time
+  const noise = (seed) => { let s = seed >>> 0; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296) * 2 - 1; };
+  // a noise burst rung through a band-pass (RBJ biquad) at `freq`, over a low body tone
+  function knock(out, rate, at, freq, decay, body, seed) {
+    const rnd = noise(seed), w = (2 * Math.PI * freq) / rate, alpha = Math.sin(w) / (2 * 4), a0 = 1 + alpha;
+    const b0 = alpha / a0, a1 = (-2 * Math.cos(w)) / a0, a2 = (1 - alpha) / a0;
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = Math.round(at * rate); i < out.length; i++) {
+      const t = i / rate - at, env = Math.exp(-t / decay) * Math.min(1, t / 0.0006);
+      const x = rnd() * env, y = b0 * x - b0 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y;
+      out[i] += 3 * y + body * Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / (decay * 2.5)) * Math.min(1, t / 0.002);
+    }
+  }
+  // a soft bell: a sine and its fifth, fading out
+  function bell(out, rate, at, freq, decay) {
+    for (let i = Math.round(at * rate); i < out.length; i++) {
+      const t = i / rate - at, env = Math.exp(-t / decay) * Math.min(1, t / 0.004);
+      out[i] += env * (Math.sin(2 * Math.PI * freq * t) + 0.3 * Math.sin(2 * Math.PI * freq * 1.5 * t));
+    }
+  }
+  const WOOD = {
+    move: [0.16, 0.55, (o, r) => knock(o, r, 0, 1500, 0.011, 0.25, 7)],
+    capture: [0.22, 0.75, (o, r) => { knock(o, r, 0, 1300, 0.01, 0.2, 11); knock(o, r, 0.03, 1800, 0.013, 0.35, 13); }],
+    check: [0.45, 0.35, (o, r) => bell(o, r, 0, 1320, 0.09)],
+    victory: [1.4, 0.4, (o, r) => [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(o, r, i * 0.12, f, 0.25))],
+    draw: [1.1, 0.35, (o, r) => [783.99, 523.25].forEach((f, i) => bell(o, r, i * 0.2, f, 0.3))],
+  };
+  // one Wood sound as samples at `rate`, scaled to its peak, with a short fade so it ends in silence
+  function synth(kind, rate) {
+    const w = WOOD[kind];
+    if (!w) throw new Error('No Wood sound "' + kind + '"');
+    const out = new Float32Array(Math.round(w[0] * rate));
+    w[2](out, rate);
+    let peak = 0; for (const v of out) peak = Math.max(peak, Math.abs(v));
+    const fade = Math.round(0.01 * rate);
+    for (let i = 0; i < out.length; i++) out[i] *= (w[1] / (peak || 1)) * Math.min(1, (out.length - 1 - i) / fade);
+    return out;
+  }
+
+  // ---- the player: Web Audio, started by the viewer's first tap or key (browsers keep it silent until then) ----
+  function createPlayer(data) {
+    let ctx = null, gain = null, last = -1e9, wanted = SETS[0];
+    const cache = new Map(); // `${set}/${kind}` → AudioBuffer, or a promise while it decodes
+    function load(set, kind) {
+      const key = set + '/' + kind;
+      if (cache.has(key)) return cache.get(key);
+      let v;
+      if (set === 'Wood') {
+        const s = synth(kind, ctx.sampleRate);
+        v = ctx.createBuffer(1, s.length, ctx.sampleRate); v.getChannelData(0).set(s);
+      } else {
+        const b64 = data[SET_DIR[set]] && data[SET_DIR[set]][kind];
+        if (!b64) return null;
+        const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+        v = ctx.decodeAudioData(bytes.buffer).then((buf) => { cache.set(key, buf); return buf; }, () => { cache.set(key, null); return null; });
+      }
+      cache.set(key, v);
+      return v;
+    }
+    const prepare = (set) => { wanted = SETS.includes(set) ? set : SETS[0]; if (ctx) KINDS.forEach((k) => load(wanted, k)); };
+    function unlock() {
+      try {
+        if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; ctx = new AC(); gain = ctx.createGain(); gain.connect(ctx.destination); prepare(wanted); }
+        if (ctx.state === 'suspended') ctx.resume();
+      } catch (e) {}
+    }
+    if (typeof window.addEventListener === 'function') ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, unlock, true));
+    function start(set, kind, delay) {
+      const buf = load(set, kind);
+      const go = (b) => { if (!b) return; const src = ctx.createBufferSource(); src.buffer = b; src.connect(gain); src.start(ctx.currentTime + delay); };
+      // still decoding (the first sound of a newly picked set): play it if it's ready soon, else let it go
+      if (buf && typeof buf.then === 'function') { const asked = Date.now(); buf.then((b) => { if (Date.now() - asked < 300) go(b); }); } else go(buf);
+    }
+    // sounds that come faster than this (scrubbing the playhead) are dropped
+    function play(set, kindList, volume, end) {
+      if (!ctx || ctx.state !== 'running') return; // before the first gesture: nothing queues up to burst out later
+      const now = Date.now();
+      if (now - last < 60) return;
+      last = now;
+      set = SETS.includes(set) ? set : SETS[0];
+      if (set !== wanted) prepare(set);
+      gain.gain.value = Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100));
+      kindList.forEach((k) => start(set, k, 0));
+      if (end) start(set, end, END_DELAY);
+    }
+    return { play, prepare, unlock };
+  }
+
+  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, synth, createPlayer };
+})();
