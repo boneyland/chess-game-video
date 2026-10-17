@@ -1,6 +1,7 @@
 # The chess app's own Netlify site, built from this repo on every push to main.
 [build]
-  command = "node build.cjs"
+  # the tests run first, so a failing push doesn't produce a deploy
+  command = "node --test --test-concurrency=1 tests/*.test.cjs && node build.cjs"
   publish = "out/site"
   # Every production deploy costs credits: skip the ones where nothing that goes into the page changed
   # (tests, docs, CLAUDE.md). Exit 0 = skip, 1 = build; the first deploy has no cached commit and builds.

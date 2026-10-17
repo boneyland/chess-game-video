@@ -1,0 +1,33 @@
+# The Render static site (chess-replay), as configured in its dashboard. Render reads this only once the
+# service is linked to a Blueprint (Dashboard → Blueprints → New Blueprint Instance, this repo).
+services:
+  - type: web
+    name: chess-replay
+    runtime: static
+    # the tests run first, so a failing push doesn't go live
+    buildCommand: node --test --test-concurrency=1 tests/*.test.cjs && node build.cjs
+    staticPublishPath: out/site
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    # only changes to what goes into the page trigger a deploy (as netlify.toml's ignore rule)
+    buildFilter:
+      paths:
+        - app/**
+        - src/**
+        - vendor/**
+        - openings/**
+        - babel/**
+        - openings-data.cjs
+        - build.cjs
+        - render.yaml
+    # the bare domain serves the app; its file name stays the same as on the old notes site
+    routes:
+      - type: rewrite
+        source: /
+        destination: /chess-game-video.html
+    # revalidate on every visit, so a deploy is live at once
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate

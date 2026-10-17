@@ -1,0 +1,15 @@
+# Build the page and run the JS tests on every push and pull request. The Python cross-check
+# (tests/check_browser_json.py) is left out: it imports chess-animator, which needs Manim.
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node build.cjs
+      - run: node --test --test-concurrency=1 tests/*.test.cjs
