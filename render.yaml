@@ -1,5 +1,5 @@
-# The Render static site (chess-replay), as configured in its dashboard. Render reads this only once the
-# service is linked to a Blueprint (Dashboard → Blueprints → New Blueprint Instance, this repo).
+# The Render static site (chess-replay). The service is linked to a Blueprint, so Render syncs these settings
+# from this file on each push to main; edit them here rather than in the dashboard.
 services:
   - type: web
     name: chess-replay
