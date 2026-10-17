@@ -469,7 +469,7 @@
   const KEY_CLS = ['blunder', 'mistake', 'inaccuracy', 'brilliant', 'good', 'interesting'];
   const MAX_TOTAL = 300, TITLE = 5, OUTRO = 7, QUEEN_HOLD = 4;
   function timing(M, o) {
-    const spm = o.secondsPerMove || 1.6, hold = o.keyHold == null ? 2.5 : o.keyHold, read = o.readSpeed || 16;
+    const spm = o.secondsPerMove || 1.6, hold = o.keyHold == null ? 2.5 : o.keyHold, read = o.readSpeed || 22; // characters a second
     const ranges = plan(M);
     let d = M.plies.map((p) => {
       // reading time for the comment, plus at most QUEEN_HOLD s for Queen's sentence; on a marked move it stands in
