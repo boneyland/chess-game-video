@@ -316,7 +316,7 @@ function GameApp() {
         <TweakSection label="Pace">
           <div className="twk-note">Video length {fmtLen(TM.total)}{TM.capped ? ' (capped at 5:00)' : ''}</div>
           <TweakSlider id="tw-spm" label="Seconds per move" value={t.secondsPerMove} min={0.5} max={4} step={0.1} unit="s" onChange={(v) => setTweak('secondsPerMove', v)} />
-          <TweakSlider id="tw-hold" label="Extra hold on marked moves" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
+          <TweakSlider id="tw-hold" label="Extra hold on !/? moves and mates with no commentary" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
           <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
         </TweakSection>
         <TweakSection label="Sound">
