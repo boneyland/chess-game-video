@@ -313,4 +313,26 @@ function GameApp() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<GameApp />);
+// A render error would leave a blank page, and saved data could bring it back on every visit: offer to clear it
+// (the loaded game, Queen's answers and settings; the Hugging Face sign-in stays)
+class Recover extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const reset = () => {
+      try { Object.keys(localStorage).filter((k) => k.startsWith('chess-video.') && k !== AUTH_STORE).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
+      location.reload();
+    };
+    return (
+      <div role="alert" style={{ maxWidth: 520, margin: '15vh auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 14, color: 'var(--ink)', font: '15px/1.55 var(--sans)' }}>
+        <strong style={{ fontSize: 18 }}>Something on this page broke.</strong>
+        <span>It may be a file loaded earlier, which the page reloads on every visit. Clearing the saved game, Queen’s answers and settings usually fixes it.</span>
+        <span style={{ font: '13px var(--mono)', color: 'var(--dim)' }}>{String((this.state.error && this.state.error.message) || this.state.error)}</span>
+        <button type="button" className="twk-btn" style={{ alignSelf: 'flex-start' }} onClick={reset}>Clear saved data and reload</button>
+      </div>
+    );
+  }
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Recover><GameApp /></Recover>);

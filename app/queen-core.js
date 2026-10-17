@@ -97,6 +97,21 @@
     return from ? Object.fromEntries(keys.slice(from).map((k) => [k, c[k]])) : c;
   }
 
+  // An answer as the page draws it, from the Space, a saved file or the browser's cache: every field its expected type,
+  // so one odd answer can't break the page (it is saved, so it would break every visit). null when it isn't an answer.
+  const UCI = /^([a-h][1-8]){2}[qrbn]?$/;
+  function queenAnswer(r, at) {
+    if (!r || typeof r !== 'object' || !(Array.isArray(r.prose) || typeof r.prose === 'string')) return null;
+    const str = (v) => (typeof v === 'string' ? v : '');
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+    return {
+      best: typeof r.best === 'string' && UCI.test(r.best) ? r.best : null, bestSan: str(r.bestSan) || null, line: str(r.line),
+      evalText: str(r.evalText), evalPawns: num(r.evalPawns),
+      prose: Array.isArray(r.prose) ? r.prose.filter((x) => typeof x === 'string' && x) : r.prose ? [r.prose] : [],
+      seconds: num(r.seconds), source: str(r.source) || 'best_move', at,
+    };
+  }
+
   // A saved answers file holds the answers for one game's positions, keyed like the cache by the moves played to reach
   // each position (UCI, space-separated), so loading it back skips those Queen calls on any device
   const QUEEN_FILE = 'queen-answers';
@@ -111,10 +126,19 @@
     let j;
     try { j = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { return null; }
     if (!j || j.format !== QUEEN_FILE || !j.answers || typeof j.answers !== 'object') return null;
-    const ok = (k, r) => /^(([a-h][1-8]){2}[qrbn]?( |$))*$/.test(k) && r && typeof r === 'object' && typeof r.prose === 'string';
-    const at = (k) => (k ? k.split(' ').length : 0);
-    return Object.fromEntries(Object.entries(j.answers).filter(([k, r]) => ok(k, r)).map(([k, r]) => [k, { ...r, at: at(k) }]));
+    return readQueenCache(j.answers);
+  }
+  // the answers in a cache or file object, keyed by the moves played to reach each position; the rest are dropped
+  function readQueenCache(c) {
+    const out = {};
+    if (!c || typeof c !== 'object') return out;
+    for (const [k, r] of Object.entries(c)) {
+      if (!/^(([a-h][1-8]){2}[qrbn]?( |$))*$/.test(k)) continue;
+      const a = queenAnswer(r, k ? k.split(' ').length : 0);
+      if (a) out[k] = a;
+    }
+    return out;
   }
 
-  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache, queenFile, readQueenFile };
+  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache, queenAnswer, queenFile, readQueenFile, readQueenCache };
 })();
