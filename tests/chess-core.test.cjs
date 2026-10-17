@@ -102,3 +102,12 @@ test('an engine comment is not shown as commentary, the text after it is', () =>
   assert.equal(P.plies[0].comment, 'Book exit');
   assert.equal(P.plies[1].cp, undefined);
 });
+
+// Positions rebuilt from a move's FEN (own moves, best lines, variations) keep the en passant square
+test('en passant is playable from a game position after a double pawn push', () => {
+  const M = CC.buildGame({ pgn: '1. e4 Nf6 2. e5 d5 *' });
+  const P = M.plies[3];
+  const pos = { ...CC.posFromFen(P.fen), castle: P.castle, ep: P.ep };
+  assert.equal(CC.userMove(pos, CC.sqIndex('e5'), CC.sqIndex('d6')).san, 'exd6');
+  assert.deepEqual(CC.playLine(P.fen, ['exd6', 'exd6'], P.castle, P.ep).map((s) => s.san), ['exd6', 'exd6']);
+});

@@ -369,6 +369,7 @@
       if (check) ply.checkSq = idxSq(kingIdx(pos.b, pos.turn));
       ply.fen = toFen(pos);
       ply.castle = pos.castle;
+      ply.ep = pos.ep; // the FEN carries neither, so positions rebuilt from it need both
       ply.facts = ply.checkmate ? ['checkmate'] : facts;
       ply.capture = !!before.b[mv.to] || pos.epCap >= 0;
       // analysis files encode mate in N as ±(10000 − 10·N), White's point of view
@@ -549,8 +550,8 @@
   }
 
   // castle: the castling rights before the line (the page's FENs don't carry them); omitted = all
-  function playLine(fen, sans, castle) {
-    let pos = { b: fromFen(fen), ep: -1, turn: fen.split(' ')[1] || 'w', castle: castle == null ? 'KQkq' : castle };
+  function playLine(fen, sans, castle, ep) {
+    let pos = { b: fromFen(fen), ep: ep == null ? -1 : ep, turn: fen.split(' ')[1] || 'w', castle: castle == null ? 'KQkq' : castle };
     const out = [];
     for (const raw of sans) {
       const san = String(raw).replace(/^\d+\.+/, '');

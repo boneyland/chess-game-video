@@ -62,13 +62,14 @@ test('capQueenCache drops the oldest answers until the JSON fits, keeping the ne
 });
 
 test("queenFile keeps only this game's positions, and readQueenFile reads them back", () => {
-  const r = (prose) => ({ best: 'e2e4', bestSan: 'e4', line: '', evalText: '', evalPawns: 0, prose, seconds: 20, source: 'best_move', at: 0 });
+  // the shape the page caches: prose is queenProse's list of paragraphs
+  const r = (prose) => ({ best: 'e2e4', bestSan: 'e4', line: '', evalText: '', evalPawns: 0, prose: [prose], seconds: 20, source: 'best_move', at: 0 });
   const cache = { '': r('start'), 'e2e4': r('one'), 'e2e4 e7e5': r('two'), 'd2d4': r('other game'), 'e2e4 e7e5 g1f3': r('after the last move') };
   const f = Q.queenFile(cache, ['e2e4', 'e7e5']);
   assert.deepEqual(Object.keys(f.answers), ['', 'e2e4', 'e2e4 e7e5']);
   assert.equal(f.moves, 'e2e4 e7e5');
   const back = Q.readQueenFile(JSON.stringify(f));
-  assert.equal(back['e2e4'].prose, 'one');
+  assert.deepEqual(back['e2e4'], { ...r('one'), at: 1 });
   assert.equal(back['e2e4'].at, 1);
   assert.equal(back[''].at, 0);
 });
@@ -80,4 +81,15 @@ test('readQueenFile rejects other files and drops entries that are not answers',
   assert.equal(window.ChessCore.classifyFile('a.json', JSON.stringify(Q.queenFile({}, []))), 'queen');
   const back = Q.readQueenFile(JSON.stringify({ format: 'queen-answers', version: 1, answers: { 'e2e4': { prose: 'ok' }, 'e2e4 zz': { prose: 'bad key' }, 'd2d4': { best: 'x' }, 'g1f3': null } }));
   assert.deepEqual(Object.keys(back), ['e2e4']);
+});
+
+// A saved answer is drawn on every visit, so a field of the wrong type must never reach the page
+test('answers from a file or the cache keep only fields of the expected type', () => {
+  const bad = { prose: ['ok', 3], best: { x: 1 }, bestSan: 5, line: { y: 2 }, evalText: { a: 1 }, evalPawns: 'x', seconds: NaN, source: [] };
+  assert.deepEqual(Q.queenAnswer(bad, 2), { best: null, bestSan: null, line: '', evalText: '', evalPawns: null, prose: ['ok'], seconds: null, source: 'best_move', at: 2 });
+  assert.deepEqual(Q.queenAnswer({ prose: 'one paragraph', best: 'e7e8q' }, 0).prose, ['one paragraph']);
+  assert.equal(Q.queenAnswer({ prose: 'x', best: 'e2e4 e7e5' }, 0).best, null);
+  assert.equal(Q.queenAnswer({ best: 'e2e4' }, 0), null);
+  assert.deepEqual(Object.keys(Q.readQueenCache({ '': bad, 'e2e4': null, 'zz': { prose: [] } })), ['']);
+  assert.deepEqual(Q.readQueenCache(null), {});
 });

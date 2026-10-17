@@ -7,7 +7,7 @@ const QUEEN_SPACE = 'https://huggingface.co/spaces/boneyland/queen-pawn-8';
 // Typical answers are ~900-1300 tokens; a longer one is cut and the Space falls back to Queen's line or candidates.
 const QUEEN_TOKENS = 1536;
 
-const { queenPayload, queenEval, queenProse, readSse, capQueenCache, queenFile } = window.QueenCore;
+const { queenPayload, queenEval, queenProse, readSse, capQueenCache, queenAnswer, queenFile } = window.QueenCore;
 
 const fmtPawns = (v) => (v == null ? '—' : (v > 0.004 ? '+' : v < -0.004 ? '−' : '') + Math.abs(v).toFixed(2));
 
@@ -118,7 +118,7 @@ function useHfAuth() {
   return { auth, enabled, start, signOut, note, clearNote: () => setNote('') };
 }
 
-function readQueenCache() { try { return JSON.parse(localStorage.getItem(QUEEN_STORE) || '{}') || {}; } catch (e) { return {}; } }
+function readQueenCache() { try { return window.QueenCore.readQueenCache(JSON.parse(localStorage.getItem(QUEEN_STORE) || '{}')); } catch (e) { return {}; } }
 // false when the storage is full (the answers stay for this visit), null with no storage at all
 function writeQueenCache(c) {
   try { localStorage.setItem(QUEEN_STORE, JSON.stringify(c)); return true; }
@@ -160,11 +160,12 @@ function useQueen(M, mcp, hf) {
             ? await mcp.callTool(QUEEN_SERVER, QUEEN_TOOL, { fen: '', moves: key, max_tokens: QUEEN_TOKENS }, { signal: ctrl.signal })
             : await directCall(key, hf && hf.auth ? hf.auth.token : null, ctrl.signal);
           const p = queenPayload(res);
-          const r = {
-            best: p.best_move_uci || null, bestSan: p.best_move_san || null, line: p.critical_line_san || '',
-            evalText: p.evaluation || '', evalPawns: queenEval(p.evaluation), prose: queenProse(p.analysis || p.raw_text || ''),
-            seconds: p.seconds || null, source: p.move_source || 'best_move', at,
-          };
+          const str = (v) => (typeof v === 'string' ? v : '');
+          const r = queenAnswer({
+            best: p.best_move_uci, bestSan: p.best_move_san, line: p.critical_line_san,
+            evalText: p.evaluation, evalPawns: queenEval(str(p.evaluation)), prose: queenProse(str(p.analysis) || str(p.raw_text)),
+            seconds: p.seconds, source: p.move_source,
+          }, at);
           note({ at, ok: true, secs: Math.round((Date.now() - started) / 1000), gpu: p.seconds ? Math.round(p.seconds) : null, tokens: p.generated_tokens || null });
           const next = capQueenCache({ ...cacheRef.current, [key]: r });
           cacheRef.current = next;
