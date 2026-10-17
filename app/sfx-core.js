@@ -23,16 +23,18 @@
     return { kinds: kinds(M.plies[to].san), end };
   }
 
-  // A quick run plays its first sound at once and its last one when it stops (RUN_GAP_MS after it), none between;
-  // a steady sound (playback's next move) plays at once and ends any run waiting
-  function runs(fire, gapMs) {
+  // A quick run plays its first sound at once and its last one when it stops, none between. It has stopped when no
+  // sound follows within twice the run's last gap (at least minMs, at most gapMs): a held arrow key or a fast drag
+  // stops 100 ms after it ends, a tapping pace waits longer. A steady sound (playback's next move) plays at once
+  // and ends any run waiting
+  function runs(fire, gapMs, minMs = 100) {
     let lastAsk = -Infinity, timer = null;
     return (steady, ...args) => {
       if (steady) { clearTimeout(timer); fire(...args); return; }
-      const now = Date.now(), quick = now - lastAsk < gapMs;
+      const now = Date.now(), since = now - lastAsk;
       lastAsk = now;
       clearTimeout(timer);
-      if (quick) timer = setTimeout(() => fire(...args), gapMs); else fire(...args);
+      if (since < gapMs) timer = setTimeout(() => fire(...args), Math.min(gapMs, Math.max(minMs, 2 * since))); else fire(...args);
     };
   }
 

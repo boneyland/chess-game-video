@@ -80,6 +80,20 @@ test('runs: the first sound of a quick run plays at once, the rest wait, and onl
   t.mock.timers.tick(1000); assert.deepEqual(heard, ['a', 'd', 'e', 'f']); // and nothing plays twice
 });
 
+// a held arrow key or a fast drag: the stop sound comes soon after it ends, not a whole gap later
+test('runs: a fast run stops sooner, twice its last gap but no less than 100 ms', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const heard = [];
+  const ask = X.runs((x) => heard.push(x), 400);
+  ask(false, 'a'); for (const x of 'bcdefg') { t.mock.timers.tick(30); ask(false, x); }
+  assert.deepEqual(heard, ['a']);
+  t.mock.timers.tick(99); assert.deepEqual(heard, ['a']);
+  t.mock.timers.tick(1); assert.deepEqual(heard, ['a', 'g']);
+  t.mock.timers.tick(1000); ask(false, 'h'); t.mock.timers.tick(150); ask(false, 'i'); // a 150 ms gap: stops after 300
+  t.mock.timers.tick(299); assert.deepEqual(heard, ['a', 'g', 'h']);
+  t.mock.timers.tick(1); assert.deepEqual(heard, ['a', 'g', 'h', 'i']);
+});
+
 // playback can be 0.275 s per move: its sounds are steady, each plays at once, and one ends a run still waiting
 test('runs: steady sounds always play at once', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
