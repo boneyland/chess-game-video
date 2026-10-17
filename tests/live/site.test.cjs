@@ -93,7 +93,8 @@ for (const base of SITES) {
     });
 
     await t.test('the live page against a local build of this checkout', async () => {
-      const live = (await get(PAGE)).text;
+      // Netlify adds an advert comment to the head of every HTML page it serves
+      const live = (await get(PAGE)).text.replace(/<!-- This site is hosted on Netlify\.[\s\S]*?-->\n?/, '');
       t.diagnostic(host + (live === built ? ': same as this checkout' : ': differs from this checkout (deploy not published yet, or the checkout is ahead)'));
     });
 
