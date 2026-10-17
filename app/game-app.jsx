@@ -19,7 +19,8 @@ function useCapability(name) {
 }
 
 // An embedding page on another origin (the notes site) can't be read, so it posts its scheme instead:
-// this page sends { type: 'chess-replay:scheme?' } once, and the parent answers, then posts again on each toggle,
+// this page sends { type: 'chess-replay:scheme?' } (again after 0.5 s and 2 s while unanswered, in case the parent's
+// listener wasn't attached yet), and the parent answers, then posts again on each toggle,
 //   { type: 'chess-replay:scheme', scheme: 'dark' | 'light' }
 const SCHEME_MSG = 'chess-replay:scheme';
 let postedScheme = null;
@@ -31,7 +32,8 @@ if (window.parent !== window && !IN_CLAUDE) {
     postedScheme = d.scheme;
     schemeListeners.forEach((f) => f());
   });
-  try { window.parent.postMessage({ type: SCHEME_MSG + '?' }, '*'); } catch (e) {}
+  const ask = () => { if (!postedScheme) try { window.parent.postMessage({ type: SCHEME_MSG + '?' }, '*'); } catch (e) {} };
+  ask(); setTimeout(ask, 500); setTimeout(ask, 2000);
 }
 
 // Auto follows the embedding page, the viewer's claude.ai theme (data-theme on the root) or the system setting; Light/Dark override all

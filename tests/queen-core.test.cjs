@@ -50,3 +50,13 @@ test('readSse finds the complete event, or the error event as JSON or text', () 
   assert.deepEqual(Q.readSse('event: error\ndata: plain text\n\n'), { result: null, error: 'plain text' });
   assert.deepEqual(Q.readSse(''), { result: null, error: null });
 });
+
+test('capQueenCache drops the oldest answers until the JSON fits, keeping the newest even when it alone is too big', () => {
+  const c = {}; for (let i = 0; i < 10; i++) c['k' + i] = { prose: 'x'.repeat(90) };
+  assert.equal(Q.capQueenCache(c), c);
+  const kept = Q.capQueenCache(c, 500);
+  assert.ok(JSON.stringify(kept).length <= 500);
+  assert.deepEqual(Object.keys(kept), ['k6', 'k7', 'k8', 'k9']);
+  assert.deepEqual(Object.keys(Q.capQueenCache(c, 10)), ['k9']);
+  assert.deepEqual(Q.capQueenCache({}, 10), {});
+});

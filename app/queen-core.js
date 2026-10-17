@@ -86,5 +86,16 @@
     return { result, error };
   }
 
-  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse };
+  // The answers cache is kept oldest first and under about a megabyte of JSON (some 150-200 answers), dropping the
+  // oldest answers past that, so it never fills the browser's storage and leaves room for the saved game
+  const QUEEN_CHARS = 1000000;
+  function capQueenCache(c, limit = QUEEN_CHARS) {
+    const keys = Object.keys(c);
+    const size = keys.map((k) => JSON.stringify(k).length + JSON.stringify(c[k]).length + 2);
+    let total = 2 + size.reduce((x, y) => x + y, 0), from = 0;
+    while (total > limit && from < keys.length - 1) total -= size[from++];
+    return from ? Object.fromEntries(keys.slice(from).map((k) => [k, c[k]])) : c;
+  }
+
+  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache };
 })();

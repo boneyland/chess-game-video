@@ -19,7 +19,7 @@ Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sig
 ## Layout
 
 - `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js`, `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser; `queen-core.js` parses Ask Queen's answers)
-- `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, both built into the page); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
+- `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, and `game-data.js`, which writes the sample game's commentary, `window.SAMPLE_NOTES`, all built into the page); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
 - `babel/babel.min.js`: @babel/standalone 7.29.0, used only to precompile the JSX (sha256 `2623a9e22809915ce789b4461154e277ddce520d5a4320c14d44332a5d0dcea0`)
 - `vendor/`: stockfish.js v19.0.1 `lite-single` (GPL-3.0, https://github.com/nmrugg/stockfish.js), unchanged release files
   - `stockfish-19-lite-single.js` sha256 `ccb130d7ff29408531c47d859a49f91d59d4f482d05a53eb1a3231a4f624c91a`
