@@ -251,9 +251,11 @@ function GameApp() {
           <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
         )}
         <TweakSection label="Commentary" />
-        <TweakRadio id="tw-tone" label="Style" value={t.aiTone || 'Broadcast'} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
-        <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || 'Beginners'} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
-        <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || 'Key moments'} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
+        {sample && <>
+          <TweakRadio id="tw-tone" label="Style" value={t.aiTone || 'Broadcast'} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
+          <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || 'Beginners'} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
+          <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || 'Key moments'} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
+        </>}
         {sample
           ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
           : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
