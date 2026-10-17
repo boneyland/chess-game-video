@@ -135,6 +135,32 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
   );
 }
 
+// Holding a move button steps like holding its arrow key: one step, then after a pause a quick repeat
+const HOLD_DELAY_MS = 500, HOLD_REPEAT_MS = 35;
+function NavButton({ nav, dir, label, children }) {
+  const timer = React.useRef(null);
+  const has = dir === 'prev' ? 'hasPrev' : 'hasNext';
+  const stop = () => { clearTimeout(timer.current); timer.current = null; };
+  React.useEffect(() => stop, []);
+  const step = () => { const n = nav.current; if (!n || !n[has]) { stop(); return false; } n[dir](); return true; };
+  const repeat = () => { if (step()) timer.current = setTimeout(repeat, HOLD_REPEAT_MS); };
+  return (
+    <button type="button" className="pbtn pnav" disabled={!nav.current[has]} aria-label={label} title={label}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        stop(); step(); timer.current = setTimeout(repeat, HOLD_DELAY_MS);
+        // it can turn disabled under the pointer (the first or last move), and a disabled button gets no pointerup
+        const end = () => { stop(); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); };
+        window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+      }}
+      onPointerLeave={stop}
+      onContextMenu={(e) => e.preventDefault()} // a long press on a phone
+      onClick={(e) => { if (e.detail === 0) step(); }}>{/* Enter or Space; a pointer already stepped on its press */}
+      {children}
+    </button>
+  );
+}
+
 function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset, onSeek }) {
   const trackRef = React.useRef(null);
   const dragging = React.useRef(false);
@@ -154,9 +180,9 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
       </button>
       {nav && nav.current && (
-        <button type="button" className="pbtn pnav" disabled={!nav.current.hasPrev} onClick={() => nav.current.prev()} aria-label="Previous move (←)" title="Previous move (←)">
+        <NavButton nav={nav} dir="prev" label="Previous move (←)">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
+        </NavButton>
       )}
       <button type="button" className="pbtn" onClick={onPlayPause} aria-label={playing ? 'Pause (space)' : 'Play (space)'} title={playing ? 'Pause (space)' : 'Play (space)'}>
         {playing
@@ -164,9 +190,9 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
           : <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 2l9 5-9 5V2z" fill="currentColor" /></svg>}
       </button>
       {nav && nav.current && (
-        <button type="button" className="pbtn pnav" disabled={!nav.current.hasNext} onClick={() => nav.current.next()} aria-label="Next move (→)" title="Next move (→)">
+        <NavButton nav={nav} dir="next" label="Next move (→)">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
+        </NavButton>
       )}
       {nav && nav.current && <span className="plabel" style={{ color: nav.current.color }} aria-live="polite">{nav.current.label}</span>}
       <span className="ptime">{fmt(time)}</span>

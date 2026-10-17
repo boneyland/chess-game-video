@@ -57,7 +57,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
   border-radius: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink);
 }
 .pbtn:hover { border-color: var(--line-strong); }
-.pnav { width: 34px; height: 34px; border-color: rgba(227, 181, 91, 0.45); color: var(--accent); }
+.pnav { width: 34px; height: 34px; touch-action: manipulation; -webkit-touch-callout: none; border-color: rgba(227, 181, 91, 0.45); color: var(--accent); }
 .pnav:hover:not(:disabled) { background: rgba(227, 181, 91, 0.14); border-color: var(--accent); }
 .pnav:disabled { opacity: 0.35; cursor: default; }
 /* the move name is announced to screen readers only: the board and Moves panel already show it, and the track gets the room */
