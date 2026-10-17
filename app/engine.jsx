@@ -32,7 +32,6 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
     freshRef.current = null;
     setPlaying((p) => !p);
   };
-  const [hoverTime, setHoverTime] = React.useState(null);
   const [scale, setScale] = React.useState(0.2);
   const [frame, setFrame] = React.useState({ tall: false });
   const tallRef = React.useRef(false);
@@ -115,9 +114,8 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
     return () => window.removeEventListener('chess-video:seek', onSeek);
   }, [duration]);
 
-  const displayTime = hoverTime != null ? hoverTime : time;
   const fw = tall ? portrait.width : width, fh = tall ? frame.height : height;
-  const ctx = React.useMemo(() => ({ time: displayTime, duration, playing, setTime, setPlaying, setStart }), [displayTime, duration, playing]);
+  const ctx = React.useMemo(() => ({ time, duration, playing, setTime, setPlaying, setStart }), [time, duration, playing]);
 
   return (
     <div className={'stage' + (tall ? ' stage-tall' : '')}>
@@ -130,14 +128,14 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
           </div>
         </div>
       </div>
-      <PlaybackBar time={displayTime} duration={duration} playing={playing} nav={nav} menu={menu}
+      <PlaybackBar time={time} duration={duration} playing={playing} nav={nav} menu={menu}
         onPlayPause={togglePlay} onReset={() => setTime(0)}
-        onSeek={(t) => setTime(t)} onHover={(t) => setHoverTime(t)} />
+        onSeek={(t) => setTime(t)} />
     </div>
   );
 }
 
-function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset, onSeek, onHover }) {
+function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset, onSeek }) {
   const trackRef = React.useRef(null);
   const dragging = React.useRef(false);
   // the video calls nav.listen when its move label changes while the playhead is still (stepping through a line)
@@ -173,11 +171,10 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
       {nav && nav.current && <span className="plabel" style={{ color: nav.current.color }} aria-live="polite">{nav.current.label}</span>}
       <span className="ptime">{fmt(time)}</span>
       <div ref={trackRef} className="ptrack" role="slider" aria-label="Playhead" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)}
-        onPointerDown={(e) => { dragging.current = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} onSeek(timeAt(e)); onHover(null); }}
-        onPointerMove={(e) => { if (dragging.current) onSeek(timeAt(e)); else if (e.pointerType === 'mouse') onHover(timeAt(e)); }}
+        onPointerDown={(e) => { dragging.current = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} onSeek(timeAt(e)); }}
+        onPointerMove={(e) => { if (dragging.current) onSeek(timeAt(e)); }}
         onPointerUp={() => { dragging.current = false; }}
-        onPointerCancel={() => { dragging.current = false; }}
-        onPointerLeave={() => { if (!dragging.current) onHover(null); }}>
+        onPointerCancel={() => { dragging.current = false; }}>
         <div className="ptrack-bg" />
         <div className="ptrack-fill" style={{ width: `${pct}%` }} />
         <div className="ptrack-knob" style={{ left: `${pct}%` }} />
