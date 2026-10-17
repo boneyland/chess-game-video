@@ -19,6 +19,6 @@ Build: `node build.cjs` writes
   - `chess-game-video.html`
   - `stockfish-19-lite-single.js`, `stockfish-19-lite-single.wasm` (loaded from next to the page)
 
-Codeberg Pages: `./pages.sh` builds, commits `out/site/` to the `pages` branch (the page renamed `index.html`, plus `LICENSE`) and pushes `main` and `pages` to the `codeberg` remote (`--no-push` to only commit).
+Codeberg Pages: `./pages.sh` builds, commits `out/site/` to the `pages` branch (the page renamed `index.html`, plus `LICENSE`) and pushes `main` and `pages` to the `codeberg` remote (`--no-push` to only commit). Codeberg's git-pages server deploys the branch when a Forgejo webhook on the repo (target `https://boneyland.codeberg.page/chess-replay`, branch filter `pages`) reports a push; the site is https://boneyland.codeberg.page/chess-replay/.
 
 Licence: GPL-3.0-or-later (`LICENSE`), the same as the bundled Stockfish.
