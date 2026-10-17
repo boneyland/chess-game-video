@@ -26,11 +26,12 @@ function loadExportLibs() {
 // the stage re-renders synchronously inside dispatchEvent, so the frame can be drawn straight after
 const seekStage = (t) => window.dispatchEvent(new CustomEvent('chess-video:seek', { detail: { time: t, sync: true } }));
 
-// run() takes the stretch of the timeline to export in seconds ({ start, end }) and a file name suffix
+// run() takes the stretch of the timeline to export in seconds ({ start, end }), a file name suffix, and audio: an
+// async function giving the stretch's soundtrack as an AudioBuffer (or null for none)
 function useVideoExport({ fps, save, stem }) {
   const [state, setState] = React.useState(null); // { phase: 'load' | 'render' | 'save', done, N, eta } or { phase: 'error', msg }
   const stopRef = React.useRef(false);
-  const run = async ({ start, end, suffix = '' }) => {
+  const run = async ({ start, end, suffix = '', audio }) => {
     if (state && state.phase !== 'error') return;
     stopRef.current = false;
     setState({ phase: 'load', done: 0, N: 0 });
@@ -48,7 +49,15 @@ function useVideoExport({ fps, save, stem }) {
       output = new MB.Output({ format: avc ? new MB.Mp4OutputFormat() : new MB.WebMOutputFormat(), target: new MB.BufferTarget() });
       const src = new MB.CanvasSource(cv, { codec, bitrate: MB.QUALITY_HIGH });
       output.addVideoTrack(src, { frameRate: fps });
+      // the move sounds, when the browser can encode them: AAC in an MP4, else Opus (which MP4 and WebM both hold)
+      const sound = audio ? await audio() : null;
+      let asrc = null;
+      if (sound) {
+        const acodec = await MB.getFirstEncodableAudioCodec(avc ? ['aac', 'opus'] : ['opus'], { numberOfChannels: sound.numberOfChannels, sampleRate: sound.sampleRate });
+        if (acodec) { asrc = new MB.AudioBufferSource({ codec: acodec, bitrate: MB.QUALITY_MEDIUM }); output.addAudioTrack(asrc); }
+      }
       await output.start();
+      if (asrc) { await asrc.add(sound); asrc.close(); }
       // html2canvas copies the whole document every frame: leave out the scripts (the artifact inlines a 2.4 MB
       // engine) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
       const keep = (n) => n.tagName === 'STYLE' || n.tagName === 'LINK' || n.tagName === 'HEAD' || n.closest('head');

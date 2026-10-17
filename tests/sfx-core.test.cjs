@@ -105,3 +105,11 @@ test('runs: steady sounds always play at once', (t) => {
   t.mock.timers.tick(100); ask(true, 'f');
   t.mock.timers.tick(1000); assert.deepEqual(heard, ['a', 'b', 'c', 'd', 'f']);
 });
+
+test('track: each ply sounds when it lands, the end of the game after the last, all from the clip start', () => {
+  const M = { result: '1-0', plies: [{ san: 'e4' }, { san: 'exd5' }, { san: 'Qh5#' }] };
+  assert.deepEqual(X.track(M, S, 0, 10), [{ at: 1.5, kinds: ['move'] }, { at: 2.5, kinds: ['capture'] }, { at: 3.5, kinds: ['move', 'check'] }, { at: 4.1, kinds: ['victory'] }]);
+  assert.deepEqual(X.track(M, S, 2, 3.5), [{ at: 0.5, kinds: ['capture'] }]); // a ply landing at the end is left out
+  assert.deepEqual(X.track(M, S, 3, 3.9).map((e) => e.kinds), [['move', 'check']]); // no room for the end sound
+  assert.deepEqual(X.track({ ...M, result: '*' }, S, 0, 10).length, 3);
+});

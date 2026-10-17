@@ -23,6 +23,20 @@
     return { kinds: kinds(M.plies[to].san), end };
   }
 
+  // The move sounds between start and end seconds as playback plays them: each ply's when its piece lands, and the
+  // end of the game's after the last. Times are from start (for the video export)
+  function track(M, S, start, end) {
+    const out = [];
+    for (let i = 0; i < S.N; i++) {
+      const at = S.tp[i] + S.md[i];
+      if (at < start || at >= end) continue;
+      out.push({ at: at - start, kinds: kinds(M.plies[i].san) });
+      const e = i === S.N - 1 && endKind(M.result);
+      if (e && at + END_DELAY < end) out.push({ at: at + END_DELAY - start, kinds: [e] });
+    }
+    return out;
+  }
+
   // A quick run plays its first sound at once and its last one when it stops, none between. It has stopped when no
   // sound follows within twice the run's last gap (at least minMs, at most gapMs): a held arrow key or a fast drag
   // stops 100 ms after it ends, a tapping pace waits longer. A steady sound (playback's next move) plays at once
@@ -79,6 +93,37 @@
     return out;
   }
 
+  // a sound as an AudioBuffer in ctx's sample rate, or a promise of one while a Lichess file decodes; null if the set
+  // has no such sound
+  function decode(ctx, data, set, kind) {
+    if (set === 'Wood') {
+      const s = synth(kind, ctx.sampleRate), b = ctx.createBuffer(1, s.length, ctx.sampleRate);
+      b.getChannelData(0).set(s);
+      return b;
+    }
+    const b64 = data[SET_DIR[set]] && data[SET_DIR[set]][kind];
+    if (!b64) return null;
+    return ctx.decodeAudioData(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)).buffer);
+  }
+  const gainOf = (volume) => Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100));
+
+  // Mixes a track() into a stereo AudioBuffer dur seconds long, offline, for the video export
+  async function renderTrack(data, set, events, volume, dur, rate = 48000) {
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!OAC) return null;
+    set = SETS.includes(set) ? set : SETS[0];
+    const ctx = new OAC(2, Math.max(1, Math.ceil(dur * rate)), rate), bufs = {};
+    for (const k of new Set(events.flatMap((e) => e.kinds))) { try { bufs[k] = await decode(ctx, data, set, k); } catch (e) { bufs[k] = null; } }
+    const gain = ctx.createGain();
+    gain.gain.value = gainOf(volume);
+    gain.connect(ctx.destination);
+    events.forEach((e) => e.kinds.forEach((k) => {
+      if (!bufs[k]) return;
+      const src = ctx.createBufferSource(); src.buffer = bufs[k]; src.connect(gain); src.start(e.at);
+    }));
+    return ctx.startRendering();
+  }
+
   // ---- the player: Web Audio, started by the viewer's first tap or key (browsers keep it silent until then) ----
   function createPlayer(data) {
     let ctx = null, wanted = SETS[0];
@@ -86,16 +131,9 @@
     function load(set, kind) {
       const key = set + '/' + kind;
       if (cache.has(key)) return cache.get(key);
-      let v;
-      if (set === 'Wood') {
-        const s = synth(kind, ctx.sampleRate);
-        v = ctx.createBuffer(1, s.length, ctx.sampleRate); v.getChannelData(0).set(s);
-      } else {
-        const b64 = data[SET_DIR[set]] && data[SET_DIR[set]][kind];
-        if (!b64) return null;
-        const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
-        v = ctx.decodeAudioData(bytes.buffer).then((buf) => { cache.set(key, buf); return buf; }, () => { cache.set(key, null); return null; });
-      }
+      let v = decode(ctx, data, set, kind);
+      if (!v) return null;
+      if (typeof v.then === 'function') v = v.then((buf) => { cache.set(key, buf); return buf; }, () => { cache.set(key, null); return null; });
       cache.set(key, v);
       return v;
     }
@@ -119,7 +157,7 @@
       if (set !== wanted) prepare(set);
       // a gain per sound, so moving the volume slider doesn't change one still ringing
       const gain = ctx.createGain();
-      gain.gain.value = Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100));
+      gain.gain.value = gainOf(volume);
       gain.connect(ctx.destination);
       kindList.forEach((k) => start(set, k, 0, gain));
       if (end) start(set, end, END_DELAY, gain);
@@ -129,5 +167,5 @@
     return { play, prepare, unlock };
   }
 
-  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, runs, synth, createPlayer };
+  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, track, runs, synth, renderTrack, createPlayer };
 })();
