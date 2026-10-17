@@ -5,6 +5,7 @@ Browser player for annotated chess games: the claude.ai artifact, https://chess-
 ## Commands
 - `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page + two Stockfish files)
 - `node --test --test-concurrency=1 tests/*.test.cjs` - JS tests (also writes `tests/out/`); GitHub Actions (`.github/workflows/test.yml`) runs them on every push, and the Netlify build before building
+- `node --test tests/live/site.test.cjs` - smoke tests against both live sites (Playwright, real mouse input; screenshots in `tests/out/live/`); `LIVE_URLS` picks other sites (e.g. a deploy preview), `LIVE_CDN_DIR` serves React from local npm packages where cdnjs is blocked. Never in deploy builds
 - `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` - checks the browser's analysis JSON against the Python pipeline; run after the JS tests
 - Preview: `python3 -m http.server 8765 --bind 127.0.0.1 --directory out/site` with the sandbox disabled (a sandboxed server is unreachable from Playwright, and `file://` is blocked); phone layout = 390×844 viewport
 
