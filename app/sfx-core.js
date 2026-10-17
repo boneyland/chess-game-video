@@ -6,6 +6,9 @@
   const SET_DIR = { 'Lichess sfx': 'sfx', 'Lichess piano': 'piano', 'Lichess NES': 'nes', 'Lichess futuristic': 'futuristic' };
   const KINDS = ['move', 'capture', 'check', 'victory', 'draw'];
   const END_DELAY = 0.6; // seconds between the last move's sound and the end of the game's
+  // scrubbing (dragging the playhead, holding an arrow key) lands moves in a quick run: those play quieter
+  const SCRUB_GAP_MS = 250, SCRUB_GAIN = 0.5;
+  const scrubbed = (sinceMs, steady) => !steady && sinceMs < SCRUB_GAP_MS;
 
   // played together: the move or capture, and a check on top
   const kinds = (san) => [/x/.test(san || '') ? 'capture' : 'move'].concat(/[+#]/.test(san || '') ? ['check'] : []);
@@ -62,7 +65,7 @@
 
   // ---- the player: Web Audio, started by the viewer's first tap or key (browsers keep it silent until then) ----
   function createPlayer(data) {
-    let ctx = null, gain = null, last = -1e9, wanted = SETS[0];
+    let ctx = null, last = -1e9, wanted = SETS[0];
     const cache = new Map(); // `${set}/${kind}` → AudioBuffer, or a promise while it decodes
     function load(set, kind) {
       const key = set + '/' + kind;
@@ -83,31 +86,34 @@
     const prepare = (set) => { wanted = SETS.includes(set) ? set : SETS[0]; if (ctx) KINDS.forEach((k) => load(wanted, k)); };
     function unlock() {
       try {
-        if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; ctx = new AC(); gain = ctx.createGain(); gain.connect(ctx.destination); prepare(wanted); }
+        if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; ctx = new AC(); prepare(wanted); }
         if (ctx.state === 'suspended') ctx.resume();
       } catch (e) {}
     }
     if (typeof window.addEventListener === 'function') ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, unlock, true));
-    function start(set, kind, delay) {
+    function start(set, kind, delay, gain) {
       const buf = load(set, kind);
       const go = (b) => { if (!b) return; const src = ctx.createBufferSource(); src.buffer = b; src.connect(gain); src.start(ctx.currentTime + delay); };
       // still decoding (the first sound of a newly picked set): play it if it's ready soon, else let it go
       if (buf && typeof buf.then === 'function') { const asked = Date.now(); buf.then((b) => { if (Date.now() - asked < 300) go(b); }); } else go(buf);
     }
-    // sounds that come faster than this (scrubbing the playhead) are dropped
-    function play(set, kindList, volume, end) {
+    // steady: playback's next move or a settings preview, never played as a scrub
+    function play(set, kindList, volume, end, steady) {
       if (!ctx || ctx.state !== 'running') return; // before the first gesture: nothing queues up to burst out later
-      const now = Date.now();
-      if (now - last < 60) return;
+      const now = Date.now(), scrub = scrubbed(now - last, steady);
+      if (now - last < 60) return; // faster than this, even a scrub's sounds are dropped
       last = now;
       set = SETS.includes(set) ? set : SETS[0];
       if (set !== wanted) prepare(set);
-      gain.gain.value = Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100));
-      kindList.forEach((k) => start(set, k, 0));
-      if (end) start(set, end, END_DELAY);
+      // a gain per sound, so a quiet scrub sound doesn't turn down one still ringing
+      const gain = ctx.createGain();
+      gain.gain.value = Math.max(0, Math.min(1, (volume == null ? 70 : volume) / 100)) * (scrub ? SCRUB_GAIN : 1);
+      gain.connect(ctx.destination);
+      (scrub ? kindList.slice(0, 1) : kindList).forEach((k) => start(set, k, 0, gain)); // a scrub skips the check on top
+      if (end) start(set, end, END_DELAY, gain);
     }
     return { play, prepare, unlock };
   }
 
-  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, synth, createPlayer };
+  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, scrubbed, synth, createPlayer };
 })();

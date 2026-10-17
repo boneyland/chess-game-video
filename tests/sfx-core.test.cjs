@@ -62,3 +62,10 @@ test('synth: every Wood sound is short, audible, never clips, and the same every
   }
   assert.throws(() => X.synth('nope', 48000));
 });
+
+test('scrubbed: a sound hard on the heels of the last one, unless it is steady playback or a preview', () => {
+  assert.equal(X.scrubbed(100, false), true); // dragging the playhead, or holding an arrow key
+  assert.equal(X.scrubbed(249, false), true);
+  assert.equal(X.scrubbed(250, false), false); // a step or a move of your own
+  assert.equal(X.scrubbed(100, true), false); // playback's next move, or the settings preview
+});
