@@ -456,7 +456,7 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
           </details>
         )}
         {onSave && Q.forGame > 0 && <TweakButton secondary label={`Save Queen answers (${Q.forGame})`} onClick={onSave} />}
-        {onSave && <div className="twk-note">Saves this game’s answers as a file. Load it on any device like a game file (Load game…, or drop it on the page) to skip asking Queen again.</div>}
+        {onSave && Q.forGame > 0 && <div className="twk-note">Saves this game’s answers as a file. Load it on any device like a game file (Load game…, or drop it on the page) to skip asking Queen again.</div>}
         {Q.cached > 0 && !Q.busy && !running && <TweakButton secondary label="Forget saved Queen answers" onClick={() => { Q.forget(); setSel(null); onOverlay(null); setFailed([]); }} />}
       </div>
     </aside>
