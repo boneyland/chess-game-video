@@ -467,16 +467,15 @@
 
   // Per-ply hold times and the resulting scene list. Lead/tail values must match the schedule in game-video.jsx.
   const KEY_CLS = ['blunder', 'mistake', 'inaccuracy', 'brilliant', 'good', 'interesting'];
-  const MAX_TOTAL = 300, TITLE = 5, OUTRO = 7, QUEEN_HOLD = 4;
+  const MAX_TOTAL = 300, TITLE = 5, OUTRO = 7, READ_CAP = 6;
   function timing(M, o) {
     const spm = o.secondsPerMove || 1.6, hold = o.keyHold == null ? 2.5 : o.keyHold, read = o.readSpeed || 22; // characters a second
     const ranges = plan(M);
     let d = M.plies.map((p) => {
-      // reading time for the comment, plus at most QUEEN_HOLD s for Queen's sentence; on a marked move it stands in
+      // reading time for the comment and Queen's sentence together, at most READ_CAP s; on a marked move it stands in
       // for the extra hold, which only a marked move with nothing to read gets
-      const tc = p.comment ? 0.6 + p.comment.length / read : 0;
-      const tq = p.queenText ? Math.min(QUEEN_HOLD, (p.queenText.length + 5) / read) : 0;
-      if (tc || tq) return Math.max(spm, (tc || 0.6) + tq);
+      const chars = (p.comment || '').length + (p.queenText || '').length;
+      if (chars) return Math.max(spm, Math.min(READ_CAP, chars / read));
       return KEY_CLS.includes(p.cls) || p.checkmate ? spm + hold * (p.cls === 'blunder' || p.checkmate ? 1.3 : 1) : spm;
     });
     if (o.fastOpening) { const [, a, b] = ranges[0]; for (let i = a; i <= b; i++) if (!M.plies[i].comment && !M.plies[i].mark) d[i] *= 0.55; }
