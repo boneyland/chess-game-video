@@ -316,7 +316,7 @@ function GameApp() {
             <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
           )}
         </TweakSection>
-        <TweakSection label="Engine">
+        <TweakSection label="Engine" column4>
           <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite in your browser. Each search stops at its depth or its time, whichever comes first; deeper is stronger and slower.</div>
           <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
           <TweakSlider id="tw-sf-time" label="Game analysis: most time per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />

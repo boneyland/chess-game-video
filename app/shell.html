@@ -142,6 +142,12 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
   .twk-wide .twk-group { break-inside: avoid; padding: 0 0 20px; }
   .twk-wide .twk-col { break-before: column; }
 }
+/* a wide screen gets four columns, so no column is long enough to scroll */
+@media (min-width: 1300px) {
+  .twk-wide { width: min(1240px, calc(100% - 32px)); }
+  .twk-wide .twk-body { columns: 4 260px; }
+  .twk-wide .twk-col4 { break-before: column; }
+}
 .twk-row { display: flex; flex-direction: column; gap: 5px; }
 .twk-row-h { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
 .twk-lbl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: var(--ink); font-weight: 500; }

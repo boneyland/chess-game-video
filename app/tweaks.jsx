@@ -37,7 +37,8 @@ function TweaksPanel({ open, onClose, title = 'Settings', wide = false, children
 }
 
 // a titled group of rows; the wide panel lays groups out in columns, never splitting one, and `column` starts a new one
-function TweakSection({ label, column = false, children }) { return <section className={'twk-group' + (column ? ' twk-col' : '')}><div className="twk-sect">{label}</div>{children}</section>; }
+// (`column4` only when the panel is wide enough for four)
+function TweakSection({ label, column = false, column4 = false, children }) { return <section className={'twk-group' + (column ? ' twk-col' : '') + (column4 ? ' twk-col4' : '')}><div className="twk-sect">{label}</div>{children}</section>; }
 
 function TweakRow({ label, value, children }) {
   return (
