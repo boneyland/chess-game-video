@@ -6,4 +6,6 @@ __pycache__/
 # local only
 games/
 .superpowers/
-.claude/
+.claude/*
+# shared permissions, for cloud sessions too
+!.claude/settings.json
