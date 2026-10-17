@@ -130,6 +130,12 @@ function GameApp() {
     try {
       for (const f of Array.from(list)) { const text = await f.text(); const kind = window.ChessCore.classifyFile(f.name, text); batch[kind] = text; batch[kind + 'Name'] = f.name; }
     } catch (e) { setErr('Could not read that file: ' + ((e && e.message) || e)); return; }
+    if (batch.queen) {
+      const answers = window.QueenCore.readQueenFile(batch.queen);
+      delete batch.queen; delete batch.queenName;
+      if (answers) { Q.merge(answers); setErr(''); setQueenOpen(true); setPanel(false); }
+      if (!batch.pgn && !batch.analysis && !batch.notes) return;
+    }
     if (!batch.pgn && !batch.analysis && !batch.notes) { setErr('That file isn’t a PGN, an analysis JSON or a notes file.'); return; }
     let next;
     if (batch.pgn) {
@@ -200,6 +206,7 @@ function GameApp() {
     const a = typeof files.analysis === 'string' ? files.analysis : JSON.stringify(files.analysis, null, 2);
     saveFile(files.analysisName || fileStem + '_analysis.json', a, 'application/json');
   };
+  const saveQueen = () => saveFile(fileStem + '_queen.json', JSON.stringify(Q.saved(), null, 1), 'application/json');
   const analysis = useGameAnalysis(M, files, () => filesRef.current, commit, engine);
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
   const [book, setBook] = React.useState(null);
@@ -255,14 +262,14 @@ function GameApp() {
         </div>
       )}
       <ExportOverlay x={video} />
-      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} />}
+      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} />}
       <TweaksPanel open={panel} onClose={closePanel}>
         <TweakSection label="Appearance" />
         <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
         <TweakSection label="Game" />
         <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
         <TweakButton label="Load game (PGN)…" onClick={() => inputRef.current.click()} />
-        <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel. Analysis and notes files saved from this page load here too.</div>
+        <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel. Analysis, notes and Queen answer files saved from this page load here too.</div>
         {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
         {M.canChooseSource && (
           <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />

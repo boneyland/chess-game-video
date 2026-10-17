@@ -7,7 +7,7 @@ const QUEEN_SPACE = 'https://huggingface.co/spaces/boneyland/queen-pawn-8';
 // Typical answers are ~900-1300 tokens; a longer one is cut and the Space falls back to Queen's line or candidates.
 const QUEEN_TOKENS = 1536;
 
-const { queenPayload, queenEval, queenProse, readSse, capQueenCache } = window.QueenCore;
+const { queenPayload, queenEval, queenProse, readSse, capQueenCache, queenFile } = window.QueenCore;
 
 const fmtPawns = (v) => (v == null ? '—' : (v > 0.004 ? '+' : v < -0.004 ? '−' : '') + Math.abs(v).toFixed(2));
 
@@ -191,7 +191,19 @@ function useQueen(M, mcp, hf) {
   const has = (at) => !!cacheRef.current[keyAt(at)];
   const stop = () => { stopRef.current = true; if (ctrlRef.current) ctrlRef.current.abort(); };
   const forget = () => { cacheRef.current = {}; setCache({}); writeQueenCache({}); };
-  return { via, cache, analyse, resultAt, has, busy, err, setErr, stopRef, stop, forget, log, cached: Object.keys(cache).length };
+  // answers from a saved file join the cache as its newest entries; returns how many are for this game
+  const [msg, setMsg] = React.useState('');
+  const merge = (answers) => {
+    const next = capQueenCache({ ...cacheRef.current, ...answers });
+    cacheRef.current = next; setCache(next);
+    const n = Object.keys(queenFile(answers, M.plies.map((p) => p.uci)).answers).length, all = Object.keys(answers).length;
+    const kept = writeQueenCache(next) === false ? ' The browser’s storage is full: they are kept until you leave the page, not after a reload.' : '';
+    setErr(''); setMsg(`Loaded ${all} Queen answer${all === 1 ? '' : 's'}${n < all ? `, ${n} for this game` : ''}.` + kept);
+    return n;
+  };
+  const saved = () => queenFile(cacheRef.current, M.plies.map((p) => p.uci));
+  const forGame = Object.keys(queenFile(cache, M.plies.map((p) => p.uci)).answers).length;
+  return { via, cache, analyse, resultAt, has, busy, err, setErr, msg, setMsg, stopRef, stop, forget, merge, saved, forGame, log, cached: Object.keys(cache).length };
 }
 
 const DIAG_CODES = ['server_not_connected', 'server_not_found', 'selection_required', 'not_in_manifest', 'bad_answer'];
@@ -272,7 +284,7 @@ function withQueen(M, resultAt) {
 }
 const fmtQ = (v) => fmtPawns(v);
 
-function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay }) {
+function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave }) {
   const [sel, setSel] = React.useState(null); // at: the position before the selected move
   const [running, setRunning] = React.useState(false);
   const [diag, setDiag] = React.useState('');
@@ -398,6 +410,7 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay }) {
           </div>
         )}
         {Q.err && <div className="twk-note twk-err" role="alert">{Q.err}</div>}
+        {Q.msg && !Q.err && <div className="twk-note" role="status">{Q.msg}</div>}
         {diag && (
           <div className="q-diag">
             <div className="twk-note">What this page sees (copy this to Claude if it doesn’t make sense):</div>
@@ -441,6 +454,8 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay }) {
             <pre>{Q.log.map((x) => `${x.when}  ${posLabel(M, x.at)}  ${x.ok ? `ok in ${x.secs} s${x.gpu != null ? ` (GPU ${x.gpu} s, ${x.tokens} tokens)` : ''}` : `${x.code} after ${x.secs} s${x.msg ? ': ' + x.msg : ''}`}`).join('\n')}</pre>
           </details>
         )}
+        {onSave && Q.forGame > 0 && <TweakButton secondary label={`Save Queen answers (${Q.forGame})`} onClick={onSave} />}
+        {onSave && <div className="twk-note">Saves this game’s answers as a file. Load it on any device like a game file (Load game…, or drop it on the page) to skip asking Queen again.</div>}
         {Q.cached > 0 && !Q.busy && !running && <TweakButton secondary label="Forget saved Queen answers" onClick={() => { Q.forget(); setSel(null); onOverlay(null); setFailed([]); }} />}
       </div>
     </aside>

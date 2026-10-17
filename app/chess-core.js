@@ -331,7 +331,7 @@
   const clean = (v) => (v && v !== '?' && v !== '-' ? v : '');
 
   function classifyFile(name, text) {
-    try { const j = JSON.parse(text); if (j && Array.isArray(j.moves)) return 'analysis'; } catch (e) {}
+    try { const j = JSON.parse(text); if (j && j.format === 'queen-answers') return 'queen'; if (j && Array.isArray(j.moves)) return 'analysis'; } catch (e) {}
     if (/_notes\.txt$/i.test(name) || (/^\s*\[(\d+|INTRO|RESULT|CONCLUSION)\]/im.test(text) && !/^\s*\[\w+\s+"/m.test(text))) return 'notes';
     return 'pgn';
   }

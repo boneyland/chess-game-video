@@ -97,5 +97,24 @@
     return from ? Object.fromEntries(keys.slice(from).map((k) => [k, c[k]])) : c;
   }
 
-  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache };
+  // A saved answers file holds the answers for one game's positions, keyed like the cache by the moves played to reach
+  // each position (UCI, space-separated), so loading it back skips those Queen calls on any device
+  const QUEEN_FILE = 'queen-answers';
+  function queenFile(cache, ucis) {
+    // every position from the start to the one after the last move (Queen also scores the positions after moves)
+    const keys = new Set([...ucis, null].map((_, i) => ucis.slice(0, i).join(' ')));
+    const answers = Object.fromEntries(Object.keys(cache).filter((k) => keys.has(k)).map((k) => [k, cache[k]]));
+    return { format: QUEEN_FILE, version: 1, moves: ucis.join(' '), answers };
+  }
+  // the answers in a saved file, or null when the text isn't one; entries that don't look like answers are dropped
+  function readQueenFile(text) {
+    let j;
+    try { j = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { return null; }
+    if (!j || j.format !== QUEEN_FILE || !j.answers || typeof j.answers !== 'object') return null;
+    const ok = (k, r) => /^(([a-h][1-8]){2}[qrbn]?( |$))*$/.test(k) && r && typeof r === 'object' && typeof r.prose === 'string';
+    const at = (k) => (k ? k.split(' ').length : 0);
+    return Object.fromEntries(Object.entries(j.answers).filter(([k, r]) => ok(k, r)).map(([k, r]) => [k, { ...r, at: at(k) }]));
+  }
+
+  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache, queenFile, readQueenFile };
 })();

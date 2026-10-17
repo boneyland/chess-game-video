@@ -60,3 +60,24 @@ test('capQueenCache drops the oldest answers until the JSON fits, keeping the ne
   assert.deepEqual(Object.keys(Q.capQueenCache(c, 10)), ['k9']);
   assert.deepEqual(Q.capQueenCache({}, 10), {});
 });
+
+test("queenFile keeps only this game's positions, and readQueenFile reads them back", () => {
+  const r = (prose) => ({ best: 'e2e4', bestSan: 'e4', line: '', evalText: '', evalPawns: 0, prose, seconds: 20, source: 'best_move', at: 0 });
+  const cache = { '': r('start'), 'e2e4': r('one'), 'e2e4 e7e5': r('two'), 'd2d4': r('other game'), 'e2e4 e7e5 g1f3': r('after the last move') };
+  const f = Q.queenFile(cache, ['e2e4', 'e7e5']);
+  assert.deepEqual(Object.keys(f.answers), ['', 'e2e4', 'e2e4 e7e5']);
+  assert.equal(f.moves, 'e2e4 e7e5');
+  const back = Q.readQueenFile(JSON.stringify(f));
+  assert.equal(back['e2e4'].prose, 'one');
+  assert.equal(back['e2e4'].at, 1);
+  assert.equal(back[''].at, 0);
+});
+
+test('readQueenFile rejects other files and drops entries that are not answers', () => {
+  assert.equal(Q.readQueenFile('not json'), null);
+  assert.equal(Q.readQueenFile('{"moves": []}'), null);
+  require('./load.cjs').loadUnit('chess-core.js');
+  assert.equal(window.ChessCore.classifyFile('a.json', JSON.stringify(Q.queenFile({}, []))), 'queen');
+  const back = Q.readQueenFile(JSON.stringify({ format: 'queen-answers', version: 1, answers: { 'e2e4': { prose: 'ok' }, 'e2e4 zz': { prose: 'bad key' }, 'd2d4': { best: 'x' }, 'g1f3': null } }));
+  assert.deepEqual(Object.keys(back), ['e2e4']);
+});
