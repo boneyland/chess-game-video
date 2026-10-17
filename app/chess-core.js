@@ -476,7 +476,7 @@
       if (KEY_CLS.includes(p.cls) || p.checkmate) t += hold * (p.cls === 'blunder' || p.checkmate ? 1.3 : 1);
       // reading time for the comment, plus at most QUEEN_HOLD s for Queen's sentence
       const tc = p.comment ? 0.6 + p.comment.length / read : 0;
-      const tq = p.queenText ? Math.min(QUEEN_HOLD, (p.queenText.length + 20) / read) : 0;
+      const tq = p.queenText ? Math.min(QUEEN_HOLD, (p.queenText.length + 5) / read) : 0;
       if (tc || tq) t = Math.max(t, (tc || 0.6) + tq);
       return t;
     });
