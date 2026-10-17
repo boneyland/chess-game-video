@@ -1,7 +1,6 @@
 // ---------- Stockfish in the browser ----------
 // One engine per page, started on first use; a full-game analysis on request; the viewer's own moves.
 const SF_SITE_URL = 'https://chess-replay.netlify.app/';
-const SF_SECONDS_PER_POSITION = 1.3; // measured on a laptop at depth 22 / 3 s (design doc, benchmarks)
 // the engine sits next to the page on the self-hosted copy; the claude.ai build sets window.SF_MAKE_WORKER
 const SF_FILE = 'stockfish-19-lite-single';
 const sfMakeWorker = () => (window.SF_MAKE_WORKER ? window.SF_MAKE_WORKER() : new Worker(SF_FILE + '.js'));
@@ -10,8 +9,10 @@ const sfMakeWorker = () => (window.SF_MAKE_WORKER ? window.SF_MAKE_WORKER() : ne
 const sfFilesPresent = () => (window.SF_MAKE_WORKER ? Promise.resolve(true)
   : fetch(SF_FILE + '.wasm', { method: 'HEAD', cache: 'no-store' }).then((r) => r.ok, () => false));
 
-function useEngine() {
-  const ref = React.useRef(null);
+function useEngine(hashMB) {
+  const ref = React.useRef(null), hash = React.useRef(hashMB);
+  hash.current = hashMB;
+  React.useEffect(() => { if (ref.current) ref.current.then((eng) => eng.setHash(hashMB), () => {}); }, [hashMB]);
   const [status, setStatus] = React.useState('idle');
   const get = React.useCallback(() => {
     if (!ref.current) {
@@ -20,7 +21,7 @@ function useEngine() {
       let mine = null;
       const start = async () => {
         if (!(await sfFilesPresent())) throw new Error('The Stockfish files are missing next to this page');
-        const eng = window.SFEngine.create(sfMakeWorker, { onFail: () => { if (ref.current === mine) { ref.current = null; setStatus('stopped'); } } });
+        const eng = window.SFEngine.create(sfMakeWorker, { hashMB: hash.current, onFail: () => { if (ref.current === mine) { ref.current = null; setStatus('stopped'); } } });
         await eng.ready();
         return eng;
       };
@@ -39,48 +40,52 @@ const sfIsBrowserAnalysis = (analysis) => {
 // The searches of a run that stopped part-way, kept for one game (the latest) so starting again resumes it; a page
 // reload keeps them too. Keyed by the game's moves and the engine settings, so they never fill in another game.
 const SF_PARTIAL_STORE = 'chess-video.sf-partial.v1';
-const sfPartialKey = (ucis) => JSON.stringify([window.AnalysisCore.ENGINE, ucis]);
-function readSfPartial(ucis) {
-  try { const s = JSON.parse(localStorage.getItem(SF_PARTIAL_STORE) || 'null'); return s && s.key === sfPartialKey(ucis) && Array.isArray(s.searched) ? s.searched : []; } catch (e) { return []; }
+const sfPartialKey = (ucis, settings) => JSON.stringify([settings, ucis]);
+function readSfPartial(ucis, settings) {
+  try { const s = JSON.parse(localStorage.getItem(SF_PARTIAL_STORE) || 'null'); return s && s.key === sfPartialKey(ucis, settings) && Array.isArray(s.searched) ? s.searched : []; } catch (e) { return []; }
 }
-function writeSfPartial(ucis, searched) {
-  try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
+function writeSfPartial(ucis, settings, searched) {
+  try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis, settings), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
 }
 
 // The full-game analysis. Loading other files (another game, the sample) abandons a run in progress; its searches
 // so far are kept, and starting it again resumes from them.
 // getFiles: the loaded files as they are now (notes or commentary may have changed during the run)
-function useGameAnalysis(M, files, getFiles, commit, engine) {
+// settings: the engine settings for a game (AnalysisCore.engineSettings().game); a run keeps those it started with
+function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
+  const setKey = JSON.stringify(settings), perPos = window.AnalysisCore.secondsPerPosition(settings);
   const idle = { state: 'idle', done: 0, total: 0, etaSec: null, err: '' };
   const [st, setSt] = React.useState(idle);
   const run = React.useRef(null);
   const ucisKey = M.plies.map((p) => p.uci).join(' ');
+  const setKeyRef = React.useRef(setKey);
+  setKeyRef.current = setKey;
   // moves already analysed by a run that stopped
   const [resumeAt, setResumeAt] = React.useState(0);
-  React.useEffect(() => { setResumeAt(Math.max(0, readSfPartial(M.plies.map((p) => p.uci)).length - 1)); }, [ucisKey]);
+  React.useEffect(() => { setResumeAt(Math.max(0, readSfPartial(M.plies.map((p) => p.uci), settings).length - 1)); }, [ucisKey, setKey]);
   React.useEffect(() => () => { if (run.current) { run.current.signal.aborted = true; run.current = null; } setSt(idle); }, [files.pgn, files.gameIndex || 0, !!files.sample, files.analysis]);
   const start = async () => {
     if (run.current) return;
     const me = { signal: { aborted: false } };
     run.current = me;
     const ucis = M.plies.map((p) => p.uci), sans = M.plies.map((p) => p.san), N = ucis.length, t0 = Date.now();
-    const earlier = readSfPartial(ucis), d0 = Math.max(0, earlier.length - 1);
-    setSt({ state: 'running', done: d0, total: N, etaSec: Math.round((N + 1 - earlier.length) * SF_SECONDS_PER_POSITION), err: '' });
+    const S = settings, earlier = readSfPartial(ucis, S), d0 = Math.max(0, earlier.length - 1);
+    setSt({ state: 'running', done: d0, total: N, etaSec: Math.round((N + 1 - earlier.length) * perPos), err: '' });
     try {
       const eng = await engine.get();
       const json = await window.AnalysisCore.runAnalysis({
-        engine: eng, ucis, sans, headers: M.headers, signal: me.signal, earlier,
-        onSearched: (R) => { writeSfPartial(ucis, R); setResumeAt(Math.max(0, R.length - 1)); },
+        engine: eng, ucis, sans, headers: M.headers, signal: me.signal, earlier, settings: S,
+        onSearched: (R) => { writeSfPartial(ucis, S, R); if (JSON.stringify(S) === setKeyRef.current) setResumeAt(Math.max(0, R.length - 1)); },
         onProgress: (d, n) => { if (run.current === me && d > d0) setSt((s) => ({ ...s, done: d, total: n, etaSec: Math.round(((Date.now() - t0) / 1000 / (d - d0 + (d0 ? 0 : 1))) * (n - d)) })); },
       });
       if (run.current !== me) return;
       run.current = null;
       if (!json) { setSt(idle); return; }
-      writeSfPartial(ucis, null);
+      writeSfPartial(ucis, S, null);
       setResumeAt(0);
       const name = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_') + '_analysis.json';
       setSt(idle);
-      commit({ ...getFiles(), analysis: json, analysisName: name });
+      commit({ ...getFiles(), analysis: json, analysisName: name, evalSource: null }); // shown, even over PGN evals
     } catch (e) {
       if (run.current !== me) return;
       run.current = null;
@@ -89,7 +94,7 @@ function useGameAnalysis(M, files, getFiles, commit, engine) {
   };
   const stop = () => { if (run.current) { run.current.signal.aborted = true; run.current = null; } setSt(idle); };
   const left = M.plies.length + 1 - (resumeAt ? resumeAt + 1 : 0);
-  return { ...st, start, stop, resumeAt, plies: M.plies.length, estimateMin: Math.max(1, Math.ceil(left * SF_SECONDS_PER_POSITION / 60)) };
+  return { ...st, start, stop, resumeAt, plies: M.plies.length, estimateMin: Math.max(1, Math.ceil(left * perPos / 60)) };
 }
 
 // A button inside the video frame (frame pixels, theme colours)
@@ -142,12 +147,13 @@ function EngineEmptyState({ sf, paused, compact }) {
 }
 
 // ---------- the viewer's own moves ----------
-const SF_OWN = { depth: 24, movetimeMs: 3000 };
-const SF_EVAL_CACHE = new Map(); // finished searches by move list, for the session
-const sfKey = (moves) => moves.join(' ');
+const SF_EVAL_CACHE = new Map(); // finished searches by settings and move list, for the session
 
-// Evaluates the positions before and after the viewer's move (move lists from the start); the score streams in
-function useMoveEval(engine, before, after) {
+// Evaluates the positions before and after the viewer's move (move lists from the start); the score streams in.
+// own: the search settings (AnalysisCore.engineSettings().own)
+function useMoveEval(engine, before, after, own) {
+  const search = { depth: own.depth, movetimeMs: own.time_limit * 1000 };
+  const sfKey = (moves) => `${search.depth}/${search.movetimeMs}:` + moves.join(' ');
   const key = after ? sfKey(after) : '';
   const empty = { key: '', before: null, after: null, pending: false };
   const [st, setSt] = React.useState(empty);
@@ -162,7 +168,7 @@ function useMoveEval(engine, before, after) {
       for (const [which, moves] of [['after', after], ['before', before]]) {
         if (!live) return;
         if (cached(moves)) continue;
-        const h = eng.search({ moves, ...SF_OWN, priority: 'own', onInfo: (sc) => { if (live) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
+        const h = eng.search({ moves, ...search, priority: 'own', onInfo: (sc) => { if (live) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
         handles.push(h);
         const r = await h.promise;
         if (!live) return;

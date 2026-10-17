@@ -749,7 +749,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const ownOn = !!(sf && vline && vline.src === 'you' && vline.upto >= 0);
   const ownBefore = ownOn ? M.plies.slice(0, vline.at).map((p) => p.uci).concat(vline.moves.slice(0, vline.upto).map((m) => m.uci)) : null;
   const ownAfter = ownOn ? ownBefore.concat([vline.moves[vline.upto].uci]) : null;
-  const ownEval = useMoveEval(sf ? sf.engine : null, ownBefore, ownAfter);
+  const ownEval = useMoveEval(sf ? sf.engine : null, ownBefore, ownAfter, sf ? sf.own : window.AnalysisCore.engineSettings().own);
   let own = null;
   if (ownOn) {
     const posBefore = vline.upto > 0 ? vline.moves[vline.upto - 1].pos : vline.base || gamePos(vline.at - 1);

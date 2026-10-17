@@ -111,7 +111,8 @@ function GameApp() {
   const M = built.M || lastGood.current || window.ChessCore.buildGame(SAMPLE);
   const hf = useHfAuth();
   const Q = useQueen(M, mcp, hf);
-  const engine = useEngine();
+  const ES = React.useMemo(() => window.AnalysisCore.engineSettings(t), [t.sfDepth, t.sfTime, t.sfOwnDepth, t.sfOwnTime, t.sfHash]);
+  const engine = useEngine(ES.game.hash_mb);
   const queenInVideo = t.queenInVideo !== false;
   const MV = React.useMemo(() => (queenInVideo ? withQueen(M, Q.resultAt) : M), [M, Q.cache, queenInVideo]);
   const TM = React.useMemo(() => window.ChessCore.timing(MV, { secondsPerMove: t.secondsPerMove, keyHold: t.keyHold, fastOpening: t.fastOpening }), [MV, t.secondsPerMove, t.keyHold, t.fastOpening]);
@@ -207,7 +208,7 @@ function GameApp() {
     saveFile(files.analysisName || fileStem + '_analysis.json', a, 'application/json');
   };
   const saveQueen = () => saveFile(fileStem + '_queen.json', JSON.stringify(Q.saved(), null, 1), 'application/json');
-  const analysis = useGameAnalysis(M, files, () => filesRef.current, commit, engine);
+  const analysis = useGameAnalysis(M, files, () => filesRef.current, commit, engine, ES.game);
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
   const [book, setBook] = React.useState(null);
   React.useEffect(() => { setBook(null); const id = setTimeout(() => { try { setBook(window.Openings.book().byPly(M.plies.map((p) => p.uci))); } catch (e) {} }, 50); return () => clearTimeout(id); }, [M]);
@@ -232,6 +233,8 @@ function GameApp() {
   const clipSuffix = clipFrom < 0 && clipTo >= NP ? '' : `_${clipFrom < 0 ? 'start' : plyTag(clipFrom)}-${clipTo >= NP ? 'end' : plyTag(clipTo)}`;
   const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run({ start: clipT.start, end: clipT.end, suffix: clipSuffix, audio: t.sound === false ? null
     : () => window.Sfx.renderTrack(window.SFX_DATA || {}, soundSet, window.Sfx.track(MV, clipOpts.S, clipT.start, clipT.end), soundVolume, clipT.end - clipT.start) }); };
+  const SFL = window.AnalysisCore.SEARCH_LIMITS, SF_KEYS = ['sfDepth', 'sfTime', 'sfOwnDepth', 'sfOwnTime', 'sfHash'];
+  const sfChanged = JSON.stringify(ES) !== JSON.stringify(window.AnalysisCore.engineSettings(window.TWEAK_DEFAULTS));
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
   // landscape: the Queen panel opens centred over its button in the transport bar, kept on screen
   const queenBtn = React.useRef(null);
@@ -248,7 +251,7 @@ function GameApp() {
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
   }, [queenOpen, tall]);
-  const sf = { engine, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
+  const sf = { engine, own: ES.own, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
   const status = `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
@@ -304,7 +307,7 @@ function GameApp() {
         <TweakSection label="Game">
           <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
           <TweakButton label="Load game (PGN)…" onClick={() => inputRef.current.click()} />
-          <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel. Analysis, notes and Queen answer files saved from this page load here too.</div>
+          <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel or under Engine. Analysis, notes and Queen answer files saved from this page load here too.</div>
           {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
           {M.canChooseSource && (
             <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
@@ -312,6 +315,24 @@ function GameApp() {
           {M.gameCount > 1 && (
             <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
           )}
+        </TweakSection>
+        <TweakSection label="Engine">
+          <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite in your browser. Each search stops at its depth or its time, whichever comes first; deeper is stronger and slower.</div>
+          <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
+          <TweakSlider id="tw-sf-time" label="Game analysis: most time per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
+          <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />
+          <TweakSlider id="tw-sf-otime" label="Your moves: most time per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
+          <TweakSelect id="tw-sf-hash" label="Hash table (more helps long searches; a phone may run out of memory)" value={ES.game.hash_mb + ' MB'} options={window.AnalysisCore.HASH_MB.map((x) => x + ' MB')} onChange={(v) => setTweak('sfHash', parseInt(v, 10))} />
+          {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
+          {analysis.state === 'running'
+            ? <>
+              <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ` · about ${Math.max(1, Math.round(analysis.etaSec / 60))} min left` : ''}</div>
+              <TweakButton secondary label="Stop the analysis" onClick={analysis.stop} />
+            </>
+            : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor(analysis.resumeAt / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />}
+          {analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
+          {files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
+          <div className="twk-note">New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes only with the settings it started with. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
         </TweakSection>
         <TweakSection label="Commentary" column>
           {sample && <>
@@ -340,9 +361,6 @@ function GameApp() {
           <TweakSelect id="tw-sset" label="Sound set" value={soundSet} options={window.Sfx.SETS} onChange={(v) => { setTweak('soundSet', v); sfxPlayer.play(v, ['move'], soundVolume); }} />
           <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v); }} />
           <div className="twk-note">The Lichess sets are by <a href="https://github.com/Enigmahack" target="_blank" rel="noopener">Enigmahack</a>, from <a href="https://github.com/lichess-org/lila" target="_blank" rel="noopener">Lichess’s source</a>, under the AGPL-3.0-or-later. Wood is made in your browser.</div>
-        </TweakSection>
-        <TweakSection label="Engine">
-          <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite running in your browser: depth 22 or 3 s per position for a game, depth 24 or 3 s for your moves. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
         </TweakSection>
         <TweakSection label="Video" column>
           <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, Home (or 0) jumps to the start at 0:00, End to the last move.</div>

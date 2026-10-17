@@ -13,9 +13,11 @@
     const waiting = []; // [regex, resolve] for ready()
     const queue = [];
     let cur = null, readyP = null, rejectReady = null, isReady = false, failed = null;
+    let hashWant = hashMB, hashSet = null; // a new hash size waits for the engine to be between searches
 
     const pump = () => {
       if (cur || !isReady || failed) return;
+      if (hashWant !== hashSet) { worker.postMessage(`setoption name Hash value ${hashWant}`); hashSet = hashWant; }
       let i = queue.findIndex((q) => q.priority === 'own');
       if (i < 0) i = 0;
       const q = queue.splice(i, 1)[0];
@@ -67,7 +69,7 @@
         const timer = setTimeout(() => fail(new Error('Stockfish did not start')), readyTimeoutMs);
         (async () => {
           const ok = expect(/^uciok/); worker.postMessage('uci'); await ok;
-          worker.postMessage(`setoption name Hash value ${hashMB}`);
+          worker.postMessage(`setoption name Hash value ${hashWant}`); hashSet = hashWant;
           const rd = expect(/^readyok/); worker.postMessage('isready'); await rd;
           clearTimeout(timer);
           if (!failed) { isReady = true; rejectReady = null; resolve(); pump(); }
@@ -89,13 +91,16 @@
       };
     }
 
+    // takes effect before the next search (the one running keeps its table)
+    function setHash(mb) { hashWant = mb; pump(); }
+
     function quit() {
       queue.splice(0).forEach((q) => q.resolve(null));
       try { worker.postMessage('quit'); } catch (e) {}
       try { worker.terminate(); } catch (e) {}
     }
 
-    return { ready, search, quit, failed: () => failed };
+    return { ready, search, setHash, quit, failed: () => failed };
   }
 
   window.SFEngine = { create, positionCommand, READY_TIMEOUT_MS };

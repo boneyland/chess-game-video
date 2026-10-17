@@ -116,6 +116,22 @@
   const bestOf = (r) => (r && r.pv && r.pv[0]) || (r && r.best) || null;
 
   const ENGINE = { name: 'Stockfish 19 lite (browser)', depth: 22, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
+  // The engine settings a viewer can change (Settings → Engine), from the saved tweaks, kept in range; anything
+  // missing or out of range falls back to the default. game: as ENGINE (written into the analysis JSON); own: the
+  // search of the viewer's own moves
+  const SEARCH_LIMITS = { depth: [16, 30], seconds: [0.5, 10] }, HASH_MB = [16, 32, 64, 128, 256];
+  const OWN = { depth: 24, time_limit: 3 };
+  function engineSettings(t = {}) {
+    const pick = (v, [lo, hi], step, dflt) => { const x = +v; return Number.isFinite(x) && x >= lo && x <= hi ? Math.round(x / step) * step : dflt; };
+    return {
+      game: { ...ENGINE, depth: pick(t.sfDepth, SEARCH_LIMITS.depth, 1, ENGINE.depth), time_limit: pick(t.sfTime, SEARCH_LIMITS.seconds, 0.5, ENGINE.time_limit), hash_mb: HASH_MB.includes(+t.sfHash) ? +t.sfHash : ENGINE.hash_mb },
+      own: { depth: pick(t.sfOwnDepth, SEARCH_LIMITS.depth, 1, OWN.depth), time_limit: pick(t.sfOwnTime, SEARCH_LIMITS.seconds, 0.5, OWN.time_limit) },
+    };
+  }
+  // Rough seconds a game position takes: 1.3 s measured on a laptop at depth 22 / 3 s, each depth about 1.45 times
+  // the one before, never more than the time limit. Only the first estimate; a run measures its own pace
+  const secondsPerPosition = (g) => Math.min(g.time_limit, 1.3 * Math.pow(1.45, g.depth - 22));
+
   const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
 
   // A line of uci moves from pos → its SANs, stopping at the first illegal move
@@ -129,12 +145,13 @@
   // move is also the search before the next one. Returns the --analyze JSON, or null when signal.aborted.
   // earlier: searches of the first positions from a run that stopped, to resume from; onSearched gets every
   // search so far after each new one, so a run that stops can be resumed
-  async function runAnalysis({ engine, ucis, sans, headers, signal, onProgress, earlier = [], onSearched }) {
+  // settings: the engine settings to search with and to record (engineSettings().game)
+  async function runAnalysis({ engine, ucis, sans, headers, signal, onProgress, earlier = [], onSearched, settings = ENGINE }) {
     const N = ucis.length, R = earlier.slice(0, N + 1);
     onProgress(Math.max(0, R.length - 1), N);
     for (let k = R.length; k <= N; k++) {
       if (signal.aborted) return null;
-      const r = await engine.search({ moves: ucis.slice(0, k), depth: ENGINE.depth, movetimeMs: ENGINE.time_limit * 1000, priority: 'game' }).promise;
+      const r = await engine.search({ moves: ucis.slice(0, k), depth: settings.depth, movetimeMs: settings.time_limit * 1000, priority: 'game' }).promise;
       if (signal.aborted) return null;
       if (!r || r.cp == null) throw new Error('Stockfish stopped before the analysis finished');
       R.push(r);
@@ -165,8 +182,8 @@
       if (played) pos = played.pos;
       return m;
     });
-    return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis) : null, engine: { ...ENGINE } });
+    return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis) : null, engine: { ...settings } });
   }
 
-  window.AnalysisCore = { C, ENGINE, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
+  window.AnalysisCore = { C, ENGINE, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
 })();

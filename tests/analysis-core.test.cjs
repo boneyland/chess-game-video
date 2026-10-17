@@ -143,3 +143,30 @@ test('runAnalysis resumes from earlier searches and reports each search so far',
   assert.equal(out.moves[0].eval_before, 0);
   assert.equal(out.moves[1].eval_after, 20); // from the earlier searches
 });
+
+test('engineSettings: the defaults, the viewer’s values in range, and the defaults again for anything else', () => {
+  const d = A.engineSettings({});
+  assert.deepEqual(d.game, A.ENGINE);
+  assert.deepEqual(d.own, { depth: 24, time_limit: 3 });
+  const s = A.engineSettings({ sfDepth: 16, sfTime: 0.5, sfOwnDepth: 30, sfOwnTime: 10, sfHash: 256 });
+  assert.deepEqual([s.game.depth, s.game.time_limit, s.game.hash_mb, s.game.name], [16, 0.5, 256, A.ENGINE.name]);
+  assert.deepEqual(s.own, { depth: 30, time_limit: 10 });
+  const bad = A.engineSettings({ sfDepth: 15, sfTime: 11, sfOwnDepth: 'x', sfOwnTime: null, sfHash: 100 });
+  assert.deepEqual([bad.game.depth, bad.game.time_limit, bad.game.hash_mb, bad.own.depth, bad.own.time_limit], [22, 3, 64, 24, 3]);
+  assert.equal(A.engineSettings({ sfTime: 1.3 }).game.time_limit, 1.5); // snapped to the slider's half seconds
+});
+
+test('secondsPerPosition: 1.3 s at the defaults, faster when shallower, never past the time limit', () => {
+  assert.equal(A.secondsPerPosition(A.ENGINE), 1.3);
+  assert.ok(A.secondsPerPosition({ depth: 16, time_limit: 3 }) < 0.5);
+  assert.equal(A.secondsPerPosition({ depth: 30, time_limit: 4 }), 4);
+});
+
+test('runAnalysis searches and records the settings it is given', async () => {
+  const reqs = [], settings = A.engineSettings({ sfDepth: 16, sfTime: 0.5, sfHash: 32 }).game;
+  const out = await A.runAnalysis({ engine: fakeEngine((r) => reqs.push(r)), ...SCHOLAR, headers: {}, signal: { aborted: false }, onProgress: () => {}, settings });
+  assert.deepEqual(reqs.map((r) => [r.depth, r.movetimeMs]), Array(8).fill([16, 500]));
+  assert.deepEqual(out.engine, settings);
+  const M = window.ChessCore.buildGame({ pgn: '1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0', analysis: out });
+  assert.match(M.engine, /depth 16, max 0\.5s per position/);
+});

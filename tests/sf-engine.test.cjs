@@ -180,3 +180,21 @@ test('a search cut off mid-depth reports the whole search: its time, nodes and t
   assert.equal(r.nodes, 1500000);
   assert.equal(r.timeMs, 3000);
 });
+
+test('setHash waits for the running search, then applies before the next one', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), { hashMB: 32 });
+  await e.ready();
+  assert.ok(w.posted.includes('setoption name Hash value 32'));
+  const a = e.search({ moves: [], depth: 5, movetimeMs: 100 });
+  await tick();
+  e.setHash(128);
+  assert.ok(!w.posted.includes('setoption name Hash value 128'), 'not mid-search');
+  const b = e.search({ moves: ['e2e4'], depth: 5, movetimeMs: 100 });
+  w.finish('e2e4'); await a.promise; await tick();
+  const i = w.posted.indexOf('setoption name Hash value 128');
+  assert.ok(i > 0 && i < w.posted.indexOf('position startpos moves e2e4'), 'set before the next position');
+  w.finish('e7e5'); await b.promise;
+  e.setHash(128); e.search({ moves: [], depth: 5, movetimeMs: 100 }); await tick();
+  assert.equal(w.posted.filter((s) => s === 'setoption name Hash value 128').length, 1, 'only when it changes');
+});
