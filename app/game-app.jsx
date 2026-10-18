@@ -417,7 +417,7 @@ function GameApp() {
           <div className="twk-note">Shows Queen’s answers in Commentary and Analysis on the moves it has analysed. Moves with a Queen sentence stay on screen longer.</div>
         </TweakSection>
         <TweakSection label="About">
-          <div className="twk-note">This player is free software under the GPL-3.0-or-later; <a href="https://github.com/boneyland/chess-game-video" target="_blank" rel="noopener">source on GitHub</a>.</div>
+          <div className="twk-note">This player is free software under the GPL-3.0-or-later; <a href="https://github.com/boneyland/chess-replay" target="_blank" rel="noopener">source on GitHub</a>.</div>
         </TweakSection>
       </TweaksPanel>
     </React.Fragment>

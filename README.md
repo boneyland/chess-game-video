@@ -8,7 +8,7 @@ The browser player behind the claude.ai artifact, https://chess-replay.netlify.a
 
 Needs Node 22 or later; nothing to install (Babel and Stockfish are in the repo) and no network.
 
-1. `git clone https://github.com/boneyland/chess-game-video && cd chess-game-video`
+1. `git clone https://github.com/boneyland/chess-replay && cd chess-replay`
 2. `node build.cjs`, which writes
    - `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.9 MB with the engine and sounds inlined (base64 wasm, started from Blob URLs)
    - `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/: `chess-game-video.html`, plus `stockfish-19-lite-single.js` and `.wasm` (loaded from next to the page), and a web app manifest with its icons (from `app/icons/`), so Add to Home Screen opens it without the browser's bars

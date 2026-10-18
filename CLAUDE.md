@@ -15,7 +15,7 @@ Browser player for annotated chess games: the claude.ai artifact, https://chess-
 3. Render: a static site (chess-replay) built from this repo on every push to `main` (publish `out/site`). Its settings live in `render.yaml` (build command with the tests first, rewrite `/` → `/chess-game-video.html`, Cache-Control header, build filters): the service is linked to a Blueprint, so a push that changes the file syncs them; change them there, not in the dashboard. Auto-deploy is on, so a push that touches the page goes live there at once
 
 ## Workflow
-- Small commits on `main`; remote is `origin` (github.com/boneyland/chess-game-video), push only when asked
+- Small commits on `main`; remote is `origin` (github.com/boneyland/chess-replay), push only when asked
 - Visual changes: screenshot desktop (1440×900) and phone layouts and show the PNG paths before committing; the user usually tweaks sizes
 - The user views the app in desktop Firefox, but screenshots, tests and audits here run Chromium. For layout changes (CSS columns, overflow, height caps) think through Firefox's behaviour and say when checks ran only in Chromium; a capped-height multi-column box once spilled a fifth Settings column in Firefox that Chromium never showed
 - Board/overlay checks: drive with real `page.mouse` input, not `dispatchEvent` (synthetic events once hid an overlay swallowing taps)
