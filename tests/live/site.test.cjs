@@ -151,6 +151,22 @@ for (const base of SITES) {
       await assert.doesNotReject(queen.waitFor({ state: 'detached', timeout: 3000 }));
     });
 
+    await t.test('desktop: the playhead takes the arrow keys, and the Moves panel is one Tab stop', async () => {
+      const head = page.getByRole('slider', { name: 'Playhead' });
+      await head.focus();
+      await page.keyboard.press('End');
+      assert.equal(await head.getAttribute('aria-valuenow'), await head.getAttribute('aria-valuemax'));
+      await page.keyboard.press('Home');
+      await page.keyboard.press('ArrowRight');
+      assert.equal(await head.getAttribute('aria-valuenow'), '1');
+      assert.match(await head.getAttribute('aria-valuetext'), /^1 second of \d+ minutes? /);
+      assert.equal(await page.locator('[data-ply][tabindex="0"]').count(), 1, 'Tab stops in the Moves panel');
+      await page.locator('[data-ply="0"]').focus();
+      await page.keyboard.press('ArrowRight');
+      await page.waitForFunction(() => document.activeElement && document.activeElement.dataset.ply === '1', null, { timeout: 3000 });
+      await assert.doesNotReject(page.locator('.plabel').filter({ hasText: /^1…/ }).waitFor({ timeout: 3000 }));
+    });
+
     // Playwright can't drag a file in with the mouse, so this one dispatches the drag event
     await t.test('desktop: a file dragged over the page gets the drop overlay over the whole page', async () => {
       const files = await page.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['1. e4 *'], 'game.pgn')); return d; });

@@ -10,7 +10,7 @@ Needs Node 22 or later; nothing to install (Babel and Stockfish are in the repo)
 
 1. `git clone https://github.com/boneyland/chess-game-video && cd chess-game-video`
 2. `node build.cjs`, which writes
-   - `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.2 MB with the engine inlined (base64 wasm, started from Blob URLs)
+   - `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.9 MB with the engine and sounds inlined (base64 wasm, started from Blob URLs)
    - `out/site/`: the self-hosted copy, which Netlify builds from this repo (`netlify.toml`) and serves at https://chess-replay.netlify.app/: `chess-game-video.html`, plus `stockfish-19-lite-single.js` and `.wasm` (loaded from next to the page)
 3. Serve `out/site/` over HTTP, e.g. `python3 -m http.server 8765 --directory out/site`, and open http://localhost:8765/chess-game-video.html (don't open the file directly: browsers won't load the engine from a `file://` page)
 

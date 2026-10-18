@@ -178,7 +178,7 @@ function GameApp() {
     setAi({ busy: true, err: '', chars: 0 });
     try {
       const base = window.ChessCore.buildGame({ ...files, aiNotes: null, sampleNotes: null });
-      const p = window.ChessCore.commentaryPrompt(base, { tone: t.aiTone || 'Broadcast', density: t.aiDensity || 'Key moments', audience: t.aiAudience || 'Beginners' });
+      const p = window.ChessCore.commentaryPrompt(base, { tone: t.aiTone || window.TWEAK_DEFAULTS.aiTone, density: t.aiDensity || window.TWEAK_DEFAULTS.aiDensity, audience: t.aiAudience || window.TWEAK_DEFAULTS.aiAudience });
       const res = await sample(p.system + '\n\n' + p.user, { modelTier: 'default', onText: ({ text }) => setAi((a) => ({ ...a, chars: text.length })) });
       if (res.truncated) throw new Error('the reply was cut off. Try "Key moments" for fewer comments.');
       const aiNotes = window.ChessCore.parseCommentary(res.text, base.plies.length);
@@ -343,9 +343,9 @@ function GameApp() {
         <TweakSection label="Commentary" column>
           <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
           {sample && <>
-            <TweakRadio id="tw-tone" label="Style" value={t.aiTone || 'Broadcast'} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
-            <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || 'Beginners'} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
-            <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || 'Key moments'} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
+            <TweakRadio id="tw-tone" label="Style" value={t.aiTone || window.TWEAK_DEFAULTS.aiTone} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
+            <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || window.TWEAK_DEFAULTS.aiAudience} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
+            <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || window.TWEAK_DEFAULTS.aiDensity} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
           </>}
           {sample
             ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />

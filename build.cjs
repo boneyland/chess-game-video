@@ -49,12 +49,21 @@ const sfInline = `<script>
 const artifactOut = page.replace('<!--SCRIPTS-->', () => sfInline + '\n' + scripts);
 fs.mkdirSync(path.join(dir, 'out', 'site'), { recursive: true });
 fs.writeFileSync(path.join(dir, 'out', 'chess-game-video.html'), artifactOut);
+// what a shared link and the browser tab show (the artifact gets these from claude.ai)
+const DESCRIPTION = 'Replay an annotated chess game as a broadcast-style video: move ratings, best lines, commentary and an eval graph, with Stockfish in your browser.';
+const ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#9a6a1c"/><circle cx="16" cy="9.5" r="4" fill="#fffaf2"/><path d="M12.5 14h7l1.5 9h-10z M8.5 24h15v3h-15z" fill="#fffaf2"/></svg>');
 // Self-hosted copy: claude.ai wraps artifacts in this document shell itself, so a standalone file needs its own
 const site = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="${DESCRIPTION}">
+<meta property="og:title" content="Chess Game Video">
+<meta property="og:description" content="${DESCRIPTION}">
+<meta name="theme-color" content="#f2ece3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#13100f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="${ICON}">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>

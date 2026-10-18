@@ -21,3 +21,5 @@
   for = "/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+    # browsers take each file as the type it is served as (Render sends this itself)
+    X-Content-Type-Options = "nosniff"
