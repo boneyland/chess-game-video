@@ -132,6 +132,10 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .twk-group { display: flex; flex-direction: column; gap: 10px; }
 .twk-group + .twk-group { padding-top: 10px; }
 .twk-sect { font: 600 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+/* phone: Settings is a little wider than the other panels */
+.twk-wide { width: min(340px, calc(100% - 32px)); }
+.twk-pair { display: flex; gap: 10px; }
+.twk-pair > * { flex: 1; min-width: 0; }
 /* desktop: Settings flows its groups into columns, so the panel is wide and short rather than a long scroll */
 @media (min-width: 900px) {
   .twk-wide { width: min(940px, calc(100% - 32px)); }
