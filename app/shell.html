@@ -62,11 +62,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
   padding: 6px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); user-select: none;
 }
 .pbtn {
-  flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; cursor: pointer;
   border-radius: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink);
 }
 .pbtn:hover { border-color: var(--line-strong); }
-.pnav { width: 34px; height: 34px; touch-action: manipulation; -webkit-touch-callout: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.pnav { touch-action: manipulation; -webkit-touch-callout: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
 .pnav:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); }
 .pnav:disabled { opacity: 0.35; cursor: default; }
 /* the move name is announced to screen readers only: the board and Moves panel already show it, and the track gets the room */
@@ -89,7 +89,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 }
 /* landscape: panels open above the transport bar, so they leave its buttons uncovered */
 body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 86px); }
-.dock-btn { flex: none; font: 600 12px var(--mono); padding: 6px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.dock-btn { flex: none; font: 600 12px var(--mono); padding: 0 10px; height: 34px; border-radius: 6px; cursor: pointer; white-space: nowrap; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
 .dock-primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
 .dock-items { display: contents; }
 .dock-menu-status { display: none; }
@@ -109,7 +109,7 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
   background: var(--panel-glass); border: 1px solid var(--line); box-shadow: 0 12px 32px var(--shadow);
 }
 .pmenu-open .dock-items { display: flex; }
-.pmenu .dock-btn { padding: 10px 14px; text-align: left; }
+.pmenu .dock-btn { height: auto; padding: 10px 14px; text-align: left; }
 .pmenu .dock-menu-status { display: block; max-width: 240px; padding: 2px 4px 4px; font: 500 11px/1.4 var(--mono); color: var(--dim); white-space: normal; }
 .pmenu-err .dock-menu-status { color: var(--danger); }
 

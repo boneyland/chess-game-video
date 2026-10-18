@@ -39,10 +39,11 @@ const SQ = 96, BW = SQ * 8;
 const LAYOUTS = {
   wide: {
     eval: 44, bx: 100, by: 88, bar: { k: 1, gap: 10 }, title: 13,
-    header: { x: 916, y: 40, w: 964, h: 170, k: 1 },
-    moves: { x: 916, y: 228, w: 330, h: 380, k: 1, rows: 8 },
-    comment: { x: 1266, y: 228, w: 614, h: 380, k: 1, text: 1, gap: 18 },
-    analysis: { x: 916, y: 626, w: 964, h: 278, k: 1 },
+    // header and Moves/Commentary fit their contents; Analysis (long with Queen's lines) takes the rest down to the graph
+    header: { x: 916, y: 40, w: 964, h: 156, k: 1 },
+    moves: { x: 916, y: 214, w: 330, h: 322, k: 1, rows: 7 },
+    comment: { x: 1266, y: 214, w: 614, h: 322, k: 1, text: 1, gap: 18 },
+    analysis: { x: 916, y: 554, w: 964, h: 358, k: 1 },
     plot: { x: 44, y: 930, w: 1836, h: 120, k: 1 },
     card: { k: 1, w: 1700, stack: false },
   },
