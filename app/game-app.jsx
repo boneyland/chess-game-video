@@ -118,7 +118,8 @@ function GameApp() {
   const [queenOpen, setQueenOpen] = React.useState(false);
   const [queenArrow, setQueenArrow] = React.useState(null);
   // the phone layouts (portrait, or a narrow one held sideways) fold the dock's buttons into a menu in the transport bar; it closes on a pick, an outside tap or Esc
-  const [tall, setTall] = React.useState(false);
+  const [tall, setTall] = React.useState(false), [frameW, setFrameW] = React.useState(1920);
+  const onLayout = React.useCallback((phone, w) => { setTall(phone); setFrameW(w); }, []);
   const [menu, setMenu] = React.useState(false);
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
   const dockRef = React.useRef(null);
@@ -247,12 +248,14 @@ function GameApp() {
   const soundVolume = Number.isFinite(+t.soundVolume) ? +t.soundVolume : 70;
   const exportFps = EXPORT_FPS_OPTIONS.includes(+t.exportFps) ? +t.exportFps : 8;
   const exportFormat = EXPORT_FORMATS.includes(t.exportFormat) ? t.exportFormat : EXPORT_FORMATS[0], webp = exportFormat === 'WebP';
-  // WebP widths below the frame's own (read off the stage, which lays it out), the frame's own first as 0
-  const frameW = (document.querySelector('.stage-frame > div') || {}).offsetWidth || 1920;
-  const webpWidths = [0].concat(WEBP_WIDTHS.filter((x) => x < frameW)), webpPx = (x) => (x ? x + ' px' : `${frameW} px (full)`);
-  const webpWidth = webpWidths.includes(+t.webpWidth) ? +t.webpWidth : 0;
+  // WebP widths, largest first: the frame's own (0), half of it ('Half', the default, so a phone's 840 frame gives 420) and fixed ones below the frame's
+  const halfW = Math.round(frameW / 2), wPx = (x) => (x === 'Half' ? halfW : x || frameW), webpPx = (x) => (x === 'Half' ? `${halfW} px (half)` : x ? x + ' px' : `${frameW} px (full)`);
+  const webpWidths = [0].concat(WEBP_WIDTHS.filter((x) => x < frameW && x !== halfW), 'Half').sort((a, b) => wPx(b) - wPx(a));
+  const webpWidth = webpWidths.includes(t.webpWidth) ? t.webpWidth : webpWidths.includes(+t.webpWidth) ? +t.webpWidth : 'Half';
+  // the old setting was a ratio, 'Full' or 'Half': carry it over once
+  React.useEffect(() => { if (t.webpSize !== undefined) { setTweak('webpWidth', t.webpSize === 'Full' ? 0 : 'Half'); setTweak('webpSize', undefined); } }, []);
   const webpQuality = Math.min(WEBP_QUALITY.max, Math.max(WEBP_QUALITY.min, +t.webpQuality || 75));
-  const video = useVideoExport({ fps: exportFps, format: exportFormat, webp: { width: webpWidth, quality: webpQuality }, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
+  const video = useVideoExport({ fps: exportFps, format: exportFormat, webp: { width: wPx(webpWidth), quality: webpQuality }, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
   // the stretch to export, in plies: from -1 starts on the title card, to N (the ply count) ends after the end card
   const [clip, setClip] = React.useState({ from: -1, to: Infinity });
   React.useEffect(() => { setClip({ from: -1, to: Infinity }); }, [M]);
@@ -324,7 +327,7 @@ function GameApp() {
 
   return (
     <React.Fragment>
-      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
+      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
         <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />

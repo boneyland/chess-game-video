@@ -72,9 +72,9 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
     ro.observe(el);
     return () => ro.disconnect();
   }, [width, height, portrait && portrait.width, portrait && portrait.minHeight, portrait && portrait.maxHeight, short && short.height]);
-  // onLayout(true): a phone frame (portrait, or a narrow one held sideways), where the page folds its buttons into a menu
-  const phone = tall || !!frame.narrow;
-  React.useEffect(() => { if (onLayout) onLayout(phone); }, [phone]);
+  // onLayout(true, w): a phone frame (portrait, or a narrow one held sideways), where the page folds its buttons into a menu; w is the frame's width
+  const phone = tall || !!frame.narrow, fw = tall ? portrait.width : frame.short ? frame.width : width;
+  React.useEffect(() => { if (onLayout) onLayout(phone, fw); }, [phone, fw]);
 
   React.useEffect(() => {
     if (!playing) { lastTsRef.current = null; return; }
@@ -128,7 +128,7 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
     return () => window.removeEventListener('chess-video:seek', onSeek);
   }, [duration]);
 
-  const fw = tall ? portrait.width : frame.short ? frame.width : width, fh = tall ? frame.height : frame.short ? short.height : height;
+  const fh = tall ? frame.height : frame.short ? short.height : height;
   const ctx = React.useMemo(() => ({ time, duration, playing, setTime, setPlaying, setStart }), [time, duration, playing]);
 
   return (
