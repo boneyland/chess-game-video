@@ -74,6 +74,20 @@ test('runAnalysis reports progress from (0, N) to (N, N)', async () => {
   assert.deepEqual(seen[seen.length - 1], [7, 7]);
 });
 
+test('runAnalysis from a start FEN rates Black\'s first move as Black\'s', async () => {
+  const startFen = '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1', reqs = [];
+  const json = await A.runAnalysis({ engine: fakeEngine((r) => reqs.push(r)), ucis: ['e8d7'], sans: ['Kd7'], startFen, headers: {}, signal: { aborted: false }, onProgress: () => {} });
+  assert.equal(json.moves[0].is_white_move, false);
+  assert.equal(json.moves[0].move_san, 'Kd7');
+  assert.equal(json.start_fen, startFen);
+  assert.ok(reqs.every((r) => r.fen === startFen));
+});
+
+test('a standard game\'s analysis JSON has no start_fen', async () => {
+  const json = await A.runAnalysis({ engine: fakeEngine(), ...SCHOLAR, startFen: window.ChessCore.START_FEN, headers: {}, signal: { aborted: false }, onProgress: () => {} });
+  assert.equal('start_fen' in json, false);
+});
+
 test('runAnalysis stops when aborted and returns null', async () => {
   const signal = { aborted: false };
   const eng = fakeEngine((req, n) => { if (n === 2) signal.aborted = true; });

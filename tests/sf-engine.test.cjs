@@ -29,6 +29,11 @@ test('positionCommand', () => {
   assert.equal(SF.positionCommand(['e2e4', 'e7e5']), 'position startpos moves e2e4 e7e5');
 });
 
+test('positionCommand with a start FEN', () => {
+  assert.equal(SF.positionCommand([], '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1'), 'position fen 4k3/8/8/8/8/8/4P3/4K3 b - - 0 1');
+  assert.equal(SF.positionCommand(['e8d7'], '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1'), 'position fen 4k3/8/8/8/8/8/4P3/4K3 b - - 0 1 moves e8d7');
+  assert.equal(SF.positionCommand(['e2e4'], window.ChessCore.START_FEN), 'position startpos moves e2e4');
+});
 test('ready rejects after readyTimeoutMs when the worker is silent', async () => {
   const e = SF.create(() => fakeWorker({ silent: true }), { readyTimeoutMs: 50 });
   await assert.rejects(e.ready());
@@ -92,6 +97,30 @@ test('onInfo streams scores from White\'s point of view', async () => {
   w.finish('e7e5', 'info depth 9 score cp 30 pv e7e5');
   await a.promise;
   assert.deepEqual(seen, [-30]);
+});
+
+test('onInfo is from White\'s point of view when the FEN has Black to move', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const seen = [];
+  const a = e.search({ moves: [], fen: '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1', depth: 20, movetimeMs: 3000, priority: 'own', onInfo: (s) => seen.push(s.cp) });
+  await tick();
+  assert.deepEqual(positions(w), ['position fen 4k3/8/8/8/8/8/4P3/4K3 b - - 0 1']);
+  w.finish('e8d7', 'info depth 5 score cp 50 pv e8d7');
+  const r = await a.promise;
+  assert.deepEqual(seen, [-50]);
+  assert.equal(r.cp, -50);
+});
+
+test('real engine: a FEN start with Black to move finds the mate', { timeout: 60000 }, async () => {
+  const e = SF.create(nodeWorker, {});
+  try {
+    await e.ready();
+    const r = await e.search({ moves: [], fen: 'r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1', depth: 10, movetimeMs: 3000, priority: 'own' }).promise;
+    assert.ok(r.cp <= -9990, r.cp);
+    assert.equal(r.pv[0], 'a8a1');
+  } finally { e.quit(); }
 });
 
 test('real engine: castling rights survive a move list', { timeout: 60000 }, async () => {

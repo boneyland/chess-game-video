@@ -93,7 +93,7 @@
   const MOVE_DEFAULTS = { is_capture: false, is_check: false, material_balance: 0, fen_after: '', pv_line: [], alternative_moves: [], mate_advice: '', mate_line: '', search_depth: 0, search_depth_after: 0, search_lines: 1, best_line: [] };
 
   // The JSON run_animator.py --analyze writes. opening: the book's {eco, name}, used when the PGN names none.
-  function buildAnalysisJson({ headers, moves, opening, engine }) {
+  function buildAnalysisJson({ headers, moves, opening, engine, startFen }) {
     const H = headers || {};
     const hasOpening = !MISSING_OPENING.includes(H.Opening || '');
     const elo = (v) => (/^\d+$/.test(v || '') ? v : '');
@@ -108,6 +108,7 @@
       white_stats: { accuracy: playerStats(full.filter((m) => m.is_white_move)).accuracy },
       black_stats: { accuracy: playerStats(full.filter((m) => !m.is_white_move)).accuracy },
       engine,
+      ...(startFen && startFen !== window.ChessCore.START_FEN ? { start_fen: startFen } : {}),
     };
   }
 
@@ -132,8 +133,6 @@
   // the one before, never more than the time limit. Only the first estimate; a run measures its own pace
   const secondsPerPosition = (g) => Math.min(g.time_limit, 1.3 * Math.pow(1.45, g.depth - 22));
 
-  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
-
   // A line of uci moves from pos → its SANs, stopping at the first illegal move
   function sansOf(pos, ucis, max) {
     const out = [];
@@ -141,17 +140,17 @@
     return out;
   }
 
-  // Analyse every position of a game (ucis/sans from the start), as analyze_game does: the search after a
+  // Analyse every position of a game (ucis/sans from the start, or from startFen; the JSON then records it as start_fen), as analyze_game does: the search after a
   // move is also the search before the next one. Returns the --analyze JSON, or null when signal.aborted.
   // earlier: searches of the first positions from a run that stopped, to resume from; onSearched gets every
   // search so far after each new one, so a run that stops can be resumed
   // settings: the engine settings to search with and to record (engineSettings().game)
-  async function runAnalysis({ engine, ucis, sans, headers, signal, onProgress, earlier = [], onSearched, settings = ENGINE }) {
+  async function runAnalysis({ engine, ucis, sans, headers, signal, onProgress, earlier = [], onSearched, settings = ENGINE, startFen = window.ChessCore.START_FEN }) {
     const N = ucis.length, R = earlier.slice(0, N + 1);
     onProgress(Math.max(0, R.length - 1), N);
     for (let k = R.length; k <= N; k++) {
       if (signal.aborted) return null;
-      const r = await engine.search({ moves: ucis.slice(0, k), depth: settings.depth, movetimeMs: settings.time_limit * 1000, priority: 'game' }).promise;
+      const r = await engine.search({ moves: ucis.slice(0, k), fen: startFen, depth: settings.depth, movetimeMs: settings.time_limit * 1000, priority: 'game' }).promise;
       if (signal.aborted) return null;
       if (!r || r.cp == null) throw new Error('Stockfish stopped before the analysis finished');
       R.push(r);
@@ -159,9 +158,9 @@
       if (k > 0) onProgress(k, N);
     }
     const CC = window.ChessCore;
-    let pos = CC.posFromFen(START);
+    let pos = CC.parseFen(startFen).pos;
     const moves = ucis.map((uci, i) => {
-      const before = R[i], after = R[i + 1], isWhite = i % 2 === 0, best = bestOf(before);
+      const before = R[i], after = R[i + 1], isWhite = pos.turn === 'w', best = bestOf(before);
       const played = CC.applyUci(pos, uci);
       const san = played ? played.san : sans[i];
       const bestLine = sansOf(pos, before.pv, C.BEST_LINE_MAX_PLIES);
@@ -182,7 +181,7 @@
       if (played) pos = played.pos;
       return m;
     });
-    return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis) : null, engine: { ...settings } });
+    return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis) : null, engine: { ...settings }, startFen });
   }
 
   window.AnalysisCore = { C, ENGINE, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };

@@ -40,12 +40,14 @@ const sfIsBrowserAnalysis = (analysis) => {
 // The searches of a run that stopped part-way, kept for one game (the latest) so starting again resumes it; a page
 // reload keeps them too. Keyed by the game's moves and the engine settings, so they never fill in another game.
 const SF_PARTIAL_STORE = 'chess-video.sf-partial.v1';
-const sfPartialKey = (ucis, settings) => JSON.stringify([settings, ucis]);
-function readSfPartial(ucis, settings) {
-  try { const s = JSON.parse(localStorage.getItem(SF_PARTIAL_STORE) || 'null'); return s && s.key === sfPartialKey(ucis, settings) && Array.isArray(s.searched) ? s.searched : []; } catch (e) { return []; }
+// A game from a start FEN adds it to the key; a standard game's key is as it always was.
+const sfStartFen = (fen) => (fen && fen !== window.ChessCore.START_FEN ? fen : null);
+const sfPartialKey = (ucis, settings, fen) => JSON.stringify(sfStartFen(fen) ? [fen, settings, ucis] : [settings, ucis]);
+function readSfPartial(ucis, settings, fen) {
+  try { const s = JSON.parse(localStorage.getItem(SF_PARTIAL_STORE) || 'null'); return s && s.key === sfPartialKey(ucis, settings, fen) && Array.isArray(s.searched) ? s.searched : []; } catch (e) { return []; }
 }
-function writeSfPartial(ucis, settings, searched) {
-  try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis, settings), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
+function writeSfPartial(ucis, settings, searched, fen) {
+  try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis, settings, fen), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
 }
 
 // The full-game analysis. Loading other files (another game, the sample) abandons a run in progress; its searches
@@ -62,26 +64,26 @@ function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
   setKeyRef.current = setKey;
   // moves already analysed by a run that stopped
   const [resumeAt, setResumeAt] = React.useState(0);
-  React.useEffect(() => { setResumeAt(Math.max(0, readSfPartial(M.plies.map((p) => p.uci), settings).length - 1)); }, [ucisKey, setKey]);
+  React.useEffect(() => { setResumeAt(Math.max(0, readSfPartial(M.plies.map((p) => p.uci), settings, M.start.fen).length - 1)); }, [ucisKey, setKey, M.start.fen]);
   React.useEffect(() => () => { if (run.current) { run.current.signal.aborted = true; run.current = null; } setSt(idle); }, [files.pgn, files.gameIndex || 0, !!files.sample, files.analysis]);
   const start = async () => {
     if (run.current) return;
     const me = { signal: { aborted: false } };
     run.current = me;
     const ucis = M.plies.map((p) => p.uci), sans = M.plies.map((p) => p.san), N = ucis.length, t0 = Date.now();
-    const S = settings, earlier = readSfPartial(ucis, S), d0 = Math.max(0, earlier.length - 1);
+    const S = settings, earlier = readSfPartial(ucis, S, M.start.fen), d0 = Math.max(0, earlier.length - 1);
     setSt({ state: 'running', done: d0, total: N, etaSec: Math.round((N + 1 - earlier.length) * perPos), err: '' });
     try {
       const eng = await engine.get();
       const json = await window.AnalysisCore.runAnalysis({
-        engine: eng, ucis, sans, headers: M.headers, signal: me.signal, earlier, settings: S,
-        onSearched: (R) => { writeSfPartial(ucis, S, R); if (JSON.stringify(S) === setKeyRef.current) setResumeAt(Math.max(0, R.length - 1)); },
+        engine: eng, ucis, sans, headers: M.headers, signal: me.signal, earlier, settings: S, startFen: M.start.fen,
+        onSearched: (R) => { writeSfPartial(ucis, S, R, M.start.fen); if (JSON.stringify(S) === setKeyRef.current) setResumeAt(Math.max(0, R.length - 1)); },
         onProgress: (d, n) => { if (run.current === me && d > d0) setSt((s) => ({ ...s, done: d, total: n, etaSec: Math.round(((Date.now() - t0) / 1000 / (d - d0 + (d0 ? 0 : 1))) * (n - d)) })); },
       });
       if (run.current !== me) return;
       run.current = null;
       if (!json) { setSt(idle); return; }
-      writeSfPartial(ucis, S, null);
+      writeSfPartial(ucis, S, null, M.start.fen);
       setResumeAt(0);
       const name = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_') + '_analysis.json';
       setSt(idle);
@@ -149,11 +151,11 @@ function EngineEmptyState({ sf, paused, compact }) {
 // ---------- the viewer's own moves ----------
 const SF_EVAL_CACHE = new Map(); // finished searches by settings and move list, for the session
 
-// Evaluates the positions before and after the viewer's move (move lists from the start); the score streams in.
-// own: the search settings (AnalysisCore.engineSettings().own)
-function useMoveEval(engine, before, after, own) {
+// Evaluates the positions before and after the viewer's move (move lists from the start, or from fen); the score streams in.
+// own: the search settings (AnalysisCore.engineSettings().own); fen: the game's start FEN, omitted for the standard start
+function useMoveEval(engine, before, after, own, fen) {
   const search = { depth: own.depth, movetimeMs: own.time_limit * 1000 };
-  const sfKey = (moves) => `${search.depth}/${search.movetimeMs}:` + moves.join(' ');
+  const sfKey = (moves) => (sfStartFen(fen) ? fen + '|' : '') + `${search.depth}/${search.movetimeMs}:` + moves.join(' ');
   const key = after ? sfKey(after) : '';
   const empty = { key: '', before: null, after: null, pending: false };
   const [st, setSt] = React.useState(empty);
@@ -168,7 +170,7 @@ function useMoveEval(engine, before, after, own) {
       for (const [which, moves] of [['after', after], ['before', before]]) {
         if (!live) return;
         if (cached(moves)) continue;
-        const h = eng.search({ moves, ...search, priority: 'own', onInfo: (sc) => { if (live) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
+        const h = eng.search({ moves, fen, ...search, priority: 'own', onInfo: (sc) => { if (live) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
         handles.push(h);
         const r = await h.promise;
         if (!live) return;

@@ -1,7 +1,10 @@
 // Stockfish over UCI in a Web Worker: one search at a time, the viewer's own moves ahead of queued game positions.
-// Positions go to the engine as move lists from the start (the page's FENs carry no castling or en passant).
+// Positions go to the engine as move lists from the start: the standard one, or a game's start FEN (the page's FENs carry no castling or en passant).
 (function () {
-  const positionCommand = (moves) => (moves.length ? 'position startpos moves ' + moves.join(' ') : 'position startpos');
+  const positionCommand = (moves, fen) => {
+    const base = fen && fen !== window.ChessCore.START_FEN ? 'position fen ' + fen : 'position startpos';
+    return moves.length ? base + ' moves ' + moves.join(' ') : base;
+  };
 
   // makeWorker: () => a Worker (or anything with postMessage, onmessage, onerror, terminate)
   // the 1.8 MB wasm downloads and compiles inside this window, so it allows a slow phone connection
@@ -23,7 +26,7 @@
       const q = queue.splice(i, 1)[0];
       if (!q) return;
       cur = q;
-      worker.postMessage(positionCommand(q.moves));
+      worker.postMessage(positionCommand(q.moves, q.fen));
       worker.postMessage(`go depth ${q.depth} movetime ${q.movetimeMs}`);
     };
     worker.onmessage = (e) => {
@@ -38,7 +41,7 @@
           if (st.nodes != null) cur.nodes = st.nodes;
           if (st.timeMs != null) cur.timeMs = st.timeMs;
         }
-        const s = window.AnalysisCore.infoToScore(line, cur.moves.length % 2 ? 'b' : 'w');
+        const s = window.AnalysisCore.infoToScore(line, (cur.moves.length % 2 === 0) === (cur.fen ? cur.fen.split(' ')[1] !== 'b' : true) ? 'w' : 'b');
         if (s) cur.last = s;
         if (cur.onInfo && cur.last && (s || st)) cur.onInfo({ ...cur.last, nodes: cur.nodes, timeMs: cur.timeMs, maxDepth: cur.maxDepth });
       } else if (line.startsWith('bestmove')) {
@@ -78,9 +81,9 @@
       return readyP;
     }
 
-    function search({ moves, depth, movetimeMs, priority = 'game', onInfo }) {
+    function search({ moves, fen, depth, movetimeMs, priority = 'game', onInfo }) {
       let q;
-      const promise = new Promise((resolve) => { q = { moves, depth, movetimeMs, priority, onInfo, resolve, last: null }; });
+      const promise = new Promise((resolve) => { q = { moves, fen, depth, movetimeMs, priority, onInfo, resolve, last: null }; });
       if (failed) q.resolve(null); else { queue.push(q); pump(); }
       return {
         promise,

@@ -50,12 +50,12 @@ const DIRECT_API = 'https://boneyland-queen-pawn-8.hf.space/gradio_api';
 const HF_OAUTH = { clientId: (window.huggingface && window.huggingface.variables || {}).OAUTH_CLIENT_ID || '5d94cba5-1c7f-49ec-9ea3-5419e82a3af5', scope: 'openid profile', redirect: location.origin + location.pathname.replace(/[^/]*$/, '') };
 const AUTH_STORE = 'chess-video.hf-auth.v1', PKCE_STORE = 'chess-video.hf-pkce';
 
-async function directCall(moves, token, signal) {
+async function directCall(moves, token, signal, fen = '') {
   const auth = token ? { Authorization: 'Bearer ' + token } : {};
   const unreachable = () => (signal && signal.aborted ? { code: 'cancelled', message: 'Stopped.' } : { code: 'server_unavailable', retryable: true, message: 'Could not reach the Space.' });
   let r;
   try {
-    r = await fetch(`${DIRECT_API}/call/analyse_position`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ data: ['', moves, QUEEN_TOKENS, 0.6, 20260823] }), signal });
+    r = await fetch(`${DIRECT_API}/call/analyse_position`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ data: [fen, moves, QUEEN_TOKENS, 0.6, 20260823] }), signal });
   } catch (e) { throw unreachable(); }
   if (r.status === 401 || r.status === 403) throw { code: 'direct_auth', message: 'The Space refused the sign-in. Sign out and try again.' };
   if (!r.ok) throw { code: 'server_unavailable', retryable: r.status >= 500 || r.status === 429, message: `The Space answered ${r.status}.` };
@@ -137,6 +137,7 @@ function useQueen(M, mcp, hf) {
   const stopRef = React.useRef(false);
   const ctrlRef = React.useRef(null);
   React.useEffect(() => { if (!busy) return; const id = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(id); }, [busy]);
+  const startFen = M.start.fen === window.ChessCore.START_FEN ? '' : M.start.fen; // the Space takes '' for the standard start
   const keyAt = (at) => M.plies.slice(0, at).map((p) => p.uci).join(' ');
 
   const [log, setLog] = React.useState([]);
@@ -157,8 +158,8 @@ function useQueen(M, mcp, hf) {
         setBusy({ at, started, attempt });
         try {
           const res = via === 'connector'
-            ? await mcp.callTool(QUEEN_SERVER, QUEEN_TOOL, { fen: '', moves: key, max_tokens: QUEEN_TOKENS }, { signal: ctrl.signal })
-            : await directCall(key, hf && hf.auth ? hf.auth.token : null, ctrl.signal);
+            ? await mcp.callTool(QUEEN_SERVER, QUEEN_TOOL, { fen: startFen, moves: key, max_tokens: QUEEN_TOKENS }, { signal: ctrl.signal })
+            : await directCall(key, hf && hf.auth ? hf.auth.token : null, ctrl.signal, startFen);
           const p = queenPayload(res);
           const str = (v) => (typeof v === 'string' ? v : '');
           const r = queenAnswer({
