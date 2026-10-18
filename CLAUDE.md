@@ -25,6 +25,7 @@ Browser player for annotated chess games: the claude.ai artifact and https://che
 - Layout lives in `app/game-video-core.jsx`: `LAYOUTS.wide` is the 1920×1080 frame, `tallLayout(H)` the 840-wide phone frame (scaled to fit, so phone text reads smaller); the frame's outer padding is `.stage-tall` in `app/shell.html`
 - The Full screen menu item shows only where `document.fullscreenEnabled` (or the `webkit` one) is true: not on iPhone Safari, whose way out of the bars is Add to Home Screen (the manifest)
 - Settings defaults are `window.TWEAK_DEFAULTS` in `app/shell.html`; viewers' changed settings persist in localStorage and override new defaults
+- Move numbers and sides come from `M.ply0` (`ChessCore.moveNo`), never `i % 2`; squares become pixels only through `view()` (the board can be flipped)
 - Hugging Face sign-in returns to the folder the page is served from (`HF_OAUTH.redirect` in `app/queen.jsx`); every such URL must also be listed in the HF OAuth app's redirect URLs (huggingface.co/settings/applications), exactly, trailing slash included
 - Ask Queen calls the user's HF Space boneyland/queen-pawn-8 (`gr3_queen_pawn_8_analyse_position`, `{fen, moves}`) via the artifact's `mcp` capability; its answer is a Python dict repr (`pyParse` in `app/queen-core.js`). ZeroGPU quota is small (~20–33 s per position): never suggest whole-game Queen runs without the cost
 - Not on Netlify: dropped 2026-10-18 (production deploys cost credits, which ran out, and publishing was manual). Don't add Netlify config back
