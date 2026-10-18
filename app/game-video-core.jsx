@@ -367,7 +367,10 @@ function EvalBar({ M, T, S, a }) {
     <div style={{ position: 'absolute', left: L.eval, top: BY, width: 36, height: BW, borderRadius: 4, overflow: 'hidden', background: '#2a2320', boxShadow: `0 0 0 1px ${C.line}`, opacity: a }}>
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: f * BW, background: '#ffffff' }} />
       <div style={{ position: 'absolute', left: 0, right: 0, top: BW / 2 - 1, height: 2, background: C.last, opacity: 0.5 }} />
-      <div style={{ position: 'absolute', left: 0, right: 0, [top ? 'top' : 'bottom']: 8, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${MONO}`, color: top ? '#f1ebe1' : '#2a2320', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{txt}</div>
+      <div style={{ position: 'absolute', left: 0, right: 0, [top ? 'top' : 'bottom']: 8, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${MONO}`, color: top ? '#f1ebe1' : '#2a2320' }}>
+        {/* a rotated line rather than writing-mode, which the video export's html2canvas lays out wrongly */}
+        <span style={{ flex: 'none', whiteSpace: 'nowrap', transform: 'rotate(-90deg)' }}>{txt}</span>
+      </div>
     </div>
   );
 }
