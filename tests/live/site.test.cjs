@@ -132,6 +132,33 @@ for (const base of SITES) {
       await loaded();
       assert.equal(await page.evaluate(() => document.documentElement.getAttribute('data-scheme')), 'dark');
     });
+
+    await t.test('desktop: Space presses a focused button rather than playing, and Esc closes the panel', async () => {
+      await page.getByRole('button', { name: 'Settings' }).focus();
+      await page.keyboard.press('Space');
+      const settings = page.getByRole('complementary', { name: 'Settings' });
+      await assert.doesNotReject(settings.waitFor({ timeout: 3000 }));
+      assert.equal(await page.getByRole('button', { name: 'Pause (space)' }).count(), 0, 'Space started playback');
+      await page.keyboard.press('Escape');
+      await assert.doesNotReject(settings.waitFor({ state: 'detached', timeout: 3000 }));
+    });
+
+    await t.test('desktop: Esc closes the Queen panel', async () => {
+      await page.getByRole('button', { name: 'Ask Queen' }).click();
+      const queen = page.locator('.q-panel');
+      await queen.waitFor({ timeout: 3000 });
+      await page.keyboard.press('Escape');
+      await assert.doesNotReject(queen.waitFor({ state: 'detached', timeout: 3000 }));
+    });
+
+    // Playwright can't drag a file in with the mouse, so this one dispatches the drag event
+    await t.test('desktop: a file dragged over the page gets the drop overlay over the whole page', async () => {
+      const files = await page.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['1. e4 *'], 'game.pgn')); return d; });
+      await page.dispatchEvent('body', 'dragover', { dataTransfer: files });
+      const box = await page.locator('.drop').boundingBox();
+      assert.deepEqual(box, { x: 0, y: 0, width: 1440, height: 900 });
+      assert.equal(await page.locator('.drop').evaluate((e) => getComputedStyle(e).position), 'fixed');
+    });
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {

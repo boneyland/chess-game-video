@@ -290,6 +290,12 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
   const [running, setRunning] = React.useState(false);
   const [diag, setDiag] = React.useState('');
   const [failed, setFailed] = React.useState([]); // positions (at) whose last try failed
+  // Esc closes the panel, as it does Settings
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   const fail = async (e) => {
     Q.setErr(queenError(e));
     setDiag(DIAG_CODES.includes(e && e.code) ? 'Checking the connector…' : '');

@@ -124,6 +124,7 @@ function GameApp() {
   const scenes = JSON.stringify(TM.scenes);
   const fmtLen = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
   const closePanel = React.useCallback(() => setPanel(false), []);
+  const closeQueen = React.useCallback(() => setQueenOpen(false), []);
   React.useEffect(() => { setQueenArrow(null); }, [M]);
 
   const commit = (next) => {
@@ -304,7 +305,7 @@ function GameApp() {
         </div>
       )}
       <ExportOverlay x={video} />
-      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={() => setQueenOpen(false)} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
+      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} wide>
         <TweakSection label="Appearance">
           <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
