@@ -324,9 +324,9 @@ function GameApp() {
         <TweakSection label="Engine" column4>
           <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite in your browser. Each search stops at its depth or its time, whichever comes first; deeper is stronger and slower.</div>
           <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
-          <TweakSlider id="tw-sf-time" label="Game analysis: most time per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
+          <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
           <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />
-          <TweakSlider id="tw-sf-otime" label="Your moves: most time per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
+          <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
           <TweakSelect id="tw-sf-hash" label="Hash table (more helps long searches; a phone may run out of memory)" value={ES.game.hash_mb + ' MB'} options={window.AnalysisCore.HASH_MB.map((x) => x + ' MB')} onChange={(v) => setTweak('sfHash', parseInt(v, 10))} />
           {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
           {analysis.state === 'running'

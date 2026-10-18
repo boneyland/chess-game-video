@@ -322,14 +322,14 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
     if (canAfter(at) && !Q.has(at + 1) && !Q.stopRef.current) await score(at + 1);
   };
 
+  // The move on the board: the position before it, then the one after it (the board); before move 1, the start
   const askHere = async () => {
     const pr = probe.current;
     if (!pr) return;
-    const at = pr.c + 1;
     seek(undefined); // pause where it is
-    if (at >= N) { Q.setErr('The game is over at this point. Move the playhead back to analyse a position.'); return; }
+    const at = Math.max(0, pr.c);
     Q.setErr(''); setDiag(''); setSel(at); Q.stopRef.current = false;
-    try { await scorePair(at); } catch (e) { fail(e); }
+    try { if (pr.c < 0) onOverlay({ at, best: (await score(at)).best }); else await scorePair(at); } catch (e) { fail(e); }
   };
   const scoreAfter = async (at) => {
     Q.setErr(''); setDiag(''); Q.stopRef.current = false;
