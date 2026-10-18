@@ -62,7 +62,8 @@ function tallLayout(H) {
     header: null,
     plot: { x: 4, y: py, w: 832, h: 90, k: 1.3 },
     comment: { x: 4, y: cy, w: 832, h: commentH, k: 1, text: 0.78, label: 1.6, gap: 8 },
-    analysis: { x: 4, y: ay, w: 832, h: 360, k: 1.6, big: 30 },
+    // scrolls: Queen's line and verdict can outgrow it
+    analysis: { x: 4, y: ay, w: 832, h: 360, k: 1.6, big: 30, scroll: true },
     moves: { x: 4, y: my, w: 832, h: movesH, k: 1.4, font: 22, cols: 2, rows: Math.max(3, Math.floor((movesH / 1.4 - 64) / 38)) },
     card: { k: 1.3, w: 600, stack: true },
   };
@@ -77,7 +78,7 @@ function shortLayout(W) {
     header: null,
     moves: { x, y: 10, w: 330, h: top, k, rows: Math.floor((top / k - 61) / 38) },
     comment: { x: x + 342, y: 10, w: w - 342, h: top, k, text: 1, gap: 14 },
-    analysis: { x, y: top + 22, w, h: 900 - top - 32, k },
+    analysis: { x, y: top + 22, w, h: 900 - top - 32, k, scroll: true },
     plot: null,
     card: { k: 1, w: 1700, stack: false },
   };
@@ -159,7 +160,7 @@ function SideScroll({ style, children }) {
 function Panel({ box, title, right, a, children }) {
   const { x, y, w, h, k } = box;
   return (
-    <div style={{ position: 'absolute', left: x, top: y, width: w / k, height: h / k, boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '16px 22px', opacity: a, transform: `translateY(${(1 - a) * 18}px) scale(${k})`, transformOrigin: '0 0', overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', left: x, top: y, width: w / k, height: h / k, boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '16px 22px', opacity: a, transform: `translateY(${(1 - a) * 18}px) scale(${k})`, transformOrigin: '0 0', overflow: 'hidden', ...(box.scroll && { overflowY: 'auto', overscrollBehavior: 'contain', scrollbarWidth: 'thin' }) }}>
       {title && (
         // the same heading size in every panel, whatever its magnification k
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: (L.titleGap || 16) / k, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
@@ -572,7 +573,10 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28, opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ font: `700 ${big}px ${MONO}`, color: col }}>{label(M, c)}</span>
-          <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{P.checkmate ? 'Checkmate' : CLASS_LABEL[cls]}{P.loss > 0 ? ` · −${P.loss} cp` : ''}{cls === 'best' && P.best && P.best.line[0] ? ` · as good as ${P.best.line[0]}` : ''}</span>
+          {/* spaced parts rather than " · " separators, so the line stays one line in a narrow panel */}
+          <span style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>
+            {[P.checkmate ? 'Checkmate' : CLASS_LABEL[cls], P.loss > 0 && `−${P.loss} cp`, cls === 'best' && P.best && P.best.line[0] && `as good as ${P.best.line[0]}`].filter(Boolean).map((t) => <span key={t} style={{ whiteSpace: 'nowrap' }}>{t}</span>)}
+          </span>
         </div>
         {qa && (
           <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>

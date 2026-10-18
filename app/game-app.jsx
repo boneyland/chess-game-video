@@ -338,7 +338,7 @@ function GameApp() {
         </TweakSection>
         <TweakSection label="Game">
           <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
-          <TweakButton label="Load game (PGN)…" onClick={() => inputRef.current.click()} />
+          <TweakButton label="Load game…" onClick={() => inputRef.current.click()} />
           <div className="twk-note">Evals in the PGN are used as they are: Lichess’s [%eval] or cutechess’s +0.25/20 comments. Without them, use “Analyse with Stockfish” in the Analysis panel or under Engine. Analysis, notes and Queen answer files saved from this page load here too.</div>
           {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
           {M.canChooseSource && (
