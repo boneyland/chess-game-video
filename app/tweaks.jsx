@@ -38,7 +38,9 @@ function TweaksPanel({ open, onClose, title = 'Settings', wide = false, children
 
 // a titled group of rows; the wide panel lays groups out in columns, never splitting one, and `column` starts a new one
 // when it is wide enough for four (with three, the groups are balanced across them)
-function TweakSection({ label, column = false, children }) { return <section className={'twk-group' + (column ? ' twk-col' : '')}><div className="twk-sect">{label}</div>{children}</section>; }
+function TweakSection({ label, children }) { return <section className="twk-group"><div className="twk-sect">{label}</div>{children}</section>; }
+// The groups that make one column of the wide panel's four (on narrower screens the groups flow on their own)
+function TweakColumn({ children }) { return <div className="twk-column">{children}</div>; }
 
 function TweakRow({ label, value, children }) {
   return (
@@ -97,4 +99,4 @@ function TweakButton({ label, onClick, secondary = false, disabled = false }) {
   return <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'} disabled={disabled} onClick={onClick}>{label}</button>;
 }
 
-Object.assign(window, { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle, TweakRadio, TweakSelect, TweakButton });
+Object.assign(window, { useTweaks, TweaksPanel, TweakSection, TweakColumn, TweakSlider, TweakToggle, TweakRadio, TweakSelect, TweakButton });
