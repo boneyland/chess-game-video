@@ -17,6 +17,7 @@ const units = [
   ['queen-core.js', read(path.join(app, 'queen-core.js'))],
   ['sounds-data.js', 'window.SFX_DATA = ' + JSON.stringify(soundsData()) + ';'],
   ['sfx-core.js', read(path.join(app, 'sfx-core.js'))],
+  ['webp-core.js', read(path.join(app, 'webp-core.js'))],
   ['sample-game.js', read(path.join(src, 'sample-game.js'))],
   ['game-data.js', read(path.join(src, 'game-data.js'))],
   ['sample-analysis.js', read(path.join(app, 'sample-analysis.js'))],

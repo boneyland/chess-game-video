@@ -246,7 +246,8 @@ function GameApp() {
   const soundSet = window.Sfx.SETS.includes(t.soundSet) ? t.soundSet : window.Sfx.SETS[0];
   const soundVolume = Number.isFinite(+t.soundVolume) ? +t.soundVolume : 70;
   const exportFps = EXPORT_FPS_OPTIONS.includes(+t.exportFps) ? +t.exportFps : 8;
-  const video = useVideoExport({ fps: exportFps, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
+  const exportFormat = EXPORT_FORMATS.includes(t.exportFormat) ? t.exportFormat : EXPORT_FORMATS[0], webp = exportFormat === 'WebP';
+  const video = useVideoExport({ fps: exportFps, format: exportFormat, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
   // the stretch to export, in plies: from -1 starts on the title card, to N (the ply count) ends after the end card
   const [clip, setClip] = React.useState({ from: -1, to: Infinity });
   React.useEffect(() => { setClip({ from: -1, to: Infinity }); }, [M]);
@@ -262,7 +263,7 @@ function GameApp() {
   const clipT = clipOpts.at(clipFrom, clipTo), clipFromOpts = clipOpts.from, clipToOpts = clipOpts.to.filter((o) => o.i >= clipFrom);
   const plyTag = (i) => `${Math.floor(i / 2) + 1}${i % 2 ? 'b' : 'w'}`;
   const clipSuffix = clipFrom < 0 && clipTo >= NP ? '' : `_${clipFrom < 0 ? 'start' : plyTag(clipFrom)}-${clipTo >= NP ? 'end' : plyTag(clipTo)}`;
-  const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run({ start: clipT.start, end: clipT.end, suffix: clipSuffix, audio: t.sound === false ? null
+  const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run({ start: clipT.start, end: clipT.end, suffix: clipSuffix, audio: t.sound === false || webp ? null
     : () => window.Sfx.renderTrack(window.SFX_DATA || {}, soundSet, window.Sfx.track(MV, clipOpts.S, clipT.start, clipT.end), soundVolume, clipT.end - clipT.start) }); };
   const SFL = window.AnalysisCore.SEARCH_LIMITS, SF_KEYS = ['sfDepth', 'sfTime', 'sfOwnDepth', 'sfOwnTime', 'sfHash'];
   const sfChanged = JSON.stringify(ES) !== JSON.stringify(window.AnalysisCore.engineSettings(window.TWEAK_DEFAULTS));
@@ -401,14 +402,15 @@ function GameApp() {
         </TweakSection>
         <TweakSection label="Video" column>
           <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, Home (or 0) jumps to the start at 0:00, End to the last move.</div>
+          {(downloads || !IN_CLAUDE) && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
           {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
           {(downloads || !IN_CLAUDE) && <>
             <div className="twk-pair">
               <TweakSelect id="tw-clip-from" label="From" aria="Export from" value={clipFromOpts.find((o) => o.i === clipFrom).s} options={clipFromOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, from: clipFromOpts.find((o) => o.s === v).i }))} />
               <TweakSelect id="tw-clip-to" label="To" aria="Export to" value={clipToOpts.find((o) => o.i === clipTo).s} options={clipToOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, to: clipToOpts.find((o) => o.s === v).i }))} />
             </div>
-            <TweakButton label={`Export video (MP4, ${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
-            <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. More frames per second play smoother and take longer. A move’s clip starts just before it is played and ends once the board settles. Move sounds are included when they are on. The camera push is left out.</div>
+            <TweakButton label={`${webp ? 'Export animated WebP (' : 'Export video (MP4, '}${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
+            <div className="twk-note">Draws every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. More frames per second play smoother and take longer. A move’s clip starts just before it is played and ends once the board settles. {webp ? 'A WebP has no sound and loops, and grows quickly with length: a few moves make a good one.' : 'Move sounds are included when they are on.'} The camera push is left out.</div>
           </>}
           <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
           <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />

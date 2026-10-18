@@ -2,7 +2,7 @@
 
 ![The sample game playing through 28. Qxb5??: move rating, best line, commentary and eval graph](media/preview.webp)
 
-The browser player behind the claude.ai artifact and https://chess-replay.onrender.com/. Migrated from the Claude Design project "Chess Game Video"; split out of [chess-animator](https://github.com/boneyland/chess-animator) (the Python/Manim renderer) on 2026-10-17.
+The browser player behind the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT) and https://chess-replay.onrender.com/.
 
 ## Build
 
