@@ -11,8 +11,10 @@ const EXPORT_LIBS = {
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
 };
 const EXPORT_FORMATS = ['MP4', 'WebP'];
-// WebP frames are lossy stills at this quality (0–1)
-const WEBP_QUALITY = 0.9;
+// WebP frames are lossy stills at this quality (0–1); 0.9 made frames about a quarter larger for little gain
+const WEBP_QUALITY = 0.8;
+// the WebP's size against the frame's own (1920×1080, or the portrait frame); Half makes files about a third the size
+const WEBP_SIZES = { Full: 1, Half: 0.5 };
 // each library loads once; a failed load is tried again on the next export
 const once = (load) => { let p = null; return () => (p = p || load().catch((e) => { p = null; throw e; })); };
 const loadHtml2canvas = once(() => new Promise((ok, fail) => {
@@ -54,9 +56,17 @@ async function mp4Encoder(cv, W, H, fps, audio) {
   };
 }
 
-// a held picture (a pause, the title and end cards) stays one frame whose duration grows, so holds cost nothing
-async function webpEncoder(cv, W, H, fps) {
-  const still = () => new Promise((ok) => cv.toBlob(ok, 'image/webp', WEBP_QUALITY));
+// a held picture (a pause, the title and end cards) stays one frame whose duration grows, so holds cost nothing.
+// scale below 1 draws each frame smaller into a canvas of its own before encoding it
+async function webpEncoder(cv, W, H, fps, scale = 1) {
+  const w = Math.round(W * scale), h = Math.round(H * scale);
+  const out = scale === 1 ? cv : Object.assign(document.createElement('canvas'), { width: w, height: h });
+  const ox = scale === 1 ? null : out.getContext('2d');
+  if (ox) ox.imageSmoothingQuality = 'high';
+  const still = () => {
+    if (ox) { ox.clearRect(0, 0, w, h); ox.drawImage(cv, 0, 0, w, h); }
+    return new Promise((ok) => out.toBlob(ok, 'image/webp', WEBP_QUALITY));
+  };
   const test = await still();
   if (!test || test.type !== 'image/webp') throw new Error('this browser cannot make WebP images. Try a recent Chrome, Edge or Firefox, or export an MP4.');
   const frames = [];
@@ -73,7 +83,7 @@ async function webpEncoder(cv, W, H, fps) {
       } else last.duration += end(i + 1) - end(i);
       i++;
     },
-    finish: async () => ({ blob: new Blob(window.WebPAnim.mux(frames, { width: W, height: H }), { type: 'image/webp' }), ext: '.webp' }),
+    finish: async () => ({ blob: new Blob(window.WebPAnim.mux(frames, { width: w, height: h }), { type: 'image/webp' }), ext: '.webp' }),
     cancel: async () => {},
   };
 }
@@ -82,8 +92,8 @@ const seekStage = (t) => window.dispatchEvent(new CustomEvent('chess-video:seek'
 
 // run() takes the stretch of the timeline to export in seconds ({ start, end }), a file name suffix, and audio: an
 // async function giving the stretch's soundtrack as an AudioBuffer (or null for none; a WebP has no sound).
-// format: one of EXPORT_FORMATS
-function useVideoExport({ fps, format, save, stem }) {
+// format: one of EXPORT_FORMATS; webpSize: a WEBP_SIZES key
+function useVideoExport({ fps, format, webpSize, save, stem }) {
   const [state, setState] = React.useState(null); // { phase: 'load' | 'render' | 'save', done, N, eta } or { phase: 'error', msg }
   const stopRef = React.useRef(false);
   const run = async ({ start, end, suffix = '', audio }) => {
@@ -98,7 +108,7 @@ function useVideoExport({ fps, format, save, stem }) {
       const W = el.offsetWidth & ~1, H = el.offsetHeight & ~1;
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       const cx = cv.getContext('2d');
-      enc = format === 'WebP' ? await webpEncoder(cv, W, H, fps) : await mp4Encoder(cv, W, H, fps, audio);
+      enc = format === 'WebP' ? await webpEncoder(cv, W, H, fps, WEBP_SIZES[webpSize] || 1) : await mp4Encoder(cv, W, H, fps, audio);
       // html2canvas copies the whole document every frame: leave out the scripts (the artifact inlines a 2.4 MB
       // engine) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
       const keep = (n) => n.tagName === 'STYLE' || n.tagName === 'LINK' || n.tagName === 'HEAD' || n.closest('head');

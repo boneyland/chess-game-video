@@ -247,7 +247,8 @@ function GameApp() {
   const soundVolume = Number.isFinite(+t.soundVolume) ? +t.soundVolume : 70;
   const exportFps = EXPORT_FPS_OPTIONS.includes(+t.exportFps) ? +t.exportFps : 8;
   const exportFormat = EXPORT_FORMATS.includes(t.exportFormat) ? t.exportFormat : EXPORT_FORMATS[0], webp = exportFormat === 'WebP';
-  const video = useVideoExport({ fps: exportFps, format: exportFormat, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
+  const webpSize = WEBP_SIZES[t.webpSize] ? t.webpSize : 'Half';
+  const video = useVideoExport({ fps: exportFps, format: exportFormat, webpSize, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
   // the stretch to export, in plies: from -1 starts on the title card, to N (the ply count) ends after the end card
   const [clip, setClip] = React.useState({ from: -1, to: Infinity });
   React.useEffect(() => { setClip({ from: -1, to: Infinity }); }, [M]);
@@ -403,6 +404,7 @@ function GameApp() {
         <TweakSection label="Video" column>
           <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, Home (or 0) jumps to the start at 0:00, End to the last move.</div>
           {(downloads || !IN_CLAUDE) && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
+          {(downloads || !IN_CLAUDE) && webp && <TweakRadio id="tw-webp-size" label="WebP size" value={webpSize} options={Object.keys(WEBP_SIZES)} onChange={(v) => setTweak('webpSize', v)} />}
           {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
           {(downloads || !IN_CLAUDE) && <>
             <div className="twk-pair">
