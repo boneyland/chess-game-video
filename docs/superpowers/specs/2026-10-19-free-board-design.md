@@ -168,3 +168,11 @@ These are several projects. Proposed order, each usable on its own:
 
 - 2026-10-19: the user approved this design, the calls marked "my call" included; clock presets under 5 minutes
   removed; Chess960 is the only variant.
+
+## Carried forward from plan 1 (custom starts and flip, 2026-10-19)
+
+For the later plans; the per-task reviews deferred these:
+- Chess960 detection reads only Shredder/X-FEN castling letters: a Lichess 960 export (`[Variant "Chess960"]`, `KQkq`, king off e1) gets "Castling rights don't match the pieces". Reordered rights (`kqKQ`) get the same message. (Chess960 plan.)
+- The player bars' "+N" counts captures during the game only, so a FEN start with a material edge shows none.
+- `LineChips` numbers moves itself rather than through `ChessCore.moveNo`.
+- Untested by the live suite: the sideways phone layout flipped, flipped arrows and line board, a flipped or FEN-start video export, and the F key's guards.
