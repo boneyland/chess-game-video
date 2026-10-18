@@ -33,6 +33,15 @@
   color-scheme: dark;
 }
 html { height: 100%; box-sizing: border-box; }
+/* a phone held upright in full screen: the status bar is gone but the camera's punch hole isn't. Browsers report only the
+   whole cut-out strip (the self-hosted page's safe-area padding, more than the hole needs), and nothing in the artifact's
+   frame, so both take this fixed gap instead, enough to clear the player row */
+@media (pointer: coarse) and (orientation: portrait) {
+  :root:fullscreen { padding-top: 24px; }
+}
+@media (pointer: coarse) and (orientation: portrait) and (display-mode: fullscreen) {
+  :root { padding-top: 24px; }
+}
 *, *::before, *::after { box-sizing: inherit; }
 body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 var(--sans); overflow: hidden; }
 #root { position: relative; height: 100%; }

@@ -25,8 +25,8 @@ test.before(async () => {
 });
 test.after(() => browser && browser.close());
 
-async function open(viewport) {
-  const ctx = await browser.newContext({ viewport });
+async function open(viewport, opts) {
+  const ctx = await browser.newContext({ viewport, ...opts });
   const cdn = process.env.LIVE_CDN_DIR;
   if (cdn) await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/**', (r) => {
     const m = r.request().url().match(/\/(react|react-dom)\/18\.3\.1\/umd\/([\w.-]+)$/);
@@ -201,7 +201,7 @@ for (const base of SITES) {
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
-      const ph = await open({ width: 390, height: 844 });
+      const ph = await open({ width: 390, height: 844 }, { isMobile: true, hasTouch: true });
       await ph.page.goto(base, { waitUntil: 'load' });
       const menu = ph.page.getByRole('button', { name: 'Menu' });
       await menu.waitFor();
@@ -214,6 +214,8 @@ for (const base of SITES) {
       const fsOn = () => ph.page.evaluate(() => !!document.fullscreenElement);
       await ph.page.getByRole('button', { name: 'Full screen', exact: true }).click();
       await ph.page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 });
+      // upright in full screen, a fixed gap clears the camera's punch hole
+      assert.equal(await ph.page.evaluate(() => getComputedStyle(document.documentElement).paddingTop), '24px');
       await menu.click();
       await ph.page.getByRole('button', { name: 'Exit full screen' }).click();
       await ph.page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 });
