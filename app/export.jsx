@@ -11,11 +11,11 @@ const EXPORT_LIBS = {
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
 };
 const EXPORT_FORMATS = ['MP4', 'WebP'];
-// WebP frames are lossy stills at this quality (0–1). The file is still larger than the MP4 of the same clip, but looks
-// better than a WebP converted from that MP4
-const WEBP_QUALITY = 0.75;
-// the WebP's size against the frame's own (1920×1080, or the portrait frame); Half makes files about a third the size
-const WEBP_SIZES = { Full: 1, Half: 0.5 };
+// WebP widths offered besides the frame's own (1920, or the portrait frame's 840): 1676 fills GitHub's 838 px README
+// column on 2× screens. Quality is 50–95 (lossy, the canvas's toBlob). Encoded straight from the drawn frames, a WebP
+// looks better than one converted from the MP4, though it is larger than the MP4 of the same clip
+const WEBP_WIDTHS = [1676, 1280, 960, 838, 640];
+const WEBP_QUALITY = { min: 50, max: 95, step: 5 };
 // each library loads once; a failed load is tried again on the next export
 const once = (load) => { let p = null; return () => (p = p || load().catch((e) => { p = null; throw e; })); };
 const loadHtml2canvas = once(() => new Promise((ok, fail) => {
@@ -57,32 +57,42 @@ async function mp4Encoder(cv, W, H, fps, audio) {
   };
 }
 
-// a held picture (a pause, the title and end cards) stays one frame whose duration grows, so holds cost nothing.
-// scale below 1 draws each frame smaller into a canvas of its own before encoding it
-async function webpEncoder(cv, W, H, fps, scale = 1) {
-  const w = Math.round(W * scale), h = Math.round(H * scale);
-  const out = scale === 1 ? cv : Object.assign(document.createElement('canvas'), { width: w, height: h });
-  const ox = scale === 1 ? null : out.getContext('2d');
-  if (ox) ox.imageSmoothingQuality = 'high';
-  const still = () => {
-    if (ox) { ox.clearRect(0, 0, w, h); ox.drawImage(cv, 0, 0, w, h); }
-    return new Promise((ok) => out.toBlob(ok, 'image/webp', WEBP_QUALITY));
-  };
-  const test = await still();
+// Each frame is drawn at the WebP's width (width 0: the frame's own), compared with the last one pixel by pixel, and
+// only the rectangle that changed is encoded, straight from the drawn pixels: nothing is encoded twice, so quality
+// doesn't drift. A picture that didn't change (a pause, the title and end cards) lengthens the frame before.
+async function webpEncoder(cv, W, H, fps, { width = 0, quality = 75 } = {}) {
+  const scale = width && width < W ? width / W : 1;
+  const w = Math.round(W * scale), h = Math.round(H * scale), q = quality / 100;
+  const canvas = (cw, ch) => Object.assign(document.createElement('canvas'), { width: cw, height: ch });
+  const out = canvas(w, h), ox = out.getContext('2d', { willReadFrequently: true });
+  ox.imageSmoothingQuality = 'high';
+  const part = canvas(1, 1), px = part.getContext('2d');
+  const encode = (c) => new Promise((ok) => c.toBlob(ok, 'image/webp', q));
+  const test = await encode(part);
   if (!test || test.type !== 'image/webp') throw new Error('this browser cannot make WebP images. Try a recent Chrome, Edge or Firefox, or export an MP4.');
   const frames = [];
-  let i = 0;
+  let i = 0, prev = null;
   // frame i ends at round((i + 1) * 1000 / fps) ms, so the whole file keeps time (see WebPAnim.durations)
   const end = (k) => Math.round((k * 1000) / fps);
   return {
     frame: async (isNew) => {
-      const last = frames[frames.length - 1];
-      if (isNew || !last) {
-        const blob = await still();
-        const { offset, alpha } = window.WebPAnim.stillImage(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()));
-        frames.push({ data: blob.slice(offset), size: blob.size - offset, duration: end(i + 1) - end(i), alpha });
-      } else last.duration += end(i + 1) - end(i);
+      const last = frames[frames.length - 1], dur = end(i + 1) - end(i);
       i++;
+      if (!isNew && last) { last.duration += dur; return; }
+      ox.clearRect(0, 0, w, h); ox.drawImage(cv, 0, 0, w, h);
+      const pixels = ox.getImageData(0, 0, w, h).data;
+      const box = prev ? window.WebPAnim.changedBox(prev, pixels, w, h) : { x: 0, y: 0, w, h };
+      prev = pixels;
+      if (!box) { last.duration += dur; return; }
+      let src = out;
+      if (box.w !== w || box.h !== h) {
+        part.width = box.w; part.height = box.h;
+        px.drawImage(out, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+        src = part;
+      }
+      const blob = await encode(src);
+      const { offset, alpha } = window.WebPAnim.stillImage(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()));
+      frames.push({ data: blob.slice(offset), size: blob.size - offset, duration: dur, alpha, ...box });
     },
     finish: async () => ({ blob: new Blob(window.WebPAnim.mux(frames, { width: w, height: h }), { type: 'image/webp' }), ext: '.webp' }),
     cancel: async () => {},
@@ -93,8 +103,8 @@ const seekStage = (t) => window.dispatchEvent(new CustomEvent('chess-video:seek'
 
 // run() takes the stretch of the timeline to export in seconds ({ start, end }), a file name suffix, and audio: an
 // async function giving the stretch's soundtrack as an AudioBuffer (or null for none; a WebP has no sound).
-// format: one of EXPORT_FORMATS; webpSize: a WEBP_SIZES key
-function useVideoExport({ fps, format, webpSize, save, stem }) {
+// format: one of EXPORT_FORMATS; webp: { width, quality } for webpEncoder
+function useVideoExport({ fps, format, webp, save, stem }) {
   const [state, setState] = React.useState(null); // { phase: 'load' | 'render' | 'save', done, N, eta } or { phase: 'error', msg }
   const stopRef = React.useRef(false);
   const run = async ({ start, end, suffix = '', audio }) => {
@@ -109,7 +119,7 @@ function useVideoExport({ fps, format, webpSize, save, stem }) {
       const W = el.offsetWidth & ~1, H = el.offsetHeight & ~1;
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       const cx = cv.getContext('2d');
-      enc = format === 'WebP' ? await webpEncoder(cv, W, H, fps, WEBP_SIZES[webpSize] || 1) : await mp4Encoder(cv, W, H, fps, audio);
+      enc = format === 'WebP' ? await webpEncoder(cv, W, H, fps, webp) : await mp4Encoder(cv, W, H, fps, audio);
       // html2canvas copies the whole document every frame: leave out the scripts (the artifact inlines a 2.4 MB
       // engine) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
       const keep = (n) => n.tagName === 'STYLE' || n.tagName === 'LINK' || n.tagName === 'HEAD' || n.closest('head');

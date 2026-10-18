@@ -23,7 +23,7 @@ function chunks(buf) {
   const out = [];
   for (let at = 12; at < buf.length;) {
     const id = buf.toString('ascii', at, at + 4), len = buf.readUInt32LE(at + 4), d = buf.subarray(at + 8, at + 8 + len);
-    out.push(id === 'ANMF' ? { id, w: d.readUIntLE(6, 3) + 1, h: d.readUIntLE(9, 3) + 1, duration: d.readUIntLE(12, 3), flags: d[15], inner: d.toString('ascii', 16, 20) } : { id, len, d });
+    out.push(id === 'ANMF' ? { id, x: d.readUIntLE(0, 3) * 2, y: d.readUIntLE(3, 3) * 2, w: d.readUIntLE(6, 3) + 1, h: d.readUIntLE(9, 3) + 1, duration: d.readUIntLE(12, 3), flags: d[15], inner: d.toString('ascii', 16, 20) } : { id, len, d });
     at += 8 + len + (len & 1);
   }
   return out;
@@ -47,6 +47,19 @@ test('durations are whole milliseconds that add up to the clip', () => {
   assert.equal(W.durations(15 * 60, 15).reduce((a, b) => a + b), 60000);
 });
 
+test('changedBox finds the rectangle that changed, starting on even coordinates', () => {
+  const w = 10, h = 8, pic = () => new Uint8ClampedArray(w * h * 4).fill(200);
+  const set = (p, x, y) => { p[(y * w + x) * 4 + 1] = 7; return p; };
+  assert.equal(W.changedBox(pic(), pic(), w, h), null);
+  assert.deepEqual(W.changedBox(pic(), set(pic(), 5, 3), w, h), { x: 4, y: 2, w: 2, h: 2 });
+  assert.deepEqual(W.changedBox(pic(), set(set(pic(), 0, 7), 9, 1), w, h), { x: 0, y: 0, w: 10, h: 8 });
+  assert.deepEqual(W.changedBox(pic(), set(set(pic(), 2, 4), 6, 4), w, h), { x: 2, y: 4, w: 5, h: 1 });
+  // ImageData from a canvas can sit at an offset in a larger buffer
+  const big = new Uint8ClampedArray(w * h * 4 + 8), view = big.subarray(8);
+  view.fill(200);
+  assert.deepEqual(W.changedBox(view, set(pic(), 9, 7), w, h), { x: 8, y: 6, w: 2, h: 2 });
+});
+
 test('mux writes a well-formed animated WebP', () => {
   const frames = [frame('lossy', 83), frame('alpha', 84), frame('lossless', 1500)];
   const buf = join(W.mux(frames, { width: 2, height: 2 }));
@@ -59,6 +72,11 @@ test('mux writes a well-formed animated WebP', () => {
   assert.deepEqual(c.slice(2).map((f) => [f.w, f.h, f.duration, f.flags, f.inner]), [[2, 2, 83, 2, 'VP8 '], [2, 2, 84, 2, 'ALPH'], [2, 2, 1500, 2, 'VP8L']]);
   assert.equal(join(W.mux([frame('lossy', 100)], { width: 2, height: 2 }))[20], 0x02); // no alpha flag without alpha
   assert.throws(() => W.mux([frame('lossy', 0)], { width: 2, height: 2 }), /duration/);
+  // a frame can cover part of the canvas; its corner must be on even coordinates and it must fit
+  const part = chunks(join(W.mux([{ ...frame('lossy', 100), w: 2, h: 2 }, { ...frame('lossless', 100), x: 2, y: 4, w: 2, h: 2 }], { width: 4, height: 6 })));
+  assert.deepEqual(part.slice(2).map((f) => [f.x, f.y, f.w, f.h]), [[0, 0, 2, 2], [2, 4, 2, 2]]);
+  assert.throws(() => W.mux([{ ...frame('lossy', 100), x: 1 }], { width: 4, height: 4 }), /doesn't fit/);
+  assert.throws(() => W.mux([{ ...frame('lossy', 100), x: 4 }], { width: 4, height: 4 }), /doesn't fit/);
 
   // libwebp's own reader agrees, where it is installed
   let info = null;

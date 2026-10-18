@@ -1,5 +1,7 @@
 // Animated WebP for the export: the browser encodes each frame as a still WebP (canvas.toBlob), and this wraps
-// those stills' image chunks in one animated file (RIFF: VP8X, ANIM, then an ANMF chunk per frame).
+// those stills' image chunks in one animated file (RIFF: VP8X, ANIM, then an ANMF chunk per frame). Like libwebp's
+// own animation encoder, a frame holds only the rectangle that changed since the last one (changedBox), drawn over
+// the frame before: a moving piece is a small patch rather than the whole picture again.
 // Frames stay Blobs throughout, so a long export never needs the whole file in one buffer.
 (function () {
   const ascii = (s) => Array.from(s, (c) => c.charCodeAt(0));
@@ -29,9 +31,29 @@
   // at 12 fps that is 83, 84, 83, 83, 84, … rather than 83 throughout, which would drift 4 s behind per 10 minutes
   const durations = (n, fps) => Array.from({ length: n }, (_, i) => Math.round(((i + 1) * 1000) / fps) - Math.round((i * 1000) / fps));
 
+  // The smallest rectangle holding every pixel that differs between two RGBA pictures of width × height (ImageData
+  // .data), or null when they are the same. x and y are even, as an ANMF chunk stores them halved.
+  function changedBox(prev, cur, width, height) {
+    const a = new Uint32Array(prev.buffer, prev.byteOffset, width * height), b = new Uint32Array(cur.buffer, cur.byteOffset, width * height);
+    const rowDiffers = (y) => { for (let i = y * width, end = i + width; i < end; i++) if (a[i] !== b[i]) return true; return false; };
+    let top = 0;
+    while (top < height && !rowDiffers(top)) top++;
+    if (top === height) return null;
+    let bottom = height - 1;
+    while (!rowDiffers(bottom)) bottom--;
+    let left = width, right = -1;
+    for (let y = top; y <= bottom; y++) {
+      const row = y * width;
+      for (let x = 0; x < left; x++) if (a[row + x] !== b[row + x]) { left = x; break; }
+      for (let x = width - 1; x > right; x--) if (a[row + x] !== b[row + x]) { right = x; break; }
+    }
+    const x = left & ~1, y = top & ~1;
+    return { x, y, w: right + 1 - x, h: bottom + 1 - y };
+  }
+
   // frames: [{ data: Blob or Uint8Array holding a frame's image chunks, size: its length in bytes, duration: ms,
-  // alpha }], every one the full canvas. Returns the file's parts, for new Blob(parts, { type: 'image/webp' }).
-  // loop: 0 plays forever.
+  // alpha, and x, y, w, h: where it goes on the canvas (default: all of it) }]. Returns the file's parts, for
+  // new Blob(parts, { type: 'image/webp' }). loop: 0 plays forever.
   function mux(frames, { width, height, loop = 0 }) {
     if (!frames.length) throw new Error('no frames');
     const alpha = frames.some((f) => f.alpha);
@@ -41,8 +63,10 @@
     let size = 4 + vp8x.length + anim.length;
     for (const f of frames) {
       if (f.duration < 1 || f.duration > 0xffffff) throw new Error('frame duration out of range: ' + f.duration);
-      // offset 0,0 at full size; flags 0x02: drawn over nothing (no blending), and not disposed
-      const body = [0, 0, 0, 0, 0, 0, ...u24(width - 1), ...u24(height - 1), ...u24(f.duration), 0x02];
+      const { x = 0, y = 0, w = width, h = height } = f;
+      if (x & 1 || y & 1 || x + w > width || y + h > height) throw new Error(`frame rectangle ${x},${y} ${w}×${h} doesn't fit`);
+      // flags 0x02: the rectangle replaces what is under it (no blending), and stays for the next frame (not disposed)
+      const body = [...u24(x / 2), ...u24(y / 2), ...u24(w - 1), ...u24(h - 1), ...u24(f.duration), 0x02];
       parts.push(new Uint8Array([...ascii('ANMF'), ...u32(body.length + f.size), ...body]), f.data);
       // RIFF chunks are padded to even length
       if (f.size & 1) parts.push(pad);
@@ -51,5 +75,5 @@
     return [new Uint8Array([...ascii('RIFF'), ...u32(size), ...ascii('WEBP'), ...vp8x, ...anim])].concat(parts);
   }
 
-  window.WebPAnim = { stillImage, durations, mux };
+  window.WebPAnim = { stillImage, durations, changedBox, mux };
 })();
