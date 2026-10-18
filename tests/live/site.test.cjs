@@ -63,7 +63,9 @@ async function boardBox(page) {
     return { n: pcs.length, x0, y0, sq: (x1 - x0) / 8, h: y1 - y0 };
   });
 }
-const square = (b, name) => ({ x: b.x0 + (name.charCodeAt(0) - 97 + 0.5) * b.sq, y: b.y0 + (8 - +name[1] + 0.5) * b.sq });
+const square = (b, name, flipped) => (flipped
+  ? { x: b.x0 + (7 - (name.charCodeAt(0) - 97) + 0.5) * b.sq, y: b.y0 + (+name[1] - 1 + 0.5) * b.sq }
+  : { x: b.x0 + (name.charCodeAt(0) - 97 + 0.5) * b.sq, y: b.y0 + (8 - +name[1] + 0.5) * b.sq });
 
 for (const name of BROWSERS) for (const site of SITES) {
   test(`${name} · ${site === 'local' ? 'local build' : new URL(site).host}`, async (t) => {
@@ -243,6 +245,91 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.equal(await picker.count(), 0);
       assert.deepEqual(pr.errors, []);
       await pr.ctx.close();
+    });
+    // Flip board turns every square→pixel conversion: pieces, the eval bar, the player bars, and the pointer input
+    await t.test('desktop: Flip board turns the board and keeps moves under the pointer', async () => {
+      const fl = await open(browser, { width: 1440, height: 900 });
+      const top = (sel) => fl.page.evaluate((s) => document.querySelector(s).getBoundingClientRect().top, sel);
+      // the white king's image above the black king's: the kings are the only pieces on e1/e8 at the start
+      const kings = () => fl.page.evaluate(() => [...document.querySelectorAll('img')].filter((i) => i.src === window.PIECE_IMG.wK || i.src === window.PIECE_IMG.bK).map((i) => ({ white: i.src === window.PIECE_IMG.wK, top: i.getBoundingClientRect().top })).filter((o, i, all) => all.findIndex((q) => q.white === o.white) === i));
+      await fl.page.goto(base, { waitUntil: 'load' });
+      await fl.page.locator('.dock-primary').waitFor();
+      await fl.page.waitForFunction(() => document.querySelectorAll('img').length >= 32);
+      const before = await kings();
+      assert.equal(before.length, 2, 'two kings found: ' + JSON.stringify(before));
+      await fl.page.getByRole('button', { name: 'Settings' }).click();
+      const sw = fl.page.getByRole('switch', { name: 'Flip board' });
+      await sw.click();
+      assert.equal(await sw.getAttribute('aria-checked'), 'true');
+      await fl.page.getByRole('button', { name: 'Close settings' }).click();
+      const wk = (ks) => ks.find((k) => k.white).top, bk = (ks) => ks.find((k) => !k.white).top;
+      const after = await kings();
+      assert.ok(wk(before) > bk(before), 'white king at the bottom by default');
+      assert.ok(wk(after) < bk(after), 'white king above the black king when flipped');
+      // the sample game's players; the player bars' names are the 20 px ones (the header's are 40 px)
+      const bars = await fl.page.evaluate(() => {
+        const t = (re) => [...document.querySelectorAll('span')].filter((e) => re.test(e.textContent) && e.children.length === 0 && getComputedStyle(e).fontSize === '20px').map((e) => e.getBoundingClientRect().top);
+        return { white: t(/^Carlsen/), black: t(/^Nepomniachtchi/) };
+      });
+      assert.ok(bars.white.length && bars.black.length, 'player bars found: ' + JSON.stringify(bars));
+      const bt = await boardBox(fl.page);
+      assert.ok(Math.min(...bars.white) < bt.y0, 'the White bar is above the board');
+      assert.ok(Math.min(...bars.black) > bt.y0 + bt.h - 1, 'the Black bar is below the board');
+      // the eval bar's white part is at its top
+      const white = await fl.page.evaluate((b) => {
+        const bar = [...document.querySelectorAll('div')].find((d) => { const r = d.getBoundingClientRect(); return Math.abs(r.width - 36 * b.sq / 100) < 1.5 && Math.abs(r.height - b.h) < 2 && getComputedStyle(d).overflow === 'hidden'; });
+        if (!bar) return null;
+        const w = [...bar.children].find((c) => getComputedStyle(c).backgroundColor === 'rgb(255, 255, 255)'), br = bar.getBoundingClientRect(), wr = w.getBoundingClientRect();
+        return { top: wr.top - br.top, bottom: br.bottom - wr.bottom };
+      }, bt);
+      assert.ok(white && white.top < 2 && white.bottom > 2, 'eval bar fills White from the top: ' + JSON.stringify(white));
+      const b = await boardBox(fl.page);
+      const from = square(b, 'e2', true), to = square(b, 'e4', true);
+      await fl.page.mouse.move(from.x, from.y);
+      await fl.page.mouse.down();
+      await fl.page.mouse.move(to.x, to.y, { steps: 8 });
+      await fl.page.mouse.up();
+      await assert.doesNotReject(fl.page.locator('.plabel').filter({ hasText: /You 1\. e4/ }).waitFor({ timeout: 5000 }));
+      await fl.page.screenshot({ path: path.join(OUT, host + '-flipped.png') });
+      // the flip is remembered
+      await fl.page.reload({ waitUntil: 'load' });
+      await fl.page.locator('.dock-primary').waitFor();
+      await fl.page.waitForFunction(() => document.querySelectorAll('img').length >= 32);
+      const again = await kings();
+      assert.ok(wk(again) < bk(again), 'still flipped after a reload');
+      // F flips back
+      await fl.page.mouse.click(5, 5);
+      await fl.page.keyboard.press('f');
+      const back = await kings();
+      assert.ok(wk(back) > bk(back), 'F unflips');
+      await fl.page.keyboard.press('f');
+      // the promotion picker runs from a8 towards the middle as seen: up the screen
+      await fl.page.setInputFiles('#game-files', { name: 'promo.pgn', mimeType: 'text/plain', buffer: Buffer.from('1. e4 d5 2. exd5 c6 3. dxc6 Qd6 4. cxb7 Qd5 *') });
+      await fl.page.waitForFunction(() => /Qd5/.test(document.body.innerText), null, { timeout: 10000 });
+      await fl.page.keyboard.press('End');
+      await assert.doesNotReject(fl.page.locator('.plabel').filter({ hasText: /Qd5/ }).waitFor({ timeout: 5000 }));
+      const pb = await boardBox(fl.page), pf = square(pb, 'b7', true), pt = square(pb, 'a8', true);
+      await fl.page.mouse.move(pf.x, pf.y);
+      await fl.page.mouse.down();
+      await fl.page.mouse.move(pt.x, pt.y, { steps: 8 });
+      await fl.page.mouse.up();
+      const tops = await fl.page.getByRole('button', { name: /^Promote to / }).evaluateAll((els) => els.map((e) => [e.getAttribute('aria-label'), e.getBoundingClientRect().top]));
+      assert.deepEqual(tops.map((x) => x[0]), ['Promote to queen', 'Promote to knight', 'Promote to rook', 'Promote to bishop']);
+      assert.ok(tops[0][1] > tops[1][1] && tops[1][1] > tops[2][1] && tops[2][1] > tops[3][1], 'queen lowest, bishop highest: ' + JSON.stringify(tops));
+      await fl.page.keyboard.press('Escape');
+      await fl.page.keyboard.press('f'); // leave nothing flipped behind
+      assert.deepEqual(fl.errors, []);
+      await fl.ctx.close();
+    });
+    await t.test('phone: a flipped board fits the width', async () => {
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : { hasTouch: true });
+      await ph.page.addInitScript(() => { try { localStorage.setItem('chess-video.tweaks.v1', JSON.stringify({ flip: true })); } catch (e) {} });
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await ph.page.getByRole('button', { name: 'Menu' }).waitFor();
+      assert.equal((await boardBox(ph.page)).n, 32);
+      await ph.page.screenshot({ path: path.join(OUT, host + '-flipped-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
     });
     // a game from a FEN with Black to move: pieces from that position, numbering from move 3, own moves continue the count
     await t.test('desktop: a game from a FEN with Black to move replays and takes own moves', async () => {

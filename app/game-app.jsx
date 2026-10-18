@@ -98,6 +98,8 @@ function useScheme(pref) {
 
 function GameApp() {
   const [t, setTweak] = useTweaks(window.TWEAK_DEFAULTS);
+  const flipRef = React.useRef(false);
+  flipRef.current = !!t.flip;
   const scheme = useScheme(t.scheme || 'Auto');
   setPalette(scheme);
   const [files, setFiles] = React.useState(readStored);
@@ -131,6 +133,16 @@ function GameApp() {
     window.addEventListener('keydown', esc);
     return () => { document.removeEventListener('pointerdown', away); window.removeEventListener('keydown', esc); };
   }, [menu]);
+  // F turns the board round (not in a field, not with a modifier, which belongs to the browser)
+  React.useEffect(() => {
+    const onF = (e) => {
+      const tag = e.target && e.target.tagName;
+      if (e.defaultPrevented || e.repeat || e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      setTweak('flip', !flipRef.current);
+    };
+    window.addEventListener('keydown', onF);
+    return () => window.removeEventListener('keydown', onF);
+  }, []);
   const built = React.useMemo(() => { try { return { M: window.ChessCore.buildGame(files) }; } catch (e) { return { error: e.message }; } }, [files]);
   const lastGood = React.useRef(null);
   if (built.M) lastGood.current = built.M;
@@ -328,7 +340,7 @@ function GameApp() {
   return (
     <React.Fragment>
       <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
-        <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
+        <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} orient={t.flip ? 'b' : 'w'} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
       {hf.note && (
@@ -431,6 +443,7 @@ function GameApp() {
               <TweakButton label={`${webp ? 'Export animated WebP (' : 'Export video (MP4, '}${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
               <div className="twk-note">Renders every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. Higher frame rates are smoother but slower. Each move’s clip runs from just before it until the board settles. {webp ? 'No sound, and it loops; a smaller width or quality makes a smaller file.' : 'Includes move sounds when on.'} No camera push.</div>
             </>}
+            <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />
             <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
             <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
             <TweakToggle id="tw-glow" label="Red glow on blunders and mates" value={t.blunderGlow !== false} onChange={(v) => setTweak('blunderGlow', v)} />

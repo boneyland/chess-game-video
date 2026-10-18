@@ -90,7 +90,13 @@ const setLayout = (frame) => {
   L = frame.tall ? LAYOUTS.tall : frame.short ? LAYOUTS.short : LAYOUTS.wide; BX = L.bx; BY = L.by;
 };
 
-const sqXY = (sq) => [sq.charCodeAt(0) - 97, 8 - +sq[1]];
+// The side at the bottom ('b' turns the board round). view() maps a board column and row (0 = a, 0 = rank 8) to where it
+// is drawn, and back: every square-to-pixel conversion goes through it.
+let ORIENT = 'w';
+const setOrient = (o) => { ORIENT = o === 'b' ? 'b' : 'w'; };
+const view = (x, y) => (ORIENT === 'b' ? [7 - x, 7 - y] : [x, y]);
+const sqXY = (sq) => view(sq.charCodeAt(0) - 97, 8 - +sq[1]);
+const idxXY = (i) => view(i % 8, Math.floor(i / 8));
 const sqC = (sq) => { const [x, y] = sqXY(sq); return [x * SQ + SQ / 2, y * SQ + SQ / 2]; };
 const label = (M, i) => `${window.ChessCore.moveNo(M.ply0 + i)} ${M.plies[i].san}${M.plies[i].mark || ''}`;
 const fmtEval = (p) => {
@@ -217,11 +223,11 @@ function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
   const c = lastPly(T, S);
   const sq = [];
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
-    const light = (r + f) % 2 === 0;
+    const light = (r + f) % 2 === 0, [sf, sr] = view(f, r); // the square drawn here
     sq.push(
       <div key={r * 8 + f} style={{ position: 'absolute', left: f * SQ, top: r * SQ, width: SQ, height: SQ, background: light ? C.light : C.dark }}>
-        {f === 0 && <span style={{ position: 'absolute', left: 6, top: 4, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{8 - r}</span>}
-        {r === 7 && <span style={{ position: 'absolute', right: 6, bottom: 3, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{String.fromCharCode(97 + f)}</span>}
+        {f === 0 && <span style={{ position: 'absolute', left: 6, top: 4, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{8 - sr}</span>}
+        {r === 7 && <span style={{ position: 'absolute', right: 6, bottom: 3, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{String.fromCharCode(97 + sf)}</span>}
       </div>
     );
   }
@@ -297,7 +303,7 @@ function LineBoard({ a, sq, v, hide }) {
     over.push(<div key="chk" style={{ position: 'absolute', left: x * SQ, top: y * SQ, width: SQ, height: SQ, background: `radial-gradient(circle, ${BOARD.blunder} 0%, rgba(228,85,63,0.55) 40%, rgba(228,85,63,0) 72%)` }} />);
   }
   const pieces = board.map((p, i) => (p && i !== hide ? (
-    <div key={i} style={{ position: 'absolute', left: (i % 8) * SQ, top: Math.floor(i / 8) * SQ, width: SQ, height: SQ, zIndex: 2, filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.25))' }}>
+    <div key={i} style={{ position: 'absolute', left: idxXY(i)[0] * SQ, top: idxXY(i)[1] * SQ, width: SQ, height: SQ, zIndex: 2, filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.25))' }}>
       <img src={img(p === p.toUpperCase() ? 'w' : 'b', p.toLowerCase())} alt="" style={{ width: SQ, height: SQ, display: 'block' }} />
     </div>
   ) : null));
@@ -318,9 +324,9 @@ function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCa
     <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onCancel}
       title="Drag a piece to try your own move"
       style={{ position: 'absolute', left: BX, top: BY, width: BW, height: BW, cursor: drag && drag.moved ? 'grabbing' : 'grab', touchAction: 'none' }}>
-      {sel != null && <div style={{ position: 'absolute', left: (sel % 8) * SQ, top: Math.floor(sel / 8) * SQ, width: SQ, height: SQ, boxSizing: 'border-box', border: `5px solid ${BOARD.last}`, background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />}
+      {sel != null && <div style={{ position: 'absolute', left: idxXY(sel)[0] * SQ, top: idxXY(sel)[1] * SQ, width: SQ, height: SQ, boxSizing: 'border-box', border: `5px solid ${BOARD.last}`, background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />}
       {targets.map((t) => (
-        <div key={t} style={{ position: 'absolute', left: (t % 8) * SQ, top: Math.floor(t / 8) * SQ, width: SQ, height: SQ, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div key={t} style={{ position: 'absolute', left: idxXY(t)[0] * SQ, top: idxXY(t)[1] * SQ, width: SQ, height: SQ, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           {pos.b[t]
             ? <div style={{ width: SQ - 8, height: SQ - 8, borderRadius: '50%', border: '6px solid rgba(21,16,13,0.35)', boxSizing: 'border-box' }} />
             : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(21,16,13,0.32)' }} />}
@@ -333,7 +339,7 @@ function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCa
       {promo && <div style={{ position: 'absolute', inset: 0, background: 'rgba(21,16,13,0.45)', pointerEvents: 'none', zIndex: 4 }} />}
       {promo && promoPieces(promo).map(({ t, sq }) => (
         <div key={t} role="button" aria-label={'Promote to ' + { q: 'queen', r: 'rook', b: 'bishop', n: 'knight' }[t]}
-          style={{ position: 'absolute', left: (sq % 8) * SQ, top: Math.floor(sq / 8) * SQ, width: SQ, height: SQ, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: BOARD.light, boxShadow: '0 4px 14px rgba(0,0,0,0.45)', pointerEvents: 'none', zIndex: 5 }}>
+          style={{ position: 'absolute', left: idxXY(sq)[0] * SQ, top: idxXY(sq)[1] * SQ, width: SQ, height: SQ, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: BOARD.light, boxShadow: '0 4px 14px rgba(0,0,0,0.45)', pointerEvents: 'none', zIndex: 5 }}>
           <img src={img(promo.white ? 'w' : 'b', t)} alt="" style={{ width: SQ * 0.86, height: SQ * 0.86 }} />
         </div>
       ))}
@@ -367,12 +373,12 @@ function EvalBar({ M, T, S, a }) {
   const f = M.hasEval ? (winChance(cp) + 1) / 2 : 0.5;
   const shown = c >= 0 ? M.plies[c] : null;
   const txt = !M.hasEval ? '' : shown && shown.checkmate && T > S.tp[c] + 1 ? fmtEval(shown) : shown && shown.mate != null ? fmtEval(shown) : fmtEval({ cp });
-  const top = cp < 0;
+  const flip = ORIENT === 'b', inWhite = cp >= 0, top = inWhite === flip; // the number sits in the part of the bar it favours
   return (
     <div style={{ position: 'absolute', left: L.eval, top: BY, width: 36, height: BW, borderRadius: 4, overflow: 'hidden', background: '#2a2320', boxShadow: `0 0 0 1px ${C.line}`, opacity: a }}>
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: f * BW, background: '#ffffff' }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, [flip ? 'top' : 'bottom']: 0, height: f * BW, background: '#ffffff' }} />
       <div style={{ position: 'absolute', left: 0, right: 0, top: BW / 2 - 1, height: 2, background: C.last, opacity: 0.5 }} />
-      <div style={{ position: 'absolute', left: 0, right: 0, [top ? 'top' : 'bottom']: 8, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${MONO}`, color: top ? '#f1ebe1' : '#2a2320' }}>
+      <div style={{ position: 'absolute', left: 0, right: 0, [top ? 'top' : 'bottom']: 8, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${MONO}`, color: inWhite ? '#2a2320' : '#f1ebe1' }}>
         {/* a rotated line rather than writing-mode, which the video export's html2canvas lays out wrongly */}
         <span style={{ flex: 'none', whiteSpace: 'nowrap', transform: 'rotate(-90deg)' }}>{txt}</span>
       </div>
@@ -408,7 +414,7 @@ function PlayerBar({ M, T, S, side, a, pieces }) {
   const clk = M.hasClock ? clockOf(M, side, T, S) : null;
   const low = clk && clk.s < 60;
   return (
-    <div style={{ position: 'absolute', left: BX, width: BW / L.bar.k, top: side === 'w' ? BY + BW + L.bar.gap : BY - L.bar.gap - 40 * L.bar.k, height: 40, transform: `scale(${L.bar.k})`, transformOrigin: '0 0', display: 'flex', alignItems: 'center', gap: 14, opacity: a }}>
+    <div style={{ position: 'absolute', left: BX, width: BW / L.bar.k, top: side === ORIENT ? BY + BW + L.bar.gap : BY - L.bar.gap - 40 * L.bar.k, height: 40, transform: `scale(${L.bar.k})`, transformOrigin: '0 0', display: 'flex', alignItems: 'center', gap: 14, opacity: a }}>
       <span style={{ width: 14, height: 14, borderRadius: 3, background: side === 'w' ? '#f1ebe1' : '#1c1613', border: `1.5px solid ${C.dim}`, flex: 'none' }} />
       <span style={{ font: `600 20px ${SANS}`, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{P.name}</span>
       <span style={{ font: `500 16px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>{[P.title, P.elo].filter(Boolean).join(' ')}</span>
@@ -756,11 +762,12 @@ function EndCard({ M, T, CUES }) {
 }
 
 // ---------- composition ----------
-function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
+function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
   const { T, CUES, authoredTotal, playing: live } = useComposition();
   // the export steps through a paused player; its frames look like playback (no paused-only hints or buttons)
   const playing = live || !!tw.exporting;
   setLayout(useFrame()); // before the children render, which read the layout
+  setOrient(orient);
   const S = useSchedule(M, CUES, d);
   // When the schedule changes (a Queen answer lengthens a move's hold), keep the board on the same move
   const tl = useTimeline();
@@ -826,7 +833,8 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const targets = sel != null ? window.ChessCore.legalTargets(touchPos, sel) : [];
   const boardXY = (e) => {
     const r = e.currentTarget.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * BW, y = ((e.clientY - r.top) / r.height) * BW;
-    return { x, y, sq: Math.max(0, Math.min(7, Math.floor(y / SQ))) * 8 + Math.max(0, Math.min(7, Math.floor(x / SQ))) };
+    const [vx, vy] = view(Math.max(0, Math.min(7, Math.floor(x / SQ))), Math.max(0, Math.min(7, Math.floor(y / SQ))));
+    return { x, y, sq: vy * 8 + vx };
   };
   const touch = {
     onDown: (e) => {
