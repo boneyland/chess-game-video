@@ -149,7 +149,7 @@ function useQueen(M, mcp, hf) {
   const analyse = async (at) => {
     const key = keyAt(at);
     if (cacheRef.current[key]) return cacheRef.current[key];
-    if (!via) throw { code: 'not_granted', message: 'Queen isn’t available in this view. See the steps above.' };
+    if (!via) throw { code: 'not_granted', message: 'Queen isn’t available here. See the steps above.' };
     const ctrl = new AbortController(); ctrlRef.current = ctrl;
     try {
       for (let attempt = 1; ; attempt++) {
@@ -383,13 +383,13 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
     <aside className="twk-panel q-panel" aria-label="Queen" style={left == null ? undefined : { left }}>
       <div className="twk-hd"><span className="q-hd"><b>Queen</b><span className="q-exp">Experimental</span></span><button type="button" className="twk-x" aria-label="Close Queen" onClick={onClose}>✕</button></div>
       <div className="twk-body">
-        <div className="twk-note">A chess language model running on the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8 Space</a>. It is not an engine: its evaluations are estimates and its explanations can misdescribe tactics. Queen scores the position before a move and the one after it. Each new position takes about 20–35 s of GPU time from your daily Hugging Face ZeroGPU quota (5 min a day on a free account, 40 min on PRO); positions it has already answered cost nothing.</div>
-        {Q.via === 'connector' && <div className="twk-note q-via">Connected through your Hugging Face connector on claude.ai.</div>}
+        <div className="twk-note">A chess language model on the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8 Space</a>. It is not an engine: its evaluations are estimates and it can get tactics wrong. Each new position uses about 20–35 s of your daily Hugging Face ZeroGPU quota (5 min free, 40 min PRO); positions it has already answered are free.</div>
+        {Q.via === 'connector' && <div className="twk-note q-via">Using your Hugging Face connector on claude.ai.</div>}
         {Q.via === 'direct' && (
           <div className="q-via-box">
-            <div className="twk-note q-via">Connected directly to the Space.{' '}
-              {hf.auth ? <>Signed in{hf.auth.name ? <> as <b className="q-strong">{hf.auth.name}</b></> : null}, so calls use your ZeroGPU quota.</>
-                : <>Not signed in, so Hugging Face counts calls against its anonymous allowance (about 2 minutes of GPU a day, shared by everyone on your network).</>}
+            <div className="twk-note q-via">
+              {hf.auth ? <>Signed in{hf.auth.name ? <> as <b className="q-strong">{hf.auth.name}</b></> : null}: calls use your ZeroGPU quota.</>
+                : <>Not signed in: calls use Hugging Face’s anonymous allowance (about 2 min of GPU a day, shared across your network).</>}
             </div>
             {hf.enabled && (hf.auth
               ? <TweakButton secondary label="Sign out of Hugging Face" onClick={hf.signOut} />
@@ -398,13 +398,13 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
         )}
         {!Q.via && (
           <div className="q-off" role="note">
-            <b>Queen isn’t available in this view.</b> It runs through your own Hugging Face connector on claude.ai, so it needs:
+            <b>Queen isn’t available here.</b> It needs:
             <ol>
-              <li>this page opened on claude.ai while you’re signed in (some shared-link views can’t use connectors);</li>
-              <li>the Hugging Face connector added in claude.ai Settings → Connectors;</li>
-              <li>the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8</a> Space added to your tools at <a href="https://huggingface.co/settings/mcp" target="_blank" rel="noopener">huggingface.co/settings/mcp</a>.</li>
+              <li>this page open on claude.ai, signed in (some shared links can’t use connectors);</li>
+              <li>the Hugging Face connector (claude.ai Settings → Connectors);</li>
+              <li>the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8</a> Space added at <a href="https://huggingface.co/settings/mcp" target="_blank" rel="noopener">huggingface.co/settings/mcp</a>.</li>
             </ol>
-            Answers already saved in this browser still show below and in the video.
+            Saved answers still show below and in the video.
           </div>
         )}
         <TweakButton disabled={!Q.via || !!Q.busy || running} label="Analyse the position on the board" onClick={askHere} />
@@ -432,10 +432,10 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
         {selR && <QueenResult M={M} at={sel} r={selR} after={selAfter} afterState={selAfterState} onScoreAfter={() => scoreAfter(sel)} />}
 
         <div className="twk-sect">Marked moves</div>
-        {marked.length === 0 ? <div className="twk-note">This game has no moves rated as inaccuracies or worse, so there is nothing to test against.</div> : (
+        {marked.length === 0 ? <div className="twk-note">This game has no inaccuracies or worse, so there’s nothing to test.</div> : (
           <React.Fragment>
             <div className="twk-note">
-              {done.length ? <>Queen found Stockfish’s move in <b className="q-strong">{matchSf} of {done.length}</b> positions{repeated ? <>, and chose the move actually played (the mistake) in {repeated}</> : null}.</> : `For each move rated as a mistake, Queen picks its move in the position before it and scores the positions before and after it, to compare with Stockfish.`}
+              {done.length ? <>Queen found Stockfish’s move in <b className="q-strong">{matchSf} of {done.length}</b> positions{repeated ? <>, and chose the move actually played (the mistake) in {repeated}</> : null}.</> : `For each move rated a mistake, Queen picks its own move beforehand and scores the positions before and after, to compare with Stockfish.`}
             </div>
             {missing > 0 && (running
               ? <TweakButton secondary label="Stop after this position" onClick={() => { Q.stopRef.current = true; }} />
@@ -462,7 +462,7 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
           </details>
         )}
         {onSave && Q.forGame > 0 && <TweakButton secondary label={`Save Queen answers (${Q.forGame})`} onClick={onSave} />}
-        {onSave && Q.forGame > 0 && <div className="twk-note">Saves this game’s answers as a file. Load it on any device like a game file (Load game…, or drop it on the page) to skip asking Queen again.</div>}
+        {onSave && Q.forGame > 0 && <div className="twk-note">Saves this game’s answers as a file. Load it like a game file to skip asking Queen again.</div>}
         {Q.cached > 0 && !Q.busy && !running && <TweakButton secondary label="Forget saved Queen answers" onClick={() => { Q.forget(); setSel(null); onOverlay(null); setFailed([]); }} />}
       </div>
     </aside>
