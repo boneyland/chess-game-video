@@ -6,10 +6,6 @@
   const SET_DIR = { 'Lichess sfx': 'sfx', 'Lichess piano': 'piano', 'Lichess NES': 'nes', 'Lichess futuristic': 'futuristic' };
   const KINDS = ['move', 'capture', 'check', 'victory', 'draw'];
   const END_DELAY = 0.6; // seconds between the last move's sound and the end of the game's
-  // Sounds closer together than this make a quick run (browsing fast, dragging the playhead). A move sound is a click
-  // with a soft swoosh after it, and in a run each click hides the swoosh before it: a typewriter instead of moves.
-  // Playback's own next move is never part of a run (it can be 0.275 s per move, under this gap)
-  const RUN_GAP_MS = 400;
 
   // played together: the move or capture, and a check on top
   const kinds = (san) => [/x/.test(san || '') ? 'capture' : 'move'].concat(/[+#]/.test(san || '') ? ['check'] : []);
@@ -35,21 +31,6 @@
       if (e && at + END_DELAY < end) out.push({ at: at + END_DELAY - start, kinds: [e] });
     }
     return out;
-  }
-
-  // A quick run plays its first sound at once and its last one when it stops, none between. It has stopped when no
-  // sound follows within twice the run's last gap (at least minMs, at most gapMs): a held arrow key or a fast drag
-  // stops 100 ms after it ends, a tapping pace waits longer. A steady sound (playback's next move) plays at once
-  // and ends any run waiting
-  function runs(fire, gapMs, minMs = 100) {
-    let lastAsk = -Infinity, timer = null;
-    return (steady, ...args) => {
-      if (steady) { clearTimeout(timer); fire(...args); return; }
-      const now = Date.now(), since = now - lastAsk;
-      lastAsk = now;
-      clearTimeout(timer);
-      if (since < gapMs) timer = setTimeout(() => fire(...args), Math.min(gapMs, Math.max(minMs, 2 * since))); else fire(...args);
-    };
   }
 
   // ---- Wood: knocks of a piece on a board, bells for check and the end ----
@@ -151,7 +132,7 @@
       // still decoding (the first sound of a newly picked set): play it if it's ready soon, else let it go
       if (buf && typeof buf.then === 'function') { const asked = Date.now(); buf.then((b) => { if (Date.now() - asked < 300) go(b); }); } else go(buf);
     }
-    const run = runs((set, kindList, volume, end) => {
+    function play(set, kindList, volume, end) {
       if (!ctx || ctx.state !== 'running') return; // before the first gesture: nothing queues up to burst out later
       set = SETS.includes(set) ? set : SETS[0];
       if (set !== wanted) prepare(set);
@@ -161,11 +142,9 @@
       gain.connect(ctx.destination);
       kindList.forEach((k) => start(set, k, 0, gain));
       if (end) start(set, end, END_DELAY, gain);
-    }, RUN_GAP_MS);
-    // steady: playback's next move
-    const play = (set, kindList, volume, end, steady) => run(!!steady, set, kindList, volume, end);
+    }
     return { play, prepare, unlock };
   }
 
-  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, track, runs, synth, renderTrack, createPlayer };
+  window.Sfx = { SETS, SET_DIR, KINDS, kinds, endKind, landed, cue, track, synth, renderTrack, createPlayer };
 })();
