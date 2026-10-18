@@ -203,9 +203,7 @@ function GameApp() {
   const fileStem = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_');
   const downloadNotes = () => {
     if (!downloads && IN_CLAUDE) return;
-    const txt = files.aiNotes || files.notes || files.sampleNotes || '';
-    if (!txt) { setSaveMsg('There is no commentary to save yet.'); return; }
-    saveFile(fileStem + '_notes.txt', txt, 'text/plain');
+    if (files.aiNotes) saveFile(fileStem + '_notes.txt', files.aiNotes, 'text/plain');
   };
   const browserAnalysis = React.useMemo(() => sfIsBrowserAnalysis(files.analysis), [files.analysis]);
   const saveAnalysis = () => {
@@ -354,7 +352,10 @@ function GameApp() {
           {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
           {M.hasNotes && <div className="twk-note">Your notes file takes priority over Claude's comments on the same move.</div>}
           {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
-          {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save commentary as notes file" onClick={downloadNotes} />}
+          {M.hasAiNotes && (downloads || !IN_CLAUDE) && <>
+            <TweakButton secondary label="Save Claude's commentary as a notes file" onClick={downloadNotes} />
+            <div className="twk-note">Load the notes file with the PGN to get Claude's commentary back. The annotated PGN has all the commentary on the moves.</div>
+          </>}
           {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
           {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save as annotated PGN" onClick={savePgn} />}
           {saveMsg && <div className="twk-note">{saveMsg}</div>}
