@@ -175,6 +175,8 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
   }, [nav]);
   const timeAt = (e) => { const r = trackRef.current.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * duration; };
   const pct = duration > 0 ? (time / duration) * 100 : 0;
+  // spoken: "1 minute 5 seconds"
+  const say = (t) => { const m = Math.floor(Math.max(0, t) / 60), x = Math.floor(Math.max(0, t) % 60); return (m ? `${m} minute${m === 1 ? '' : 's'} ` : '') + `${x} second${x === 1 ? '' : 's'}`; };
   const fmt = (t) => { const x = Math.max(0, t); return `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}.${String(Math.floor((x * 100) % 100)).padStart(2, '0')}`; };
   return (
     <div className="pbar">
@@ -203,7 +205,16 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
       )}
       {nav && nav.current && <span className="plabel" style={{ color: nav.current.color }} aria-live="polite">{nav.current.label}</span>}
       <span className="ptime">{fmt(time)}</span>
-      <div ref={trackRef} className="ptrack" role="slider" aria-label="Playhead" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)}
+      <div ref={trackRef} className="ptrack" role="slider" tabIndex={0} aria-label="Playhead" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)}
+        aria-valuetext={`${say(time)} of ${say(duration)}`}
+        onKeyDown={(e) => {
+          // focused, the arrows move the playhead by seconds rather than stepping through the moves
+          const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
+          const to = step != null ? time + step * (e.shiftKey ? 5 : 1) : e.key === 'Home' ? 0 : e.key === 'End' ? duration : null;
+          if (to == null || e.altKey || e.metaKey || e.ctrlKey) return;
+          e.preventDefault(); e.stopPropagation();
+          onSeek(clamp(to, 0, duration));
+        }}
         onPointerDown={(e) => { dragging.current = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} onSeek(timeAt(e)); }}
         onPointerMove={(e) => { if (dragging.current) onSeek(timeAt(e)); }}
         onPointerUp={() => { dragging.current = false; }}
