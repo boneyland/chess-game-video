@@ -62,7 +62,7 @@ function tallLayout(H) {
     plot: { x: 4, y: py, w: 832, h: 90, k: 1.3 },
     comment: { x: 4, y: cy, w: 832, h: commentH, k: 1, text: 0.78, label: 1.6, gap: 8 },
     analysis: { x: 4, y: ay, w: 832, h: 360, k: 1.6, big: 30 },
-    moves: { x: 4, y: my, w: 832, h: movesH, k: 1.4, cols: 2, rows: Math.max(3, Math.floor((movesH / 1.4 - 64) / 38)) },
+    moves: { x: 4, y: my, w: 832, h: movesH, k: 1.4, font: 22, cols: 2, rows: Math.max(3, Math.floor((movesH / 1.4 - 64) / 38)) },
     card: { k: 1.3, w: 600, stack: true },
   };
 }
@@ -162,7 +162,7 @@ function Panel({ box, title, right, a, children }) {
       {title && (
         // the same heading size in every panel, whatever its magnification k
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
-          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em' }}>{right}</SideScroll>
+          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', fontSize: '0.85em' }}>{right}</SideScroll>
         </div>
       )}
       {children}
@@ -478,7 +478,7 @@ function MoveList({ M, T, S, a, paused, onPick }) {
   }
   return (
     <Panel box={L.moves} a={a} title="Moves">
-      <div ref={listRef} style={{ position: 'relative', height: VIS * ROW, overflow: 'hidden', font: `500 19px ${MONO}` }}>
+      <div ref={listRef} style={{ position: 'relative', height: VIS * ROW, overflow: 'hidden', font: `500 ${L.moves.font || 19}px ${MONO}` }}>
         <div style={{ transform: `translateY(${-scroll}px)` }}>{rows}</div>
       </div>
     </Panel>
