@@ -49,3 +49,16 @@ test('the built page carries the four Lichess sound sets as MP3s, and the Wood s
     for (const [kind, b64] of Object.entries(sounds)) assert.equal(Buffer.from(b64, 'base64').subarray(0, 3).toString(), 'ID3', `${set}/${kind}`);
   }
 });
+
+// an unmatched } in the page's stylesheet makes the browser drop the rule after it (it once hid the drop overlay)
+test('the page stylesheet opens and closes its braces in pairs', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'app', 'shell.html'), 'utf8').match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\//g, '');
+  let depth = 0;
+  css.split('\n').forEach((line, n) => {
+    for (const ch of line) {
+      depth += ch === '{' ? 1 : ch === '}' ? -1 : 0;
+      assert.ok(depth >= 0, `unmatched } on line ${n + 1} of the <style>: ${line.trim()}`);
+    }
+  });
+  assert.equal(depth, 0, 'unclosed {');
+});
