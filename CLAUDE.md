@@ -17,6 +17,7 @@ Browser player for annotated chess games: the claude.ai artifact, https://chess-
 ## Workflow
 - Small commits on `main`; remote is `origin` (github.com/boneyland/chess-game-video), push only when asked
 - Visual changes: screenshot desktop (1440×900) and phone layouts and show the PNG paths before committing; the user usually tweaks sizes
+- The user views the app in desktop Firefox, but screenshots, tests and audits here run Chromium. For layout changes (CSS columns, overflow, height caps) think through Firefox's behaviour and say when checks ran only in Chromium; a capped-height multi-column box once spilled a fifth Settings column in Firefox that Chromium never showed
 - Board/overlay checks: drive with real `page.mouse` input, not `dispatchEvent` (synthetic events once hid an overlay swallowing taps)
 - Long one-line statements (some over 200 characters in `game-video-core.jsx`, `queen.jsx`, `chess-core.js`) are known debt from the 2026-10-17 tech-debt audit: split them only in code you are already changing, never in a sweep of their own
 - Deploy builds (Netlify, Render) run the full test suite, real-Stockfish test included, on purpose: it stops a broken push going live. If that test ever fails a deploy spuriously, skip just it in deploy builds and leave it to GitHub Actions
