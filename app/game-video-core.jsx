@@ -57,7 +57,7 @@ function tallLayout(H) {
   const by = 2 + 56 + 5, py = by + BW + 5 + 56 + 8;
   const cy = py + 90 + 8, ay = cy + commentH + 8, my = ay + 360 + 8;
   return {
-    eval: 12, bx: 60, by, bar: { k: 1.4, gap: 5 }, title: 26,
+    eval: 12, bx: 60, by, bar: { k: 1.4, gap: 5 }, title: 26, titleGap: 44,
     header: null,
     plot: { x: 4, y: py, w: 832, h: 90, k: 1.3 },
     comment: { x: 4, y: cy, w: 832, h: commentH, k: 1, text: 0.78, label: 1.6, gap: 8 },
@@ -161,7 +161,7 @@ function Panel({ box, title, right, a, children }) {
     <div style={{ position: 'absolute', left: x, top: y, width: w / k, height: h / k, boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '16px 22px', opacity: a, transform: `translateY(${(1 - a) * 18}px) scale(${k})`, transformOrigin: '0 0', overflow: 'hidden' }}>
       {title && (
         // the same heading size in every panel, whatever its magnification k
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: (L.titleGap || 16) / k, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
           <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', fontSize: '0.85em' }}>{right}</SideScroll>
         </div>
       )}
