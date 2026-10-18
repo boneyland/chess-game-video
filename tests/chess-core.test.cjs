@@ -166,3 +166,9 @@ test('annotatedPgn never starts a line with %, which would make it an escape lin
   assert.ok(out.split('\n').every((l) => l[0] !== '%'), out);
   assert.match(out.replace(/\n/g, ' '), /x % up\}/);
 });
+
+// a { inside a comment leaves a stray } in the movetext; it used to stall the parser for good
+test('a stray } in the movetext is skipped', () => {
+  const M = CC.buildGame({ pgn: '1. e4 e5 {see {this}} 2. Nf3 } Nc6 *' });
+  assert.deepEqual(M.plies.map((p) => p.san), ['e4', 'e5', 'Nf3', 'Nc6']);
+});

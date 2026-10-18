@@ -311,6 +311,8 @@
       }
       if (/\s/.test(ch)) { i++; continue; }
       let j = i; while (j < body.length && !/[\s{}();]/.test(body[j])) j++;
+      // a stray } (a comment with a { inside it) has no token: skip it, or the loop never moves on
+      if (j === i) { i++; continue; }
       let tok = body.slice(i, j); i = j;
       if (/^\$\d+$/.test(tok)) {
         const P = depth === 0 && plies[plies.length - 1], n = +tok.slice(1);
