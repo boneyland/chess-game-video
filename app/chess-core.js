@@ -2,6 +2,7 @@
 (function () {
   const FILES = 'abcdefgh';
   const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+  const START_FEN = START + ' w KQkq - 0 1';
   const sqIdx = (s) => (8 - +s[1]) * 8 + (s.charCodeAt(0) - 97);
   const idxSq = (i) => FILES[i % 8] + (8 - Math.floor(i / 8));
   const fx = (i) => i % 8, fy = (i) => Math.floor(i / 8);
@@ -351,6 +352,46 @@
     return 'pgn';
   }
 
+  // "12." for White's ply, "12…" for Black's; absPly counts half-moves from the standard start (Black's first move is 1)
+  const moveNo = (absPly) => Math.floor(absPly / 2) + 1 + (absPly % 2 ? '…' : '.');
+
+  // A FEN → { pos, ply0, fen }: fen is the six-field form, ply0 the half-moves before the position (so the move
+  // number of the next move is moveNo(ply0)). Throws an Error a reader can act on.
+  function parseFen(fen) {
+    const f = String(fen).trim().split(/\s+/);
+    const bad = () => new Error(`That isn't a FEN: ${String(fen).trim().slice(0, 80)}`);
+    const ranks = f[0].split('/');
+    const width = (r) => [...r].reduce((s, c) => s + (/\d/.test(c) ? +c : 1), 0);
+    if (f.length > 6 || ranks.length !== 8 || !ranks.every((r) => /^[pnbrqkPNBRQK1-8]+$/.test(r) && width(r) === 8)) throw bad();
+    const turn = f[1] || 'w', castle = f[2] || '-', ep = f[3] || '-', half = f[4] || '0', full = f[5] || '1';
+    if (!/^[wb]$/.test(turn) || !/^\d+$/.test(half) || !/^\d+$/.test(full) || !/^(-|[a-h][1-8])$/.test(ep)) throw bad();
+    const b = fromFen(f[0]);
+    const count = (ch) => b.filter((p) => p === ch).length;
+    if (count('K') !== 1 || count('k') !== 1) throw new Error('A position needs one king of each colour');
+    if (b.some((p, i) => (p === 'P' || p === 'p') && (i < 8 || i > 55))) throw new Error("A pawn can't stand on the first or last rank");
+    if (inCheck(b, turn === 'w' ? 'b' : 'w')) throw new Error('The side not to move is in check');
+    if (/[A-Ha-h]/.test(castle)) throw new Error("Chess960 positions aren't supported yet");
+    if (castle !== '-' && !/^K?Q?k?q?$/.test(castle)) throw new Error("Castling rights don't match the pieces");
+    const rights = castle === '-' ? '' : castle;
+    for (const [r, king, rook] of [['K', 60, 63], ['Q', 60, 56], ['k', 4, 7], ['q', 4, 0]]) {
+      const white = r === r.toUpperCase();
+      if (rights.includes(r) && !(b[king] === (white ? 'K' : 'k') && b[rook] === (white ? 'R' : 'r'))) throw new Error("Castling rights don't match the pieces");
+    }
+    let epIdx = -1;
+    if (ep !== '-') {
+      epIdx = sqIdx(ep);
+      // the pawn that just moved two stands in front of the square, and the square it left behind is empty
+      const dir = turn === 'w' ? 1 : -1;
+      if (+ep[1] !== (turn === 'w' ? 6 : 3) || b[epIdx] || b[epIdx - 8 * dir] || b[epIdx + 8 * dir] !== (turn === 'w' ? 'p' : 'P')) throw new Error("The en passant square doesn't match the pieces");
+    }
+    const fullmove = Math.max(1, +full);
+    return {
+      pos: { b, ep: epIdx, turn, castle: rights },
+      ply0: (fullmove - 1) * 2 + (turn === 'b' ? 1 : 0),
+      fen: [f[0], turn, castle, ep, +half, fullmove].join(' '),
+    };
+  }
+
   function buildGame(files) {
     const { pgn, analysis, notes } = files;
     const gameIndex = files.gameIndex || 0;
@@ -363,12 +404,15 @@
     const pgnHasEval = !!P && P.plies.some((p) => p.cp != null || p.mate != null);
     const useA = !!A && !(files.evalSource === 'pgn' && pgnHasEval);
     const H = P ? P.headers : {};
-    if (H.FEN && H.FEN.split(' ')[0] !== START) throw new Error('Games from a custom start position are not supported yet');
+    // a PGN's [FEN] header, else the analysis file's start; both are normalised, so equal starts compare equal
+    const start = parseFen(H.FEN || (!P && A && A.start_fen) || START_FEN);
+    const ply0 = start.ply0;
     const sans = P ? P.plies.map((p) => p.san) : A ? A.moves.map((m) => m.move_san) : [];
     if (!sans.length) throw new Error('No moves found');
     if (A && P && A.moves.length && A.moves[0].move_san.replace(/[+#]/g, '') !== sans[0].replace(/[+#]/g, '')) throw new Error("The analysis file doesn't match this PGN");
+    if (A && P && parseFen(A.start_fen || START_FEN).fen !== start.fen) throw new Error("The analysis file doesn't match this PGN");
 
-    let pos = { b: fromFen(START), ep: -1, turn: 'w', castle: 'KQkq' };
+    let pos = start.pos;
     const plies = [];
     sans.forEach((san, i) => {
       const am = useA && A.moves[i];
@@ -379,7 +423,7 @@
       try { facts = boardFacts(before, pos, mv); } catch (e) {}
       const pp = P ? P.plies[i] : {};
       const check = inCheck(pos.b, pos.turn);
-      const ply = { san: san.replace(/[#+]/g, '') + (check ? (hasLegal(pos) ? '+' : '#') : ''), uci: idxSq(mv.from) + idxSq(mv.to) + (mv.promo || ''), side: i % 2 ? 'b' : 'w' };
+      const ply = { san: san.replace(/[#+]/g, '') + (check ? (hasLegal(pos) ? '+' : '#') : ''), uci: idxSq(mv.from) + idxSq(mv.to) + (mv.promo || ''), side: (ply0 + i) % 2 ? 'b' : 'w' };
       ply.checkmate = ply.san.endsWith('#');
       if (check) ply.checkSq = idxSq(kingIdx(pos.b, pos.turn));
       ply.fen = toFen(pos);
@@ -453,7 +497,7 @@
     // the PGN's opening, else the analysis file's, else Lichess's opening book (as AnalysisData.name_opening)
     const known = (n) => clean(n) && n !== 'Unknown';
     let opening = known(H.Opening) ? { eco: clean(H.ECO), name: H.Opening } : A && known(A.opening_name) ? { eco: A.opening_eco || '', name: A.opening_name } : null;
-    if (!opening && window.Openings) opening = window.Openings.book().identify(plies.map((p) => p.uci));
+    if (!opening && window.Openings && start.fen === START_FEN) opening = window.Openings.book().identify(plies.map((p) => p.uci));
     if (!opening) opening = { eco: clean(H.ECO), name: '' };
     const round = clean(H.Round) || (A && clean(A.round_num)) || '';
     return {
@@ -461,7 +505,7 @@
       event: clean(H.Event) || (A && A.event) || '', round, site: clean(H.Site) || (A && A.site) || '', date: fmtDate(clean(H.Date) || (A && A.date)), pgnDate: clean(H.Date) || (A && clean(A.date)) || '',
       eco: opening.eco, opening: opening.name,
       result, intro: (NT && NT.intro) || (P && P.intro) || '', conclusion: (NT && (NT.conclusion || NT.result)) || '',
-      engine, engineName: eng ? eng.name || '' : '', plies, evalStart, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
+      engine, engineName: eng ? eng.name || '' : '', start: { fen: start.fen, pos: start.pos }, ply0, plies, evalStart, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
     };
   }
 
@@ -502,7 +546,7 @@
     const sum = d.reduce((s, x) => s + x, 0);
     const capped = fixed + sum > MAX_TOTAL;
     if (capped) { const k = (MAX_TOTAL - fixed - 0.5) / sum; d = d.map((x) => x * k); }
-    const mv = (i) => Math.floor(i / 2) + 1;
+    const mv = (i) => Math.floor(((M.ply0 || 0) + i) / 2) + 1;
     const DESC = { Opening: 'The opening moves', Middlegame: 'Middlegame moves leading up to the critical moment', Critical: 'The biggest eval swing and the moves around it, with camera push', Endgame: 'The rest of the game to the final move' };
     const scenes = [{ name: 'Title', dur: TITLE, desc: 'Title card from the PGN headers: players, event, opening' }];
     ranges.forEach(([name, a, b]) => {
@@ -555,7 +599,7 @@
   // ---------- AI commentary ----------
   const fmtCp = (p) => (p.checkmate ? 'checkmate' : p.mate != null ? (p.mate > 0 ? '+M' : '-M') + Math.abs(p.mate) : p.cp != null ? (p.cp >= 0 ? '+' : '') + (p.cp / 100).toFixed(2) : 'n/a');
   const fmtClk = (s) => (s == null ? '' : Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'));
-  const numbered = (start, line) => line.map((m, j) => { const ply = start + j, w = ply % 2 === 0, n = Math.floor(ply / 2) + 1; return (w ? n + '. ' : j === 0 ? n + '... ' : '') + m; }).join(' ');
+  const numbered = (start, line, ply0) => line.map((m, j) => { const ply = (ply0 || 0) + start + j, w = ply % 2 === 0, n = Math.floor(ply / 2) + 1; return (w ? n + '. ' : j === 0 ? n + '... ' : '') + m; }).join(' ');
   function commentaryPrompt(M, o) {
     const tone = { Broadcast: 'lively live-broadcast commentary: vivid, confident, a little dramatic, but never hype for its own sake', Lesson: 'a coach teaching club players: explain the idea and the lesson behind each moment', Concise: 'terse, precise annotation in the style of a chess magazine' }[o.tone] || 'lively broadcast commentary';
     const audience = { Beginners: 'viewers who know how the pieces move but not much strategy. Avoid jargon; when you must use a term (outpost, pin, open file, passed pawn), explain it in a few plain words', 'Club players': 'club players who know common terms (pins, outposts, open files) but want the ideas made clear', Experts: 'strong players; you may use technical language freely' }[o.audience || 'Beginners'];
@@ -574,14 +618,14 @@
     ].join('\n');
     const head = ['White: ' + [M.white.name, M.white.title, M.white.elo].filter(Boolean).join(' '), 'Black: ' + [M.black.name, M.black.title, M.black.elo].filter(Boolean).join(' '), 'Event: ' + [M.event, M.round && 'round ' + M.round, M.site, M.date].filter(Boolean).join(', '), 'Opening: ' + [M.eco, M.opening].filter(Boolean).join(' '), 'Result: ' + M.result].join('\n');
     const lines = M.plies.map((p, i) => {
-      const n = Math.floor(i / 2) + 1, mv = (i % 2 ? n + '...' : n + '.') + p.san + (p.mark || '');
+      const mv = moveNo((M.ply0 || 0) + i).replace('…', '...') + p.san + (p.mark || '');
       const prev = i ? M.plies[i - 1] : null;
       const parts = ['ply ' + (i + 1), mv + ' (' + (p.side === 'w' ? 'White' : 'Black') + ')'];
       if (M.hasEval) parts.push('eval ' + (prev ? fmtCp(prev) : '+0.20') + ' -> ' + fmtCp(p));
       if (p.cls && p.cls !== 'none' && p.cls !== 'best') parts.push(p.cls + (p.loss ? ' (-' + p.loss + 'cp)' : ''));
-      if (p.best && p.cls !== 'best') parts.push('best: ' + numbered(i, p.best.line.slice(0, 8)));
+      if (p.best && p.cls !== 'best') parts.push('best: ' + numbered(i, p.best.line.slice(0, 8), M.ply0));
       if (p.clk != null) parts.push('clock after move ' + fmtClk(p.clk));
-      if (p.expect) parts.push('engine expects next: ' + numbered(i + 1, p.expect));
+      if (p.expect) parts.push('engine expects next: ' + numbered(i + 1, p.expect, M.ply0));
       if (p.facts && p.facts.length) parts.push('board facts: ' + p.facts.join('; '));
       if (p.pgnComment) parts.push('annotator: "' + p.pgnComment.slice(0, 160) + '"');
       parts.push('FEN ' + p.fen);
@@ -632,15 +676,17 @@
     set('White', M.white.named ? M.white.name : '?'); set('Black', M.black.named ? M.black.name : '?');
     set('WhiteElo', M.white.elo); set('BlackElo', M.black.elo); set('ECO', M.eco); set('Opening', M.opening);
     H.Result = M.result || '*';
+    delete H.SetUp; delete H.FEN;
+    if (M.start && M.start.fen !== START_FEN) { H.SetUp = '1'; H.FEN = M.start.fen; }
     const order = ['Event', 'Site', 'Date', 'Round', 'White', 'Black', 'Result'];
     const keys = order.filter((k) => H[k] != null).concat(Object.keys(H).filter((k) => !order.includes(k)));
     const head = keys.map((k) => `[${k} "${String(H[k]).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`).join('\n');
     const toks = [];
     if (M.intro) toks.push(`{${pgnEsc(M.intro)}}`);
     M.plies.forEach((p, i) => {
-      const n = Math.floor(i / 2) + 1;
+      const abs = (M.ply0 || 0) + i, n = Math.floor(abs / 2) + 1;
       // a move number and its move stay on one line (NB is a no-break space until the wrap)
-      const num = i % 2 === 0 ? n + '.' + NB : /[})]$/.test(toks[toks.length - 1]) ? n + '...' + NB : '';
+      const num = abs % 2 === 0 ? n + '.' + NB : !i || /[})]$/.test(toks[toks.length - 1]) ? n + '...' + NB : '';
       toks.push(num + p.san);
       (NAG_OF[p.mark] ? [NAG_OF[p.mark]] : []).concat(p.nags || []).forEach((g) => toks.push('$' + g));
       const tags = [];
@@ -654,8 +700,8 @@
       const fromPgn = p.pgnVars && M.evalSource !== 'analysis';
       if (!fromPgn && p.best && p.best.line && p.best.line.length && ['inaccuracy', 'mistake', 'blunder'].includes(p.cls)) {
         const before = i ? M.plies[i - 1] : null;
-        const line = playLine(before ? before.fen : START + ' w', p.best.line, before ? before.castle : 'KQkq', before ? before.ep : -1);
-        const v = line.map((m, j) => { const k = i + j; return (k % 2 === 0 ? Math.floor(k / 2) + 1 + '.' + NB : j === 0 ? Math.floor(k / 2) + 1 + '...' + NB : '') + m.san; });
+        const line = playLine(before ? before.fen : M.start.fen, p.best.line, before ? before.castle : M.start.pos.castle, before ? before.ep : M.start.pos.ep);
+        const v = line.map((m, j) => { const k = abs + j; return (k % 2 === 0 ? Math.floor(k / 2) + 1 + '.' + NB : j === 0 ? Math.floor(k / 2) + 1 + '...' + NB : '') + m.san; });
         if (v.length) toks.push('(' + v.join(' ') + ')');
       }
     });
@@ -757,5 +803,5 @@
     return { san: r.san, uci, board: r.pos.b.slice(), checkSq: check ? idxSq(kingIdx(r.pos.b, r.pos.turn)) : null, pos: r.pos };
   }
 
-  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  window.ChessCore = { START_FEN, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();

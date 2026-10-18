@@ -195,3 +195,43 @@ test('a stray } in the movetext is skipped', () => {
   const M = CC.buildGame({ pgn: '1. e4 e5 {see {this}} 2. Nf3 } Nc6 *' });
   assert.deepEqual(M.plies.map((p) => p.san), ['e4', 'e5', 'Nf3', 'Nc6']);
 });
+
+test('parseFen reads a full FEN and its move number', () => {
+  const f = CC.parseFen('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3');
+  assert.equal(f.pos.turn, 'w'); assert.equal(f.pos.castle, 'KQkq'); assert.equal(f.ply0, 4);
+  assert.equal(CC.parseFen('4k3/8/8/8/8/8/8/4K3 b - - 0 40').ply0, 79);
+  assert.equal(CC.parseFen('4k3/8/8/8/8/8/8/4K3 w').fen, '4k3/8/8/8/8/8/8/4K3 w - - 0 1'); // missing fields default
+});
+test('parseFen rejects what is not a legal position', () => {
+  for (const [fen, msg] of [
+    ['8/8/8/8/8/8/8/4K3 w - - 0 1', /king/i],          // no black king
+    ['4k2R/8/8/8/8/8/8/4K3 w - - 0 1', /not to move is in check/i], // Black, not to move, is in check
+    ['P3k3/8/8/8/8/8/8/4K3 w - - 0 1', /pawn/i],        // a pawn on the back rank
+    ['4k3/8/8/8/8/8/8/4K3 w KQ - 0 1', /castling/i],    // rights without the rooks
+    ['4k3/8/8/8/8/8/8/1R2K1R1 w BG - 0 1', /Chess960/], // Shredder-FEN rights by file: Chess960
+    ['4k3/8/8/8/8/8/8/4K3 w - e3 0 1', /en passant/i],  // no pawn behind e3
+    ['not a fen', /FEN/],
+  ]) assert.throws(() => CC.parseFen(fen), msg, fen);
+  assert.doesNotThrow(() => CC.parseFen('4k3/8/8/8/8/8/8/R3K2r w Q - 0 1')); // White to move in check is legal
+});
+test('a FEN start with Black to move numbers and sides its plies', () => {
+  const M = CC.buildGame({ pgn: '[SetUp "1"]\n[FEN "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 3 3"]\n\n3... Nf6 4. Nc3 { [%clk 0:04:50] } Bc5 *' });
+  assert.equal(M.ply0, 5);
+  assert.deepEqual(M.plies.map((p) => p.side), ['b', 'w', 'b']);
+  assert.deepEqual(M.plies.map((p, i) => CC.moveNo(M.ply0 + i)), ['3…', '4.', '4…']);
+  assert.match(CC.annotatedPgn(M), /\[SetUp "1"\][\s\S]*\[FEN "r1bqkbnr\/pppp1ppp\/2n5\/4p3\/4P3\/5N2\/PPPP1PPP\/RNBQKB1R b KQkq - 3 3"\][\s\S]*3\.\.\.\s?Nf6 4\.\s?Nc3/);
+});
+test('a standard game is unchanged', () => {
+  const M = CC.buildGame({ pgn: '1. e4 e5 2. Nf3 *' });
+  assert.equal(M.ply0, 0); assert.equal(M.start.fen, CC.START_FEN);
+  assert.doesNotMatch(CC.annotatedPgn(M), /\[FEN /);
+});
+test('an analysis file for another start does not attach', () => {
+  const A = JSON.stringify({ moves: [{ move_san: 'e4', move_uci: 'e2e4' }] });
+  assert.throws(() => CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"]\n\n1. e4 *', analysis: A }), /doesn't match/);
+});
+test('an analysis file with the same start_fen attaches', () => {
+  const fen = '4k3/8/8/8/8/8/4P3/4K3 w - - 0 1';
+  const A = JSON.stringify({ start_fen: fen, moves: [{ move_san: 'e4', move_uci: 'e2e4' }] });
+  assert.equal(CC.buildGame({ pgn: `[FEN "${fen}"]\n\n1. e4 *`, analysis: A }).hasAnalysis, true);
+});
