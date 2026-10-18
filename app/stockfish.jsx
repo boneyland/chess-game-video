@@ -1,6 +1,6 @@
 // ---------- Stockfish in the browser ----------
 // One engine per page, started on first use; a full-game analysis on request; the viewer's own moves.
-const SF_SITE_URL = 'https://chess-replay.netlify.app/';
+const SF_SITE_URL = 'https://chess-replay.onrender.com/';
 // the engine sits next to the page on the self-hosted copy; the claude.ai build sets window.SF_MAKE_WORKER
 const SF_FILE = 'stockfish-19-lite-single';
 const sfMakeWorker = () => (window.SF_MAKE_WORKER ? window.SF_MAKE_WORKER() : new Worker(SF_FILE + '.js'));

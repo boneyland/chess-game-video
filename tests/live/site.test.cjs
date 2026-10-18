@@ -1,6 +1,6 @@
 // Smoke tests for the deployed sites. Not part of tests/*.test.cjs, so deploy builds never hit the network:
 //   node --test tests/live/site.test.cjs
-// LIVE_URLS: comma-separated sites to test (default: both production sites; a Netlify deploy preview works too).
+// LIVE_URLS: comma-separated sites to test (default: the Render site).
 // LIVE_CDN_DIR: for sandboxes that block cdnjs, a folder holding the react and react-dom 18.3.1 npm packages
 // (<dir>/react/package/umd/…); the page's React requests are answered from it.
 // Needs Playwright (global install is fine). Screenshots go to tests/out/live/.
@@ -12,7 +12,7 @@ const { chromium } = (() => { try { return require('playwright'); } catch (e) { 
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'tests', 'out', 'live');
-const SITES = (process.env.LIVE_URLS || 'https://chess-replay.netlify.app/,https://chess-replay.onrender.com/').split(',').map((u) => u.trim().replace(/\/?$/, '/'));
+const SITES = (process.env.LIVE_URLS || 'https://chess-replay.onrender.com/').split(',').map((u) => u.trim().replace(/\/?$/, '/'));
 const PAGE = 'chess-game-video.html';
 const SF = 'stockfish-19-lite-single';
 
@@ -94,8 +94,7 @@ for (const base of SITES) {
     });
 
     await t.test('the live page against a local build of this checkout', async () => {
-      // Netlify adds an advert comment to the head of every HTML page it serves
-      const live = (await get(PAGE)).text.replace(/<!-- This site is hosted on Netlify\.[\s\S]*?-->\n?/, '');
+      const live = (await get(PAGE)).text;
       t.diagnostic(host + (live === built ? ': same as this checkout' : ': differs from this checkout (deploy not published yet, or the checkout is ahead)'));
     });
 

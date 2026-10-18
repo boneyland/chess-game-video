@@ -10,7 +10,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-    # only changes to what goes into the page trigger a deploy (as netlify.toml's ignore rule)
+    # only changes to what goes into the page trigger a deploy
     buildFilter:
       paths:
         - app/**

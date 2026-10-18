@@ -51,9 +51,8 @@ fs.mkdirSync(path.join(dir, 'out', 'site'), { recursive: true });
 fs.writeFileSync(path.join(dir, 'out', 'chess-game-video.html'), artifactOut);
 // what a shared link and the browser tab show (the artifact gets these from claude.ai)
 const DESCRIPTION = 'Replay an annotated chess game as a broadcast-style video: move ratings, best lines, commentary and an eval graph, with Stockfish in your browser.';
-// A link preview's image needs an absolute URL: each host builds its own copy, so each points at itself (Netlify sets URL,
-// Render RENDER_EXTERNAL_URL; a local build points at Netlify)
-const SITE_URL = (process.env.URL || process.env.RENDER_EXTERNAL_URL || 'https://chess-replay.netlify.app').replace(/\/$/, '');
+// A link preview's image needs an absolute URL: the host's own (Render sets RENDER_EXTERNAL_URL; a local build points at Render)
+const SITE_URL = (process.env.RENDER_EXTERNAL_URL || 'https://chess-replay.onrender.com').replace(/\/$/, '');
 const ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#9a6a1c"/><circle cx="16" cy="9.5" r="4" fill="#fffaf2"/><path d="M12.5 14h7l1.5 9h-10z M8.5 24h15v3h-15z" fill="#fffaf2"/></svg>');
 // Self-hosted copy: claude.ai wraps artifacts in this document shell itself, so a standalone file needs its own
 const site = `<!doctype html>

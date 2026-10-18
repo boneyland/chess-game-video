@@ -1,18 +1,17 @@
 # Chess Replay
 
-Browser player for annotated chess games: the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Split out of `~/projects/chess-animator` (Python/Manim renderer) on 2026-10-17; that repo must stay checked out next to this one.
+Browser player for annotated chess games: the claude.ai artifact and https://chess-replay.onrender.com/. Split out of `~/projects/chess-animator` (Python/Manim renderer) on 2026-10-17; that repo must stay checked out next to this one.
 
 ## Commands
-- `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page, two Stockfish files, web app manifest + icons from `app/icons/`, link-preview image `app/og-image.png`, 1200×630, whose `og:image` URL is each host's own: Netlify's `URL`, Render's `RENDER_EXTERNAL_URL`)
-- `node --test --test-concurrency=1 tests/*.test.cjs` - JS tests (also writes `tests/out/`); GitHub Actions (`.github/workflows/test.yml`) runs them on every push, and the Netlify build before building
-- `node --test tests/live/site.test.cjs` - smoke tests against both live sites (Playwright, real mouse input; screenshots in `tests/out/live/`); `LIVE_URLS` picks other sites (e.g. a deploy preview), `LIVE_CDN_DIR` serves React from local npm packages where cdnjs is blocked. Never in deploy builds
+- `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page, two Stockfish files, web app manifest + icons from `app/icons/`, link-preview image `app/og-image.png`, 1200×630, whose `og:image` URL is Render's `RENDER_EXTERNAL_URL`, or the Render site in a local build)
+- `node --test --test-concurrency=1 tests/*.test.cjs` - JS tests (also writes `tests/out/`); GitHub Actions (`.github/workflows/test.yml`) runs them on every push, and the Render build before building
+- `node --test tests/live/site.test.cjs` - smoke tests against the live site (Playwright, real mouse input; screenshots in `tests/out/live/`); `LIVE_URLS` picks other sites, `LIVE_CDN_DIR` serves React from local npm packages where cdnjs is blocked. Never in deploy builds
 - `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` - checks the browser's analysis JSON against the Python pipeline; run after the JS tests
 - Preview: `python3 -m http.server 8765 --bind 127.0.0.1 --directory out/site` with the sandbox disabled (a sandboxed server is unreachable from Playwright, and `file://` is blocked); phone layout = 390×844 viewport
 
 ## Publishing (only when asked)
 1. Artifact: publish `out/chess-game-video.html` to https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT (Artifact tool, `url` set). In a new session the first publish is refused and returns the live diff; check it holds only your changes. The next unchanged resend is refused too (a deliberate double-check); send it a third time and it goes through
-2. Netlify: the app has its own Netlify site (chess-replay), built from this repo by `netlify.toml` on every push to `main` (pushes that touch nothing in the page are skipped by its `ignore` rule). Production publishing is locked: a push builds a deploy, and the user publishes it from the Deploys page; deploy previews are cheap. Say a push is ready to publish, don't poll the live site. The notes site (Obsidian vault, boneyland.netlify.app) only embeds it now, and redirects the old `/files/chess-game-video.html` here
-3. Render: a static site (chess-replay) built from this repo on every push to `main` (publish `out/site`). Its settings live in `render.yaml` (build command with the tests first, rewrite `/` → `/chess-game-video.html`, Cache-Control header, build filters): the service is linked to a Blueprint, so a push that changes the file syncs them; change them there, not in the dashboard. Auto-deploy is on, so a push that touches the page goes live there at once
+2. Render: a static site (chess-replay) built from this repo on every push to `main` (publish `out/site`). Its settings live in `render.yaml` (build command with the tests first, rewrite `/` → `/chess-game-video.html`, Cache-Control header, build filters): the service is linked to a Blueprint, so a push that changes the file syncs them; change them there, not in the dashboard. Auto-deploy is on, so a push that touches the page goes live there at once
 
 ## Workflow
 - Small commits on `main`; remote is `origin` (github.com/boneyland/chess-replay), push only when asked
@@ -20,7 +19,7 @@ Browser player for annotated chess games: the claude.ai artifact, https://chess-
 - The user views the app in desktop Firefox, but screenshots, tests and audits here run Chromium. For layout changes (CSS columns, overflow, height caps) think through Firefox's behaviour and say when checks ran only in Chromium; a capped-height multi-column box once spilled a fifth Settings column in Firefox that Chromium never showed
 - Board/overlay checks: drive with real `page.mouse` input, not `dispatchEvent` (synthetic events once hid an overlay swallowing taps)
 - Long one-line statements (some over 200 characters in `game-video-core.jsx`, `queen.jsx`, `chess-core.js`) are known debt from the 2026-10-17 tech-debt audit: split them only in code you are already changing, never in a sweep of their own
-- Deploy builds (Netlify, Render) run the full test suite, real-Stockfish test included, on purpose: it stops a broken push going live. If that test ever fails a deploy spuriously, skip just it in deploy builds and leave it to GitHub Actions
+- Render's deploy build runs the full test suite, real-Stockfish test included, on purpose: it stops a broken push going live. If that test ever fails a deploy spuriously, skip just it in the deploy build and leave it to GitHub Actions
 
 ## Gotchas
 - Layout lives in `app/game-video-core.jsx`: `LAYOUTS.wide` is the 1920×1080 frame, `tallLayout(H)` the 840-wide phone frame (scaled to fit, so phone text reads smaller); the frame's outer padding is `.stage-tall` in `app/shell.html`
@@ -28,6 +27,7 @@ Browser player for annotated chess games: the claude.ai artifact, https://chess-
 - Settings defaults are `window.TWEAK_DEFAULTS` in `app/shell.html`; viewers' changed settings persist in localStorage and override new defaults
 - Hugging Face sign-in returns to the folder the page is served from (`HF_OAUTH.redirect` in `app/queen.jsx`); every such URL must also be listed in the HF OAuth app's redirect URLs (huggingface.co/settings/applications), exactly, trailing slash included
 - Ask Queen calls the user's HF Space boneyland/queen-pawn-8 (`gr3_queen_pawn_8_analyse_position`, `{fen, moves}`) via the artifact's `mcp` capability; its answer is a Python dict repr (`pyParse` in `app/queen-core.js`). ZeroGPU quota is small (~20–33 s per position): never suggest whole-game Queen runs without the cost
+- Not on Netlify: dropped 2026-10-18 (production deploys cost credits, which ran out, and publishing was manual). Don't add Netlify config back
 - Not on Codeberg: its Terms of Use (§ 2 (1) 7) forbid projects mostly written by generative AI, which this one is (tried and taken down 2026-10-17)
 - `vendor/` is stockfish.js v19.0.1 lite-single (GPL-3.0), pinned by SHA-256 in README; `openings/` is a copy of chess-animator's Lichess tables
 - `docs/` (browser Stockfish design/plan) predates the split; its paths have been rewritten to repo-root ones
