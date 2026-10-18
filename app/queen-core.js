@@ -7,8 +7,8 @@
     const val = () => {
       ws();
       const ch = src[i];
-      if (ch === '{' || ch === '[') {
-        const close = ch === '{' ? '}' : ']', out = ch === '{' ? {} : [];
+      if (ch === '{' || ch === '[' || ch === '(') { // a tuple reads as an array
+        const close = { '{': '}', '[': ']', '(': ')' }[ch], out = ch === '{' ? {} : [];
         i++; ws();
         while (src[i] !== close) {
           if (ch === '{') { const k = val(); ws(); if (src[i++] !== ':') throw new Error('bad dict'); out[k] = val(); }

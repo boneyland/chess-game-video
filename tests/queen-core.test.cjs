@@ -9,10 +9,17 @@ test('pyParse reads a Python dict repr: quotes, escapes, None/True/False, number
   assert.deepEqual(v, { best_move_uci: 'e2e4', analysis: 'It\'s "fine"\nreally', x: null, ok: true, no: false, n: -150, l: [1, 'a', { k: 2 }], u: 'éA' });
 });
 
+test('pyParse reads Python tuples as arrays, a one-element tuple included', () => {
+  assert.deepEqual(Q.pyParse("{'line': ('e2e4', 'e7e5'), 'one': (1,), 'none': (), 'nest': [(1, 2), {'t': ('a',)}]}"),
+    { line: ['e2e4', 'e7e5'], one: [1], none: [], nest: [[1, 2], { t: ['a'] }] });
+  assert.throws(() => Q.pyParse("{'a': (1, 2}"));
+});
+
 test('pyParse throws on truncated input', () => {
   assert.throws(() => Q.pyParse("{'a': 'b"));
   assert.throws(() => Q.pyParse("{'a': 1"));
   assert.throws(() => Q.pyParse("{'a' 1}"));
+  assert.throws(() => Q.pyParse("{'a': (1, 2"));
 });
 
 test('queenPayload takes JSON, a Python repr or an object, and rejects other shapes', () => {
