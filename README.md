@@ -1,8 +1,8 @@
 # Chess Replay
 
-![The sample game playing through 28. Qxb5??: move rating, best line, commentary and eval graph](media/preview.webp)
+![The sample chess game playing: move rating, best line, commentary and eval graph](media/preview.webp)
 
-The browser player behind the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT) and https://chess-replay.onrender.com/.
+A browser app for replaying chess games. Load a PGN to step through it on an animated board, with an evaluation graph, a rating for every move and the opening name. Stockfish runs in your browser to analyse games that don’t have evals, and any game can be exported as an MP4 video or animated WebP.
 
 ## Build
 
