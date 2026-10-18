@@ -3,7 +3,7 @@ const lerp = (a, b, k) => a + (b - a) * k;
 const cl01 = (v) => clamp(v, 0, 1);
 const { winChance, plyCp } = window.ChessCore;
 
-// Frame palettes. Board squares and the eval bar's white/black halves are the sides' colours and stay put.
+// Frame palettes; light-theme text colours are at least 4.5:1 on the panel. Board squares and the eval bar's white/black halves are the sides' colours and stay put.
 const PALETTES = {
   dark: {
     bg: '#13100f', panel: '#1b1715', line: 'rgba(255,236,214,0.09)', ink: '#efe8de', dim: '#8e8276',
@@ -14,9 +14,9 @@ const PALETTES = {
   },
   light: {
     bg: '#f2ece3', panel: '#fbf7f1', line: 'rgba(60,40,20,0.13)', ink: '#2a211b', dim: '#76695c',
-    light: '#f0d9b5', dark: '#b58863', last: '#a8741f',
-    best: '#2b8f53', inaccuracy: '#a07c0c', mistake: '#c0601a', blunder: '#c63b29', none: '#2a211b',
-    good: '#2a78b8', brilliant: '#16877f', interesting: '#8f4fab', queen: '#c03f7c',
+    light: '#f0d9b5', dark: '#b58863', last: '#8a5e15',
+    best: '#237a46', inaccuracy: '#8a6a0a', mistake: '#b05616', blunder: '#c63b29', none: '#2a211b',
+    good: '#2a6fae', brilliant: '#1a7a73', interesting: '#8f4fab', queen: '#c03f7c',
     off: '#e4dbcd', scrim: '242,236,227', rim: 'none',
   },
 };
@@ -47,21 +47,22 @@ const LAYOUTS = {
     card: { k: 1, w: 1700, stack: false },
   },
 };
-// Portrait: 840 wide, and as tall as the screen allows. Commentary and the moves/plot row take the extra height.
+// Portrait: 840 wide, and as tall as the screen allows. A phone shows it at about 0.43×, so text here is ~27 px
+// (about 12 px on screen): the eval graph is a strip under the board, Moves the full width with two move pairs a row.
 const PORTRAIT = { width: 840, minHeight: 1810, maxHeight: 2100 };
 function tallLayout(H) {
-  // the moves/plot row gets half the extra height (each move row is 42 px), commentary the rest
-  const extra = Math.max(0, H - PORTRAIT.minHeight), rowH = 244 + Math.floor(extra * 0.5), commentH = 300 + extra - Math.floor(extra * 0.5);
+  // Moves gets two thirds of the extra height (each row is 38 px × 1.4), commentary the rest
+  const extra = Math.max(0, H - PORTRAIT.minHeight), movesH = 250 + Math.floor(extra * 2 / 3), commentH = 186 + extra - Math.floor(extra * 2 / 3);
   // player bars (40 px × 1.4) sit 5 px from the board, 2 px from the frame's top edge
-  const by = 2 + 56 + 5, cy = by + BW + 5 + 56 + 8;
-  const ay = cy + commentH + 12, ry = ay + 330 + 12;
+  const by = 2 + 56 + 5, py = by + BW + 5 + 56 + 8;
+  const cy = py + 90 + 8, ay = cy + commentH + 8, my = ay + 360 + 8;
   return {
-    eval: 12, bx: 60, by, bar: { k: 1.4, gap: 5 }, title: 19,
+    eval: 12, bx: 60, by, bar: { k: 1.4, gap: 5 }, title: 26,
     header: null,
-    comment: { x: 4, y: cy, w: 832, h: commentH, k: 1, text: 42 / 44, gap: 10 },
-    analysis: { x: 4, y: ay, w: 832, h: 330, k: 1.2 },
-    moves: { x: 4, y: ry, w: 338, h: rowH, k: 1.1, rows: Math.max(4, Math.floor((rowH / 1.1 - 61) / 38)) },
-    plot: { x: 354, y: ry, w: 482, h: rowH, k: 1.1 },
+    plot: { x: 4, y: py, w: 832, h: 90, k: 1.3 },
+    comment: { x: 4, y: cy, w: 832, h: commentH, k: 1, text: 0.78, label: 1.6, gap: 8 },
+    analysis: { x: 4, y: ay, w: 832, h: 360, k: 1.6, big: 30 },
+    moves: { x: 4, y: my, w: 832, h: movesH, k: 1.4, cols: 2, rows: Math.max(3, Math.floor((movesH / 1.4 - 64) / 38)) },
     card: { k: 1.3, w: 600, stack: true },
   };
 }
@@ -142,6 +143,18 @@ function evalNow(M, T, S) {
 }
 
 // ---------- shared ----------
+// One line that scrolls sideways when it's too long (a finger or trackpad swipe), fading out at an edge with more past it
+function SideScroll({ style, children }) {
+  const ref = React.useRef(null);
+  const [more, setMore] = React.useState('');
+  const check = () => { const el = ref.current; if (el) setMore((el.scrollLeft > 1 ? 'l' : '') + (el.scrollLeft + el.clientWidth < el.scrollWidth - 1 ? 'r' : '')); };
+  React.useLayoutEffect(check);
+  const fade = more ? `linear-gradient(to right, ${more.includes('l') ? 'transparent, #000 32px' : '#000'}, ${more.includes('r') ? '#000 calc(100% - 32px), transparent' : '#000'})` : 'none';
+  return (
+    <span ref={ref} onScroll={check}
+      style={{ ...style, whiteSpace: 'nowrap', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', touchAction: 'pan-x', WebkitMaskImage: fade, maskImage: fade }}>{children}</span>
+  );
+}
 function Panel({ box, title, right, a, children }) {
   const { x, y, w, h, k } = box;
   return (
@@ -149,7 +162,7 @@ function Panel({ box, title, right, a, children }) {
       {title && (
         // the same heading size in every panel, whatever its magnification k
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
-          <span style={{ flex: 'none' }}>{title}</span><span style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{right}</span>
+          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em' }}>{right}</SideScroll>
         </div>
       )}
       {children}
@@ -426,37 +439,41 @@ function Header({ M, a }) {
 
 function MoveList({ M, T, S, a, paused, onPick }) {
   const c = lastPly(T, S);
-  const ROW = 38, VIS = L.moves.rows;
-  const scrollFor = (i) => Math.max(0, Math.floor(Math.max(i, 0) / 2) - (VIS - 3)) * ROW;
+  // COLS move pairs to a row (the phone's full-width list), VIS rows in view
+  const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1;
+  const scrollFor = (i) => Math.max(0, Math.floor(Math.max(i, 0) / (2 * COLS)) - (VIS - (COLS > 1 ? 2 : 3))) * ROW;
   const k = c >= 0 ? MOTION.move(cl01((T - S.tp[c]) / 0.35)) : 1;
   const scroll = lerp(scrollFor(c - 1), scrollFor(c), k);
   // one Tab stop for the whole list (the current move); the arrows move between moves, and focus follows
   const focusPly = Math.max(0, c), listRef = React.useRef(null);
   const moveKey = (e, i) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(i); return; }
-    const j = { ArrowLeft: i - 1, ArrowRight: i + 1, ArrowUp: i - 2, ArrowDown: i + 2, Home: 0, End: S.N - 1 }[e.key];
+    const j = { ArrowLeft: i - 1, ArrowRight: i + 1, ArrowUp: i - 2 * COLS, ArrowDown: i + 2 * COLS, Home: 0, End: S.N - 1 }[e.key];
     if (j == null || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
     e.preventDefault(); e.stopPropagation();
     const to = clamp(j, 0, S.N - 1);
     onPick(to);
     requestAnimationFrame(() => { const el = listRef.current && listRef.current.querySelector(`[data-ply="${to}"]`); if (el) el.focus({ preventScroll: true }); });
   };
-  const rows = [];
-  for (let r = 0; r < Math.ceil(S.N / 2); r++) {
-    const cell = (i) => {
-      if (i >= S.N) return <span />;
-      const P = M.plies[i], cur = i === c;
-      const shown = cl01((T - S.tp[i]) / 0.15);
-      return (
-        <span className="mv" role="button" data-ply={i} tabIndex={i === focusPly ? 0 : -1} title={`Go to ${label(M, i)}`} onClick={(e) => { e.stopPropagation(); onPick(i); }}
-          onKeyDown={(e) => moveKey(e, i)}
-          style={{ opacity: paused ? Math.max(shown, 0.35) : shown, padding: '3px 8px', borderRadius: 4, justifySelf: 'start', cursor: 'pointer', background: cur ? 'rgba(227,181,91,0.18)' : 'transparent', color: P.cls === 'none' ? C.ink : clsColor(P.cls), fontWeight: cur ? 700 : 500 }}>{P.san}{P.mark || ''}</span>
-      );
-    };
+  const cell = (i) => {
+    if (i >= S.N) return <span key={i} />;
+    // moves still to come (seen while paused) are dim rather than faded, so they stay readable
+    const P = M.plies[i], cur = i === c, ahead = T < S.tp[i];
+    const shown = cl01((T - S.tp[i]) / 0.15);
+    return (
+      <span key={i} className="mv" role="button" data-ply={i} tabIndex={i === focusPly ? 0 : -1} title={`Go to ${label(M, i)}`} onClick={(e) => { e.stopPropagation(); onPick(i); }}
+        onKeyDown={(e) => moveKey(e, i)}
+        style={{ opacity: paused ? 1 : shown, padding: '3px 8px', borderRadius: 4, justifySelf: 'start', cursor: 'pointer', boxShadow: cur ? `inset 0 0 0 2px ${C.last}` : 'none', color: ahead ? C.dim : P.cls === 'none' ? C.ink : clsColor(P.cls), fontWeight: cur ? 700 : 500 }}>{P.san}{P.mark || ''}</span>
+    );
+  };
+  const pairs = Math.ceil(S.N / 2), rows = [];
+  for (let r = 0; r * COLS < pairs; r++) {
+    const cells = [];
+    for (let q = r * COLS; q < Math.min(pairs, (r + 1) * COLS); q++) {
+      cells.push(<span key={'n' + q} style={{ color: C.dim, opacity: T >= S.tp[2 * q] || paused ? 1 : 0 }}>{q + 1}.</span>, cell(2 * q), cell(2 * q + 1));
+    }
     rows.push(
-      <div key={r} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 1fr', height: ROW, alignItems: 'center', opacity: T >= S.tp[2 * r] || paused ? 1 : 0 }}>
-        <span style={{ color: C.dim }}>{r + 1}.</span>{cell(2 * r)}{cell(2 * r + 1)}
-      </div>
+      <div key={r} style={{ display: 'grid', gridTemplateColumns: COLS > 1 ? `repeat(${COLS}, 50px 1fr 1fr)` : '50px 1fr 1fr', height: ROW, alignItems: 'center' }}>{cells}</div>
     );
   }
   return (
@@ -491,7 +508,7 @@ function Commentary({ M, T, S, a, book, line }) {
           {txt && <span style={{ font: `400 ${size}px/1.14 ${SERIF}`, color: C.ink, textWrap: 'pretty' }}>{txt.slice(0, nh)}<span style={{ opacity: 0 }}>{txt.slice(nh)}</span></span>}
           {qtxt && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, opacity: nq > 0 || !txt ? 1 : 0 }}>
-              <span style={{ font: `600 13px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.queen }}>Queen · after {M.plies[c].san}{M.plies[c].mark || ''}</span>
+              <span style={{ font: `600 ${Math.round(13 * (L.comment.label || 1))}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.queen }}>Queen · after {M.plies[c].san}{M.plies[c].mark || ''}</span>
               <span style={{ font: `italic 400 ${qsize}px/1.2 ${SERIF}`, color: C.ink, textWrap: 'pretty', paddingLeft: 12, borderLeft: `2px solid ${C.queen}` }}>{qtxt.slice(0, nq)}<span style={{ opacity: 0 }}>{qtxt.slice(nq)}</span></span>
             </div>
           )}
@@ -528,6 +545,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
   const k = cl01((T - S.tp[c] - S.md[c]) / 0.25);
   const { cp } = evalNow(M, T, S);
   const col = cls === 'none' ? C.ink : clsColor(cls);
+  const big = L.analysis.big || 38; // the move and eval headline
   // Queen: its score after this move, the change from its score before it (mover's side), and its line from before it
   const Qp = P.queen || {};
   const qa = Qp.after ? { v: queenEval(Qp.after.evalText) } : null;
@@ -546,19 +564,19 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
     <Panel box={L.analysis} a={a} title="Analysis" right={right}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28, opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ font: `700 38px ${MONO}`, color: col }}>{label(M, c)}</span>
+          <span style={{ font: `700 ${big}px ${MONO}`, color: col }}>{label(M, c)}</span>
           <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{P.checkmate ? 'Checkmate' : CLASS_LABEL[cls]}{P.loss > 0 ? ` · −${P.loss} cp` : ''}{cls === 'best' && P.best && P.best.line[0] ? ` · as good as ${P.best.line[0]}` : ''}</span>
         </div>
         {qa && (
           <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             <span style={{ font: `600 13px ${MONO}`, color: C.queen, letterSpacing: '0.12em' }}>QUEEN{qd != null ? ` · ${qd > 0.004 ? '+' : qd < -0.004 ? '−' : ''}${Math.abs(qd).toFixed(2)} FOR ${P.side === 'w' ? 'WHITE' : 'BLACK'}` : ''}</span>
-            <span style={{ font: `700 38px ${MONO}`, color: C.queen }}>{qa.v == null ? 'n/a' : fmtQ(qa.v)}</span>
+            <span style={{ font: `700 ${big}px ${MONO}`, color: C.queen }}>{qa.v == null ? 'n/a' : fmtQ(qa.v)}</span>
           </div>
         )}
         {M.hasEval && (
           <div style={{ marginLeft: qa ? 36 : 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em' }}>{qa ? 'STOCKFISH' : 'EVAL'}</span>
-            <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
+            <span style={{ font: `700 ${big}px ${MONO}`, color: C.ink }}>{P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
           </div>
         )}
       </div>
