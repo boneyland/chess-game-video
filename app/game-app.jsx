@@ -354,7 +354,7 @@ function GameApp() {
           <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v); }} />
           <div className="twk-note">The Lichess sets are by <a href="https://github.com/Enigmahack" target="_blank" rel="noopener">Enigmahack</a>, from <a href="https://github.com/lichess-org/lila" target="_blank" rel="noopener">Lichess’s source</a>, under the AGPL-3.0-or-later. Wood is made in your browser.</div>
         </TweakSection>
-        <TweakSection label="Engine" column4>
+        <TweakSection label="Engine" column>
           <div className="twk-note">Your own moves and “Analyse with Stockfish” use Stockfish 19 lite in your browser. Each search stops at its depth or its time, whichever comes first; deeper is stronger and slower.</div>
           <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
           <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />

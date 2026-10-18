@@ -31,14 +31,14 @@ function TweaksPanel({ open, onClose, title = 'Settings', wide = false, children
         <b>{title}</b>
         <button type="button" className="twk-x" aria-label="Close settings" onClick={onClose}>✕</button>
       </div>
-      <div className="twk-body">{children}</div>
+      <div className="twk-body">{wide ? <div className="twk-cols">{children}</div> : children}</div>
     </aside>
   );
 }
 
 // a titled group of rows; the wide panel lays groups out in columns, never splitting one, and `column` starts a new one
-// (`column4` only when the panel is wide enough for four)
-function TweakSection({ label, column = false, column4 = false, children }) { return <section className={'twk-group' + (column ? ' twk-col' : '') + (column4 ? ' twk-col4' : '')}><div className="twk-sect">{label}</div>{children}</section>; }
+// when it is wide enough for four (with three, the groups are balanced across them)
+function TweakSection({ label, column = false, children }) { return <section className={'twk-group' + (column ? ' twk-col' : '')}><div className="twk-sect">{label}</div>{children}</section>; }
 
 function TweakRow({ label, value, children }) {
   return (
