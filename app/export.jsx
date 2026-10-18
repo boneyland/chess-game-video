@@ -182,10 +182,11 @@ function ExportOverlay({ x }) {
     </div>
   );
   const pct = s.N ? Math.round((100 * s.done) / s.N) : 0;
-  const min = s.eta != null ? Math.max(1, Math.round(s.eta / 60)) : null;
+  // minutes and seconds, as the Settings note gives the export's length
+  const left = s.eta != null ? Math.ceil(s.eta) : 0, eta = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
   const line = s.phase === 'load' ? 'Loading the encoder…'
     : s.phase === 'save' ? 'Finishing the file…'
-    : `Frame ${s.done} of ${s.N} · about ${min} min left`;
+    : `Frame ${s.done} of ${s.N} · about ${eta} left`;
   return (
     <div className="export" role="dialog" aria-label="Exporting">
       <div className="export-box">
