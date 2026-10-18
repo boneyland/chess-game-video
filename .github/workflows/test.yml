@@ -1,5 +1,5 @@
-# Build the page and run the JS tests on every push and pull request. The Python cross-check
-# (tests/check_browser_json.py) is left out: it imports chess-animator, which needs Manim.
+# Build the page and run the JS tests on every push and pull request, and the browser smoke tests against the build.
+# The Python cross-check (tests/check_browser_json.py) is left out: it imports chess-animator, which needs Manim.
 name: test
 on: [push, pull_request]
 # the job only reads the repo
@@ -16,3 +16,26 @@ jobs:
           node-version: 22
       - run: node build.cjs
       - run: node --test --test-concurrency=1 tests/*.test.cjs
+  # The smoke tests (tests/live/site.test.cjs) against this commit's build, served the way render.yaml has Render
+  # serve it, in the runner's own Google Chrome and Firefox (Firefox over WebDriver BiDi): no browser download
+  browsers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright@1.63.0
+      - run: |
+          google-chrome --version && firefox --version
+          echo "FIREFOX_PATH=$(readlink -f "$(command -v firefox)")" >> "$GITHUB_ENV"
+      - run: node --test tests/live/site.test.cjs
+        env:
+          LIVE_URLS: local
+          CHROMIUM_CHANNEL: chrome
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: screenshots
+          path: tests/out/live/

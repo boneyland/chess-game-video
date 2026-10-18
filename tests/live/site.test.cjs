@@ -1,6 +1,12 @@
-// Smoke tests for the deployed sites. Not part of tests/*.test.cjs, so deploy builds never hit the network:
+// Smoke tests for the deployed site, in Chromium and Firefox. Not part of tests/*.test.cjs, so deploy builds never
+// hit the network:
 //   node --test tests/live/site.test.cjs
-// LIVE_URLS: comma-separated sites to test (default: the Render site).
+// LIVE_URLS: comma-separated sites to test (default: the Render site); `local` builds this checkout and serves
+// out/site the way render.yaml has Render serve it (serve.cjs), which is what GitHub Actions tests.
+// LIVE_BROWSERS: chromium, firefox or both (the default), run one after the other.
+// CHROMIUM_PATH / CHROMIUM_CHANNEL pick the Chromium (default: the ungoogled-chromium flatpak where it is installed,
+// else Playwright's own); FIREFOX_PATH the Firefox (default: Firefox Developer Edition, else /usr/bin/firefox),
+// driven over WebDriver BiDi, so any stock Firefox works without a Playwright build of it.
 // LIVE_CDN_DIR: for sandboxes that block cdnjs, a folder holding the react and react-dom 18.3.1 npm packages
 // (<dir>/react/package/umd/…); the page's React requests are answered from it.
 // Needs Playwright (global install is fine). Screenshots go to tests/out/live/.
@@ -8,24 +14,31 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync, execSync } = require('child_process');
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); } })();
+const pw = (() => { try { return require('playwright'); } catch (e) { return require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); } })();
+const { serve } = require('./serve.cjs');
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'tests', 'out', 'live');
-const SITES = (process.env.LIVE_URLS || 'https://chess-replay.onrender.com/').split(',').map((u) => u.trim().replace(/\/?$/, '/'));
+const SITES = (process.env.LIVE_URLS || 'https://chess-replay.onrender.com/').split(',').map((u) => u.trim()).map((u) => (u === 'local' ? u : u.replace(/\/?$/, '/')));
+const BROWSERS = (process.env.LIVE_BROWSERS || 'chromium,firefox').split(',').map((b) => b.trim());
 const PAGE = 'chess-game-video.html';
 const SF = 'stockfish-19-lite-single';
+const firstFile = (...files) => files.find((f) => f && fs.existsSync(f));
+const LAUNCH = {
+  chromium: () => pw.chromium.launch({ channel: process.env.CHROMIUM_CHANNEL, executablePath: process.env.CHROMIUM_PATH || firstFile('/var/lib/flatpak/exports/bin/io.github.ungoogled_software.ungoogled_chromium') }),
+  firefox: () => pw.firefox.launch({ channel: 'moz-firefox', executablePath: process.env.FIREFOX_PATH || firstFile('/usr/bin/firefox-devedition', '/usr/bin/firefox') }),
+};
 
-let browser, built;
+let built, local = null;
 test.before(async () => {
-  browser = await chromium.launch();
   fs.mkdirSync(OUT, { recursive: true });
   execFileSync(process.execPath, [path.join(ROOT, 'build.cjs')], { cwd: ROOT });
   built = fs.readFileSync(path.join(ROOT, 'out', 'site', PAGE), 'utf8');
+  if (SITES.includes('local')) local = await serve(path.join(ROOT, 'out', 'site'));
 });
-test.after(() => browser && browser.close());
+test.after(() => local && local.close());
 
-async function open(viewport, opts) {
+async function open(browser, viewport, opts) {
   const ctx = await browser.newContext({ viewport, ...opts });
   const cdn = process.env.LIVE_CDN_DIR;
   if (cdn) await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/**', (r) => {
@@ -52,10 +65,13 @@ async function boardBox(page) {
 }
 const square = (b, name) => ({ x: b.x0 + (name.charCodeAt(0) - 97 + 0.5) * b.sq, y: b.y0 + (8 - +name[1] + 0.5) * b.sq });
 
-for (const base of SITES) {
-  const host = new URL(base).host;
-  test(host, async (t) => {
-    const { ctx, page, errors } = await open({ width: 1440, height: 900 });
+for (const name of BROWSERS) for (const site of SITES) {
+  test(`${name} · ${site === 'local' ? 'local build' : new URL(site).host}`, async (t) => {
+    const base = site === 'local' ? local.url : site, host = name + '-' + (site === 'local' ? 'local' : new URL(site).host);
+    // one browser at a time, closed before the next starts
+    const browser = await LAUNCH[name]();
+    t.after(() => browser.close());
+    const { ctx, page, errors } = await open(browser, { width: 1440, height: 900 });
     // requests go through the page (same origin), so they take the browser's network path and proxy
     const get = (p) => page.evaluate(async (u) => {
       const r = await fetch(u, { cache: 'no-store' });
@@ -95,7 +111,7 @@ for (const base of SITES) {
 
     await t.test('the live page against a local build of this checkout', async () => {
       const live = (await get(PAGE)).text;
-      t.diagnostic(host + (live === built ? ': same as this checkout' : ': differs from this checkout (deploy not published yet, or the checkout is ahead)'));
+      t.diagnostic(base + (live === built ? ': same as this checkout' : ': differs from this checkout (deploy not published yet, or the checkout is ahead)'));
     });
 
     await t.test('desktop: Next and Previous step through the moves', async () => {
@@ -180,7 +196,7 @@ for (const base of SITES) {
       await page.getByRole('button', { name: 'Exit full screen' }).click();
       await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 });
       // as on iPhone Safari, or in a frame without allow="fullscreen"
-      const off = await open({ width: 1440, height: 900 });
+      const off = await open(browser, { width: 1440, height: 900 });
       await off.ctx.addInitScript(() => { for (const k of ['fullscreenEnabled', 'webkitFullscreenEnabled']) Object.defineProperty(Document.prototype, k, { get: () => false }); });
       await off.page.goto(base, { waitUntil: 'load' });
       await off.page.locator('.dock-primary').waitFor();
@@ -200,7 +216,8 @@ for (const base of SITES) {
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
-      const ph = await open({ width: 390, height: 844 }, { isMobile: true, hasTouch: true });
+      // Firefox has no mobile emulation in Playwright: there it is a narrow window with touch
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : { hasTouch: true });
       await ph.page.goto(base, { waitUntil: 'load' });
       const menu = ph.page.getByRole('button', { name: 'Menu' });
       await menu.waitFor();
@@ -209,13 +226,14 @@ for (const base of SITES) {
       await ph.page.screenshot({ path: path.join(OUT, host + '-phone.png') });
       await menu.click();
       await assert.doesNotReject(ph.page.getByRole('button', { name: 'Ask Queen' }).waitFor({ state: 'visible', timeout: 3000 }));
-      // Chromium supports element full screen, so the menu offers it; the label follows fullscreenchange
+      // both browsers support element full screen, so the menu offers it; the label follows fullscreenchange
       const fsOn = () => ph.page.evaluate(() => !!document.fullscreenElement);
       await ph.page.getByRole('button', { name: 'Full screen', exact: true }).click();
       await ph.page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 });
-      // upright in full screen, a fixed gap clears the camera's punch hole
-      assert.equal(await ph.page.evaluate(() => getComputedStyle(document.documentElement).paddingTop), '24px');
-      await menu.click();
+      // upright in full screen, a fixed gap clears the camera's punch hole (a coarse pointer only: not Firefox's window)
+      if (name === 'chromium') assert.equal(await ph.page.evaluate(() => getComputedStyle(document.documentElement).paddingTop), '24px');
+      // headless Firefox's full screen is its 1366×768 screen, where the page lays out for a desktop: no menu
+      if (await menu.isVisible()) await menu.click();
       await ph.page.getByRole('button', { name: 'Exit full screen' }).click();
       await ph.page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 });
       assert.equal(await fsOn(), false);
@@ -227,7 +245,7 @@ for (const base of SITES) {
 
     // a phone held sideways used to get the 16:9 video shrunk to a board about 230 px high
     await t.test('phone held sideways: the board fills the height and the buttons fold into a menu', async () => {
-      const ph = await open({ width: 844, height: 390 });
+      const ph = await open(browser, { width: 844, height: 390 });
       await ph.page.goto(base, { waitUntil: 'load' });
       await ph.page.getByRole('button', { name: 'Menu' }).waitFor();
       assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
