@@ -115,11 +115,14 @@
   // A saved answers file holds the answers for one game's positions, keyed like the cache by the moves played to reach
   // each position (UCI, space-separated), so loading it back skips those Queen calls on any device
   const QUEEN_FILE = 'queen-answers';
-  function queenFile(cache, ucis) {
+  // The cache key of the position after `moves` (a space-separated UCI string): the moves alone from the standard
+  // start (as always), the start FEN in front of them otherwise, so games from different starts never share answers
+  const queenKey = (fen, moves) => (fen && fen !== window.ChessCore.START_FEN ? fen + '|' + moves : moves);
+  function queenFile(cache, ucis, fen) {
     // every position from the start to the one after the last move (Queen also scores the positions after moves)
-    const keys = new Set([...ucis, null].map((_, i) => ucis.slice(0, i).join(' ')));
+    const keys = new Set([...ucis, null].map((_, i) => queenKey(fen, ucis.slice(0, i).join(' '))));
     const answers = Object.fromEntries(Object.keys(cache).filter((k) => keys.has(k)).map((k) => [k, cache[k]]));
-    return { format: QUEEN_FILE, version: 1, moves: ucis.join(' '), answers };
+    return { format: QUEEN_FILE, version: 1, moves: ucis.join(' '), ...(queenKey(fen, '') !== '' ? { start_fen: fen } : {}), answers };
   }
   // the answers in a saved file, or null when the text isn't one; entries that don't look like answers are dropped
   function readQueenFile(text) {
@@ -133,12 +136,13 @@
     const out = {};
     if (!c || typeof c !== 'object') return out;
     for (const [k, r] of Object.entries(c)) {
-      if (!/^(([a-h][1-8]){2}[qrbn]?( |$))*$/.test(k)) continue;
-      const a = queenAnswer(r, k ? k.split(' ').length : 0);
+      const m = /^(?:[^|]+\|)?((?:([a-h][1-8]){2}[qrbn]?( |$))*)$/.exec(k);
+      if (!m) continue;
+      const a = queenAnswer(r, m[1] ? m[1].split(' ').length : 0);
       if (a) out[k] = a;
     }
     return out;
   }
 
-  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache, queenAnswer, queenFile, readQueenFile, readQueenCache };
+  window.QueenCore = { pyParse, queenPayload, queenEval, queenProse, readSse, capQueenCache, queenAnswer, queenKey, queenFile, readQueenFile, readQueenCache };
 })();

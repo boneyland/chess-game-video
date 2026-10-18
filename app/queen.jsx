@@ -138,7 +138,8 @@ function useQueen(M, mcp, hf) {
   const ctrlRef = React.useRef(null);
   React.useEffect(() => { if (!busy) return; const id = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(id); }, [busy]);
   const startFen = M.start.fen === window.ChessCore.START_FEN ? '' : M.start.fen; // the Space takes '' for the standard start
-  const keyAt = (at) => M.plies.slice(0, at).map((p) => p.uci).join(' ');
+  const movesAt = (at) => M.plies.slice(0, at).map((p) => p.uci).join(' ');
+  const keyAt = (at) => window.QueenCore.queenKey(M.start.fen, movesAt(at));
 
   const [log, setLog] = React.useState([]);
   const note = (entry) => setLog((l) => [{ ...entry, when: new Date().toLocaleTimeString() }, ...l].slice(0, 30));
@@ -158,8 +159,8 @@ function useQueen(M, mcp, hf) {
         setBusy({ at, started, attempt });
         try {
           const res = via === 'connector'
-            ? await mcp.callTool(QUEEN_SERVER, QUEEN_TOOL, { fen: startFen, moves: key, max_tokens: QUEEN_TOKENS }, { signal: ctrl.signal })
-            : await directCall(key, hf && hf.auth ? hf.auth.token : null, ctrl.signal, startFen);
+            ? await mcp.callTool(QUEEN_SERVER, QUEEN_TOOL, { fen: startFen, moves: movesAt(at), max_tokens: QUEEN_TOKENS }, { signal: ctrl.signal })
+            : await directCall(movesAt(at), hf && hf.auth ? hf.auth.token : null, ctrl.signal, startFen);
           const p = queenPayload(res);
           const str = (v) => (typeof v === 'string' ? v : '');
           const r = queenAnswer({
@@ -198,13 +199,13 @@ function useQueen(M, mcp, hf) {
   const merge = (answers) => {
     const next = capQueenCache({ ...cacheRef.current, ...answers });
     cacheRef.current = next; setCache(next);
-    const n = Object.keys(queenFile(answers, M.plies.map((p) => p.uci)).answers).length, all = Object.keys(answers).length;
+    const n = Object.keys(queenFile(answers, M.plies.map((p) => p.uci), M.start.fen).answers).length, all = Object.keys(answers).length;
     const kept = writeQueenCache(next) === false ? ' The browser’s storage is full: they are kept until you leave the page, not after a reload.' : '';
     setErr(''); setMsg(`Loaded ${all} Queen answer${all === 1 ? '' : 's'}${n < all ? `, ${n} for this game` : ''}.` + kept);
     return n;
   };
-  const saved = () => queenFile(cacheRef.current, M.plies.map((p) => p.uci));
-  const forGame = Object.keys(queenFile(cache, M.plies.map((p) => p.uci)).answers).length;
+  const saved = () => queenFile(cacheRef.current, M.plies.map((p) => p.uci), M.start.fen);
+  const forGame = Object.keys(queenFile(cache, M.plies.map((p) => p.uci), M.start.fen).answers).length;
   return { via, cache, analyse, resultAt, has, busy, err, setErr, msg, setMsg, stopRef, stop, forget, merge, saved, forGame, log, cached: Object.keys(cache).length };
 }
 

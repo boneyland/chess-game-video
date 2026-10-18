@@ -100,3 +100,24 @@ test('answers from a file or the cache keep only fields of the expected type', (
   assert.deepEqual(Object.keys(Q.readQueenCache({ '': bad, 'e2e4': null, 'zz': { prose: [] } })), ['']);
   assert.deepEqual(Q.readQueenCache(null), {});
 });
+
+test('queenKey: the moves alone from the standard start, the start FEN in front otherwise', () => {
+  const fen = '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1';
+  assert.equal(Q.queenKey(window.ChessCore.START_FEN, 'e2e4 e7e5'), 'e2e4 e7e5');
+  assert.equal(Q.queenKey(null, ''), '');
+  assert.equal(Q.queenKey(fen, ''), fen + '|');
+  assert.equal(Q.queenKey(fen, 'e8d7'), fen + '|e8d7');
+});
+
+test('queen answers from a FEN start never mix with a standard game\'s', () => {
+  const fen = '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1';
+  const ans = { prose: ['x'] };
+  const cache = Q.readQueenCache({ '': ans, 'e2e4': ans, [fen + '|']: ans, [fen + '|e8d7']: ans, [fen + '|zz']: ans });
+  assert.deepEqual(Object.keys(cache).sort(), ['', 'e2e4', fen + '|', fen + '|e8d7'].sort());
+  assert.equal(cache[fen + '|e8d7'].at, 1);
+  assert.equal(cache[fen + '|'].at, 0);
+  assert.deepEqual(Object.keys(Q.queenFile(cache, ['e8d7'], fen).answers).sort(), [fen + '|', fen + '|e8d7']);
+  assert.deepEqual(Object.keys(Q.queenFile(cache, ['e2e4'], window.ChessCore.START_FEN).answers).sort(), ['', 'e2e4']);
+  assert.equal('start_fen' in Q.queenFile(cache, [], window.ChessCore.START_FEN), false);
+  assert.equal(Q.queenFile(cache, [], fen).start_fen, fen);
+});
