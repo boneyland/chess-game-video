@@ -645,8 +645,7 @@ function EvalPlot({ M, T, S, a, paused, onPick }) {
   const line = 'M' + pts.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' L');
   const last = pts[pts.length - 1];
   const area = `${line} L${last[0].toFixed(1)},${mid} L0,${mid} Z`;
-  const step = N > 120 ? 20 : 10, ticks = [];
-  for (let m = step; m * 2 <= N; m += step) ticks.push(m);
+  const ticks = window.ChessCore.evalTicks(M.ply0, N);
   return (
     <div style={{ position: 'absolute', left: PLOT.x, top: PLOT.y, width: PLOT.w / PLOT.k, height: PLOT.h / PLOT.k, transform: `scale(${PLOT.k})`, transformOrigin: '0 0', boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '10px 20px', opacity: a }}>
       <svg width={W} height={H + 14} style={{ display: 'block', overflow: 'visible', cursor: 'pointer', touchAction: 'none' }}
@@ -666,10 +665,10 @@ function EvalPlot({ M, T, S, a, paused, onPick }) {
           <clipPath id="cp-dn"><rect x="0" y={mid} width={W} height={mid + 10} /></clipPath>
         </defs>
         <line x1="0" x2={W} y1={mid} y2={mid} stroke={C.line} strokeWidth="2" />
-        {ticks.map((m) => (
+        {ticks.map(({ m, at }) => (
           <g key={m}>
-            <line x1={px(m * 2 - 2)} x2={px(m * 2 - 2)} y1="0" y2={H} stroke={C.line} strokeWidth="1" />
-            <text x={px(m * 2 - 2) + 6} y={H + 12} fill={C.dim} style={{ font: `500 12px ${MONO}` }}>{m}</text>
+            <line x1={px(at)} x2={px(at)} y1="0" y2={H} stroke={C.line} strokeWidth="1" />
+            <text x={px(at) + 6} y={H + 12} fill={C.dim} style={{ font: `500 12px ${MONO}` }}>{m}</text>
           </g>
         ))}
         {M.hasEval ? (

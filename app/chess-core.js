@@ -406,11 +406,13 @@
     const H = P ? P.headers : {};
     // a PGN's [FEN] header, else the analysis file's start; both are normalised, so equal starts compare equal
     const start = parseFen(H.FEN || (!P && A && A.start_fen) || START_FEN);
-    const ply0 = start.ply0;
+    const ply0 = start.ply0, stdStart = start.fen === START_FEN;
     const sans = P ? P.plies.map((p) => p.san) : A ? A.moves.map((m) => m.move_san) : [];
     if (!sans.length) throw new Error('No moves found');
     if (A && P && A.moves.length && A.moves[0].move_san.replace(/[+#]/g, '') !== sans[0].replace(/[+#]/g, '')) throw new Error("The analysis file doesn't match this PGN");
-    if (A && P && parseFen(A.start_fen || START_FEN).fen !== start.fen) throw new Error("The analysis file doesn't match this PGN");
+    // chess-animator's analysis JSON never has start_fen (its moves come from the PGN's [FEN] board): then the per-ply SAN match and the side to move decide
+    if (A && P && A.start_fen && parseFen(A.start_fen).fen !== start.fen) throw new Error("The analysis file doesn't match this PGN");
+    if (A && P && A.moves.length && typeof A.moves[0].is_white_move === 'boolean' && A.moves[0].is_white_move !== (start.pos.turn === 'w')) throw new Error("The analysis file doesn't match this PGN");
 
     let pos = start.pos;
     const plies = [];
@@ -464,7 +466,7 @@
       const known = (p) => p && (p.cp != null || (p.mate != null && !p.checkmate));
       const cpv = (p) => (p.mate != null ? Math.sign(p.mate) * 10000 : p.cp);
       plies.forEach((p, i) => {
-        const prev = i ? plies[i - 1] : { cp: 20 };
+        const prev = i ? plies[i - 1] : stdStart ? { cp: 20 } : null; // no known eval before a custom start's first move
         if (p.mark || !known(p) || !known(prev) || p.mate != null || prev.mate != null) return;
         const sgn = p.side === 'w' ? 1 : -1;
         const drop = sgn * (winChance(cpv(prev)) - winChance(cpv(p)));
@@ -475,8 +477,11 @@
       });
     }
     // carry evals forward so the plot has no gaps
-    let lastCp = useA && A.moves[0] && typeof A.moves[0].eval_before === 'number' ? A.moves[0].eval_before : 20;
-    const evalStart = lastCp;
+    const aStart = useA && A.moves[0] && typeof A.moves[0].eval_before === 'number';
+    const first = plies.find((p) => p.cp != null || (p.mate != null && !p.checkmate));
+    // the +0.20 first-move edge is the standard start's; a custom start has only its first known eval
+    let lastCp = aStart ? A.moves[0].eval_before : stdStart ? 20 : first ? (first.mate != null ? Math.sign(first.mate) * 10000 : first.cp) : 20;
+    const evalStart = lastCp, evalStartKnown = aStart || stdStart;
     plies.forEach((p) => { if (p.cp == null && p.mate == null) p.cpFill = lastCp; else lastCp = p.mate != null ? Math.sign(p.mate) * 10000 : p.cp; });
     // the checkmate on the last move is a fact of the game, not an engine eval
     const hasEval = plies.some((p) => p.cp != null || (p.mate != null && !p.checkmate));
@@ -505,7 +510,7 @@
       event: clean(H.Event) || (A && A.event) || '', round, site: clean(H.Site) || (A && A.site) || '', date: fmtDate(clean(H.Date) || (A && A.date)), pgnDate: clean(H.Date) || (A && clean(A.date)) || '',
       eco: opening.eco, opening: opening.name,
       result, intro: (NT && NT.intro) || (P && P.intro) || '', conclusion: (NT && (NT.conclusion || NT.result)) || '',
-      engine, engineName: eng ? eng.name || '' : '', start: { fen: start.fen, pos: start.pos }, ply0, plies, evalStart, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
+      engine, engineName: eng ? eng.name || '' : '', start: { fen: start.fen, pos: start.pos }, ply0, plies, evalStart, evalStartKnown, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
     };
   }
 
@@ -614,14 +619,14 @@
       'Choose moments that matter: every rated mistake, the largest eval swings, sacrifices, decisive captures and checks, time trouble visible from the clocks, and the final move. Coverage: ' + density + '.',
       'Each comment: at most 120 characters (up to 160 when explaining a quiet move), one or two short sentences, plain English. Explain the idea (why the move is good or bad, what it threatens, what was better) rather than just restating the number. For mistakes, name the better move from the best line. Refer to moves in SAN with their number, e.g. 28.Qxb5?? or 20...Qb7?!.',
       'Also write an intro (at most 140 characters, shown on the title card before move 1) and a conclusion (at most 140 characters, shown on the end card).',
-      'Reply with JSON only, no prose, in this exact shape: {"intro":"...","conclusion":"...","comments":[{"ply":12,"text":"..."}]}. ply counts half-moves: 1 is White\'s first move, 2 is Black\'s first move.',
+      'Reply with JSON only, no prose, in this exact shape: {"intro":"...","conclusion":"...","comments":[{"ply":12,"text":"..."}]}. ply counts half-moves: 1 is the first move listed, 2 the next.',
     ].join('\n');
     const head = ['White: ' + [M.white.name, M.white.title, M.white.elo].filter(Boolean).join(' '), 'Black: ' + [M.black.name, M.black.title, M.black.elo].filter(Boolean).join(' '), 'Event: ' + [M.event, M.round && 'round ' + M.round, M.site, M.date].filter(Boolean).join(', '), 'Opening: ' + [M.eco, M.opening].filter(Boolean).join(' '), 'Result: ' + M.result].join('\n');
     const lines = M.plies.map((p, i) => {
       const mv = moveNo((M.ply0 || 0) + i).replace('…', '...') + p.san + (p.mark || '');
       const prev = i ? M.plies[i - 1] : null;
       const parts = ['ply ' + (i + 1), mv + ' (' + (p.side === 'w' ? 'White' : 'Black') + ')'];
-      if (M.hasEval) parts.push('eval ' + (prev ? fmtCp(prev) : '+0.20') + ' -> ' + fmtCp(p));
+      if (M.hasEval) parts.push('eval ' + (prev ? fmtCp(prev) : M.start.fen === START_FEN ? '+0.20' : M.evalStartKnown ? fmtCp({ cp: M.evalStart }) : '?') + ' -> ' + fmtCp(p));
       if (p.cls && p.cls !== 'none' && p.cls !== 'best') parts.push(p.cls + (p.loss ? ' (-' + p.loss + 'cp)' : ''));
       if (p.best && p.cls !== 'best') parts.push('best: ' + numbered(i, p.best.line.slice(0, 8), M.ply0));
       if (p.clk != null) parts.push('clock after move ' + fmtClk(p.clk));
@@ -803,5 +808,11 @@
     return { san: r.san, uci, board: r.pos.b.slice(), checkSq: check ? idxSq(kingIdx(r.pos.b, r.pos.turn)) : null, pos: r.pos };
   }
 
-  window.ChessCore = { START_FEN, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  // move-number gridlines for the eval plot: multiples of `step` among the absolute move numbers, at their offset in plies from the first move
+  function evalTicks(ply0, N) {
+    const step = N > 120 ? 20 : 10, ticks = [];
+    for (let m = step; 2 * m - ply0 <= N; m += step) if (2 * (m - 1) - ply0 >= 0) ticks.push({ m, at: 2 * (m - 1) - ply0 });
+    return ticks;
+  }
+  window.ChessCore = { START_FEN, evalTicks, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();

@@ -225,7 +225,7 @@ async function queenDiagnose(mcp, e) {
 }
 
 const posLabel = (M, at) => (at === 0 ? 'the starting position' : `after ${plyLabel(M, at - 1)}${sanOf(M, at - 1)}`);
-const sfAt = (M, at) => (M.hasEval ? (at === 0 ? M.evalStart : cpOf(M, at - 1)) / 100 : null);
+const sfAt = (M, at) => (M.hasEval && (at > 0 || M.evalStartKnown) ? (at === 0 ? M.evalStart : cpOf(M, at - 1)) / 100 : null);
 // Change from the mover's side, negative when the move lost ground (the Analysis panel's "−73 cp" convention)
 const moverChange = (before, after, white) => (before == null || after == null ? null : (after - before) * (white ? 1 : -1));
 

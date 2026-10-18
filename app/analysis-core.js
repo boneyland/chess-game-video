@@ -158,7 +158,8 @@
       if (k > 0) onProgress(k, N);
     }
     const CC = window.ChessCore;
-    let pos = CC.parseFen(startFen).pos;
+    const start = CC.parseFen(startFen);
+    let pos = start.pos;
     const moves = ucis.map((uci, i) => {
       const before = R[i], after = R[i + 1], isWhite = pos.turn === 'w', best = bestOf(before);
       const played = CC.applyUci(pos, uci);
@@ -166,7 +167,7 @@
       const bestLine = sansOf(pos, before.pv, C.BEST_LINE_MAX_PLIES);
       const rated = rateMove({ bestEval: before.cp, currentEval: after.cp, isWhite, playedIsBest: uci === best, isCheckmate: san.endsWith('#') });
       const m = {
-        ply: i + 1, move_san: san, move_uci: uci, is_white_move: isWhite,
+        ply: start.ply0 + i + 1, move_san: san, move_uci: uci, is_white_move: isWhite,
         eval_before: before.cp, eval_after: after.cp,
         best_move_san: best ? sansOf(pos, [best], 1)[0] || '-' : '-', best_move_uci: best || '-',
         best_eval: before.cp, eval_loss: rated.evalLoss, classification: rated.classification,

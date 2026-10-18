@@ -100,6 +100,7 @@ function GameApp() {
   const [t, setTweak] = useTweaks(window.TWEAK_DEFAULTS);
   const flipRef = React.useRef(false);
   flipRef.current = !!t.flip;
+  const busyRef = React.useRef(false);
   const scheme = useScheme(t.scheme || 'Auto');
   setPalette(scheme);
   const [files, setFiles] = React.useState(readStored);
@@ -137,7 +138,7 @@ function GameApp() {
   React.useEffect(() => {
     const onF = (e) => {
       const tag = e.target && e.target.tagName;
-      if (e.defaultPrevented || e.repeat || e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.defaultPrevented || e.repeat || (e.key || '').toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable) || busyRef.current) return;
       setTweak('flip', !flipRef.current);
     };
     window.addEventListener('keydown', onF);
@@ -268,6 +269,7 @@ function GameApp() {
   React.useEffect(() => { if (t.webpSize !== undefined) { setTweak('webpWidth', t.webpSize === 'Full' ? 0 : 'Half'); setTweak('webpSize', undefined); } }, []);
   const webpQuality = Math.min(WEBP_QUALITY.max, Math.max(WEBP_QUALITY.min, +t.webpQuality || 75));
   const video = useVideoExport({ fps: exportFps, format: exportFormat, webp: { width: wPx(webpWidth), quality: webpQuality }, stem: fileStem, save: (name, blob) => saveFile(name, blob, blob.type) });
+  busyRef.current = video.busy;
   // the stretch to export, in plies: from -1 starts on the title card, to N (the ply count) ends after the end card
   const [clip, setClip] = React.useState({ from: -1, to: Infinity });
   React.useEffect(() => { setClip({ from: -1, to: Infinity }); }, [M]);

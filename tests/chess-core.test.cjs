@@ -227,8 +227,45 @@ test('a standard game is unchanged', () => {
   assert.doesNotMatch(CC.annotatedPgn(M), /\[FEN /);
 });
 test('an analysis file for another start does not attach', () => {
-  const A = JSON.stringify({ moves: [{ move_san: 'e4', move_uci: 'e2e4' }] });
-  assert.throws(() => CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"]\n\n1. e4 *', analysis: A }), /doesn't match/);
+  const pgn = '[FEN "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"]\n\n1. e4 *';
+  const other = JSON.stringify({ start_fen: '4k3/8/8/8/8/8/3P4/4K3 w - - 0 1', moves: [{ move_san: 'e4', move_uci: 'e2e4' }] });
+  assert.throws(() => CC.buildGame({ pgn, analysis: other }), /doesn't match/);
+  const wrongSide = JSON.stringify({ moves: [{ move_san: 'e4', move_uci: 'e2e4', is_white_move: false }] });
+  assert.throws(() => CC.buildGame({ pgn, analysis: wrongSide }), /doesn't match/);
+});
+test('a Python-style analysis file (no start_fen) attaches to its FEN PGN', () => {
+  const A = JSON.stringify({ moves: [{ ply: 79, move_san: 'e4', move_uci: 'e2e4', is_white_move: true }] });
+  assert.equal(CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/4P3/4K3 w - - 0 40"]\n\n40. e4 *', analysis: A }).hasAnalysis, true);
+});
+test('a FEN game does not invent a +0.20 position before its first move', () => {
+  const M = CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/8/3QK3 b - - 0 40"]\n\n40... Kf7 {[%eval 9.10]} *' });
+  assert.ok(!M.plies[0].mark);
+  assert.equal(M.evalStart, 910);
+  assert.equal(M.evalStartKnown, false);
+  assert.doesNotMatch(CC.commentaryPrompt(M, { tone: 'Concise' }).user, /\+0\.20/);
+});
+test('plan does not pick a FEN game\'s first ply as its biggest swing', () => {
+  const mv = ['Kf7', 'Qd2', 'Ke8', 'Qd3', 'Kf7', 'Qd4', 'Ke8', 'Qd5'];
+  const text = mv.map((m, i) => (i % 2 ? '' : (40 + i / 2) + '... ') + m + ' {[%eval 9.10]}').join(' ');
+  const M = CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/8/3QK3 b - - 0 40"]\n\n' + text + ' *' });
+  const crit = CC.plan(M).find((r) => r[0] === 'Critical');
+  assert.ok(crit[1] > 0);
+});
+test('a standard game still rates its first move against +0.20', () => {
+  const M = CC.buildGame({ pgn: '[Result "*"]\n\n1. e4 {[%eval -3.50]} *' });
+  assert.equal(M.evalStart, 20); assert.equal(M.evalStartKnown, true);
+  assert.equal(M.plies[0].mark, '??');
+});
+test('commentaryPrompt does not call ply 1 the first White move', () => {
+  const M = CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/8/3QK3 b - - 0 40"]\n\n40... Kf7 *' });
+  assert.doesNotMatch(CC.commentaryPrompt(M, { tone: 'Concise' }).system, /1 is White/);
+});
+test('evalTicks are absolute move numbers, and unchanged for a standard game', () => {
+  assert.deepEqual(CC.evalTicks(0, 45).map((t) => [t.m, t.at]), [[10, 18], [20, 38]]);
+  assert.deepEqual(CC.evalTicks(0, 130).map((t) => t.m), [20, 40, 60]);
+  // first move is move 30 (ply0 58): the 40 line is at ply 78 - 58 = 20
+  assert.deepEqual(CC.evalTicks(58, 45).map((t) => [t.m, t.at]), [[30, 0], [40, 20], [50, 40]]);
+  assert.deepEqual(CC.evalTicks(59, 45).map((t) => [t.m, t.at]), [[40, 19], [50, 39]]);
 });
 test('an analysis file with the same start_fen attaches', () => {
   const fen = '4k3/8/8/8/8/8/4P3/4K3 w - - 0 1';

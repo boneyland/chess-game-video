@@ -83,6 +83,17 @@ test('runAnalysis from a start FEN rates Black\'s first move as Black\'s', async
   assert.ok(reqs.every((r) => r.fen === startFen));
 });
 
+test('runAnalysis from a start FEN writes absolute plies, as Python does', async () => {
+  const startFen = '4k3/8/8/8/8/8/4P3/4K3 b - - 0 40';
+  const json = await A.runAnalysis({ engine: fakeEngine(), ucis: ['e8d7'], sans: ['Kd7'], startFen, headers: {}, signal: { aborted: false }, onProgress: () => {} });
+  assert.equal(json.moves[0].ply, 80);
+});
+
+test('a standard game\'s plies count from 1', async () => {
+  const json = await A.runAnalysis({ engine: fakeEngine(), ...SCHOLAR, headers: {}, signal: { aborted: false }, onProgress: () => {} });
+  assert.deepEqual(json.moves.map((m) => m.ply), [1, 2, 3, 4, 5, 6, 7]);
+});
+
 test('a standard game\'s analysis JSON has no start_fen', async () => {
   const json = await A.runAnalysis({ engine: fakeEngine(), ...SCHOLAR, startFen: window.ChessCore.START_FEN, headers: {}, signal: { aborted: false }, onProgress: () => {} });
   assert.equal('start_fen' in json, false);
