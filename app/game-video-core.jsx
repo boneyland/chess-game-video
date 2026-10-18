@@ -557,11 +557,8 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
   const { cp } = evalNow(M, T, S);
   const col = cls === 'none' ? C.ink : clsColor(cls);
   const big = L.analysis.big || 38; // the move and eval headline
-  // Queen: its score after this move, the change from its score before it (mover's side), and its line from before it
+  // Queen's line from before this move (its scores are left out: often off, and they squeezed the move's labels onto more lines)
   const Qp = P.queen || {};
-  const qa = Qp.after ? { v: queenEval(Qp.after.evalText) } : null;
-  const qb = Qp.before ? queenEval(Qp.before.evalText) : null;
-  const qd = qa && qa.v != null && qb != null ? (qa.v - qb) * (P.side === 'w' ? 1 : -1) : null;
   // P.best: the engine preferred another move (a mistake, or an equally good move rated best with 0 cp lost)
   const sfLegal = P.best ? playLineCached(M, c, P.best.line.slice(0, 8)) : [];
   const agreeLegal = cls === 'best' && P.line && P.line.length ? playLineCached(M, c, P.line.slice(0, 8)) : [];
@@ -581,15 +578,9 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
             {[P.checkmate ? 'Checkmate' : CLASS_LABEL[cls], P.loss > 0 && `−${P.loss} cp`, cls === 'best' && P.best && P.best.line[0] && `as good as ${P.best.line[0]}`].filter(Boolean).map((t) => <span key={t} style={{ whiteSpace: 'nowrap' }}>{t}</span>)}
           </span>
         </div>
-        {qa && (
-          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ font: `600 13px ${MONO}`, color: C.queen, letterSpacing: '0.12em' }}>QUEEN{qd != null ? ` · ${qd > 0.004 ? '+' : qd < -0.004 ? '−' : ''}${Math.abs(qd).toFixed(2)} FOR ${P.side === 'w' ? 'WHITE' : 'BLACK'}` : ''}</span>
-            <span style={{ font: `700 ${big}px ${MONO}`, color: C.queen }}>{qa.v == null ? 'n/a' : fmtQ(qa.v)}</span>
-          </div>
-        )}
         {M.hasEval && (
-          <div style={{ marginLeft: qa ? 36 : 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em' }}>{qa ? 'STOCKFISH' : 'EVAL'}</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em' }}>EVAL</span>
             <span style={{ font: `700 ${big}px ${MONO}`, color: C.ink }}>{P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
           </div>
         )}
