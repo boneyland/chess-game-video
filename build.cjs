@@ -51,6 +51,9 @@ fs.mkdirSync(path.join(dir, 'out', 'site'), { recursive: true });
 fs.writeFileSync(path.join(dir, 'out', 'chess-game-video.html'), artifactOut);
 // what a shared link and the browser tab show (the artifact gets these from claude.ai)
 const DESCRIPTION = 'Replay an annotated chess game as a broadcast-style video: move ratings, best lines, commentary and an eval graph, with Stockfish in your browser.';
+// A link preview's image needs an absolute URL: each host builds its own copy, so each points at itself (Netlify sets URL,
+// Render RENDER_EXTERNAL_URL; a local build points at Netlify)
+const SITE_URL = (process.env.URL || process.env.RENDER_EXTERNAL_URL || 'https://chess-replay.netlify.app').replace(/\/$/, '');
 const ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#9a6a1c"/><circle cx="16" cy="9.5" r="4" fill="#fffaf2"/><path d="M12.5 14h7l1.5 9h-10z M8.5 24h15v3h-15z" fill="#fffaf2"/></svg>');
 // Self-hosted copy: claude.ai wraps artifacts in this document shell itself, so a standalone file needs its own
 const site = `<!doctype html>
@@ -61,6 +64,13 @@ const site = `<!doctype html>
 <meta name="description" content="${DESCRIPTION}">
 <meta property="og:title" content="Chess Game Video">
 <meta property="og:description" content="${DESCRIPTION}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${SITE_URL}/">
+<meta property="og:image" content="${SITE_URL}/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A game replaying: the board with a best-move arrow, the move list, commentary, Stockfish and Queen's analysis and the eval graph">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f2ece3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#13100f" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="${ICON}">
@@ -78,7 +88,8 @@ ${out}
 </html>
 `;
 fs.writeFileSync(path.join(dir, 'out', 'site', 'chess-game-video.html'), site);
-// the engine, served next to the self-hosted page
+// the engine, served next to the self-hosted page, and the link preview's image (a 1200×630 frame from the player)
+fs.copyFileSync(path.join(app, 'og-image.png'), path.join(dir, 'out', 'site', 'og-image.png'));
 for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm']) fs.copyFileSync(path.join(dir, 'vendor', f), path.join(dir, 'out', 'site', f));
 // Add to Home Screen opens the page without the browser's bars (iPhone Safari has no other way to lose them).
 // The icons are the tab icon above drawn as PNGs; the maskable and Apple ones are full-bleed for the launcher to round.

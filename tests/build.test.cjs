@@ -71,6 +71,18 @@ test('the self-hosted page has a description, a preview title and an icon', () =
   assert.match(head, /<link rel="icon" href="data:image\/svg\+xml,/);
 });
 
+// link previews: an absolute og:image URL ending in the 1200×630 PNG written next to the page
+test('the self-hosted page has a large link-preview image', () => {
+  const site = path.join(ROOT, 'out', 'site');
+  const head = fs.readFileSync(path.join(site, 'chess-game-video.html'), 'utf8').split('</head>')[0];
+  assert.match(head, /<meta property="og:image" content="https:\/\/[^"\/]+\/og-image\.png">/);
+  assert.match(head, /<meta name="twitter:card" content="summary_large_image">/);
+  const b = fs.readFileSync(path.join(site, 'og-image.png'));
+  assert.equal(b.subarray(1, 4).toString(), 'PNG');
+  assert.equal(`${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`, '1200x630');
+  assert.ok(b.length < 1e6, 'under 1 MB');
+});
+
 // Add to Home Screen: the self-hosted page links a manifest whose icons are PNGs written next to it
 test('the self-hosted page links a web app manifest, and its icons are written next to it', () => {
   const site = path.join(ROOT, 'out', 'site');

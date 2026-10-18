@@ -3,7 +3,7 @@
 Browser player for annotated chess games: the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Split out of `~/projects/chess-animator` (Python/Manim renderer) on 2026-10-17; that repo must stay checked out next to this one.
 
 ## Commands
-- `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page, two Stockfish files, web app manifest + icons from `app/icons/`)
+- `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page, two Stockfish files, web app manifest + icons from `app/icons/`, link-preview image `app/og-image.png`, 1200×630, whose `og:image` URL is each host's own: Netlify's `URL`, Render's `RENDER_EXTERNAL_URL`)
 - `node --test --test-concurrency=1 tests/*.test.cjs` - JS tests (also writes `tests/out/`); GitHub Actions (`.github/workflows/test.yml`) runs them on every push, and the Netlify build before building
 - `node --test tests/live/site.test.cjs` - smoke tests against both live sites (Playwright, real mouse input; screenshots in `tests/out/live/`); `LIVE_URLS` picks other sites (e.g. a deploy preview), `LIVE_CDN_DIR` serves React from local npm packages where cdnjs is blocked. Never in deploy builds
 - `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` - checks the browser's analysis JSON against the Python pipeline; run after the JS tests
