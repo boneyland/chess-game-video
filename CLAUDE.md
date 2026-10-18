@@ -1,4 +1,4 @@
-# Chess Game Video
+# Chess Replay
 
 Browser player for annotated chess games: the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Split out of `~/projects/chess-animator` (Python/Manim renderer) on 2026-10-17; that repo must stay checked out next to this one.
 

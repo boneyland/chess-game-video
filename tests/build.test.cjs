@@ -67,7 +67,7 @@ test('the page stylesheet opens and closes its braces in pairs', () => {
 test('the self-hosted page has a description, a preview title and an icon', () => {
   const head = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8').split('</head>')[0];
   assert.match(head, /<meta name="description" content="[^"]{40,}">/);
-  assert.match(head, /<meta property="og:title" content="Chess Game Video">/);
+  assert.match(head, /<meta property="og:title" content="Chess Replay">/);
   assert.match(head, /<link rel="icon" href="data:image\/svg\+xml,/);
 });
 

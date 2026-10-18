@@ -62,7 +62,7 @@ const site = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="${DESCRIPTION}">
-<meta property="og:title" content="Chess Game Video">
+<meta property="og:title" content="Chess Replay">
 <meta property="og:description" content="${DESCRIPTION}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${SITE_URL}/">
@@ -96,7 +96,7 @@ for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm']
 const ICONS = path.join(app, 'icons');
 for (const f of fs.readdirSync(ICONS)) fs.copyFileSync(path.join(ICONS, f), path.join(dir, 'out', 'site', f));
 const manifest = {
-  name: 'Chess Game Video', short_name: 'Chess Replay', description: DESCRIPTION,
+  name: 'Chess Replay', short_name: 'Chess Replay', description: DESCRIPTION,
   start_url: './', scope: './', display: 'fullscreen', display_override: ['fullscreen', 'standalone'], orientation: 'any',
   background_color: '#f2ece3', theme_color: '#f2ece3', // --bg in app/shell.html (light)
   icons: [
