@@ -414,6 +414,17 @@ function MoveList({ M, T, S, a, paused, onPick }) {
   const scrollFor = (i) => Math.max(0, Math.floor(Math.max(i, 0) / 2) - (VIS - 3)) * ROW;
   const k = c >= 0 ? MOTION.move(cl01((T - S.tp[c]) / 0.35)) : 1;
   const scroll = lerp(scrollFor(c - 1), scrollFor(c), k);
+  // one Tab stop for the whole list (the current move); the arrows move between moves, and focus follows
+  const focusPly = Math.max(0, c), listRef = React.useRef(null);
+  const moveKey = (e, i) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(i); return; }
+    const j = { ArrowLeft: i - 1, ArrowRight: i + 1, ArrowUp: i - 2, ArrowDown: i + 2, Home: 0, End: S.N - 1 }[e.key];
+    if (j == null || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const to = clamp(j, 0, S.N - 1);
+    onPick(to);
+    requestAnimationFrame(() => { const el = listRef.current && listRef.current.querySelector(`[data-ply="${to}"]`); if (el) el.focus({ preventScroll: true }); });
+  };
   const rows = [];
   for (let r = 0; r < Math.ceil(S.N / 2); r++) {
     const cell = (i) => {
@@ -421,8 +432,8 @@ function MoveList({ M, T, S, a, paused, onPick }) {
       const P = M.plies[i], cur = i === c;
       const shown = cl01((T - S.tp[i]) / 0.15);
       return (
-        <span className="mv" role="button" tabIndex={0} title={`Go to ${label(M, i)}`} onClick={(e) => { e.stopPropagation(); onPick(i); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(i); } }}
+        <span className="mv" role="button" data-ply={i} tabIndex={i === focusPly ? 0 : -1} title={`Go to ${label(M, i)}`} onClick={(e) => { e.stopPropagation(); onPick(i); }}
+          onKeyDown={(e) => moveKey(e, i)}
           style={{ opacity: paused ? Math.max(shown, 0.35) : shown, padding: '3px 8px', borderRadius: 4, justifySelf: 'start', cursor: 'pointer', background: cur ? 'rgba(227,181,91,0.18)' : 'transparent', color: P.cls === 'none' ? C.ink : clsColor(P.cls), fontWeight: cur ? 700 : 500 }}>{P.san}{P.mark || ''}</span>
       );
     };
@@ -434,7 +445,7 @@ function MoveList({ M, T, S, a, paused, onPick }) {
   }
   return (
     <Panel box={L.moves} a={a} title="Moves">
-      <div style={{ position: 'relative', height: VIS * ROW, overflow: 'hidden', font: `500 19px ${MONO}` }}>
+      <div ref={listRef} style={{ position: 'relative', height: VIS * ROW, overflow: 'hidden', font: `500 19px ${MONO}` }}>
         <div style={{ transform: `translateY(${-scroll}px)` }}>{rows}</div>
       </div>
     </Panel>
