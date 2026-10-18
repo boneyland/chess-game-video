@@ -42,8 +42,8 @@ const LAYOUTS = {
     // header and Moves/Commentary fit their contents; Analysis (long with Queen's lines) takes the rest down to the graph
     header: { x: 916, y: 40, w: 964, h: 156, k: 1 },
     moves: { x: 916, y: 214, w: 330, h: 322, k: 1, rows: 7 },
-    comment: { x: 1266, y: 214, w: 614, h: 322, k: 1, text: 1, gap: 18 },
-    analysis: { x: 916, y: 554, w: 964, h: 358, k: 1 },
+    comment: { x: 1266, y: 214, w: 614, h: 322, k: 1, text: 1, gap: 18, right: 1 },
+    analysis: { x: 916, y: 554, w: 964, h: 358, k: 1, right: 1 },
     plot: { x: 44, y: 930, w: 1836, h: 120, k: 1 },
     card: { k: 1, w: 1700, stack: false },
   },
@@ -77,8 +77,8 @@ function shortLayout(W) {
     eval: 12, bx: 60, by: 4 + 48 + 6, bar: { k: 1.2, gap: 6 }, title: 16,
     header: null,
     moves: { x, y: 10, w: 330, h: top, k, rows: Math.floor((top / k - 61) / 38) },
-    comment: { x: x + 342, y: 10, w: w - 342, h: top, k, text: 1, gap: 14 },
-    analysis: { x, y: top + 22, w, h: 900 - top - 32, k, scroll: true },
+    comment: { x: x + 342, y: 10, w: w - 342, h: top, k, text: 1, gap: 14, right: 1 },
+    analysis: { x, y: top + 22, w, h: 900 - top - 32, k, scroll: true, right: 1 },
     plot: null,
     card: { k: 1, w: 1700, stack: false },
   };
@@ -162,9 +162,9 @@ function Panel({ box, title, right, a, children }) {
   return (
     <div style={{ position: 'absolute', left: x, top: y, width: w / k, height: h / k, boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '16px 22px', opacity: a, transform: `translateY(${(1 - a) * 18}px) scale(${k})`, transformOrigin: '0 0', overflow: 'hidden', ...(box.scroll && { overflowY: 'auto', overscrollBehavior: 'contain', scrollbarWidth: 'thin' }) }}>
       {title && (
-        // the same heading size in every panel, whatever its magnification k
+        // the same heading size in every panel, whatever its magnification k; box.right sizes the text on the right
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: (L.titleGap || 16) / k, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
-          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', fontSize: '0.85em' }}>{right}</SideScroll>
+          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', fontSize: `${box.right || 0.85}em` }}>{right}</SideScroll>
         </div>
       )}
       {children}
