@@ -112,6 +112,29 @@ test('en passant is playable from a game position after a double pawn push', () 
   assert.deepEqual(CC.playLine(P.fen, ['exd6', 'exd6'], P.castle, P.ep).map((s) => s.san), ['exd6', 'exd6']);
 });
 
+test('the viewer picks the promotion piece', () => {
+  const pos = CC.posFromFen('8/P5k1/8/8/8/8/6Kp/8 w'), a7 = CC.sqIndex('a7'), a8 = CC.sqIndex('a8');
+  assert.equal(CC.isPromotion(pos, a7, a8), true);
+  assert.equal(CC.isPromotion(pos, CC.sqIndex('g2'), CC.sqIndex('g3')), false);
+  assert.equal(CC.isPromotion(pos, a7, CC.sqIndex('a6')), false); // not legal
+  assert.equal(CC.userMove(pos, a7, a8).san, 'a8=Q'); // a queen unless told otherwise
+  for (const [t, san] of [['q', 'a8=Q'], ['r', 'a8=R'], ['b', 'a8=B'], ['n', 'a8=N']]) {
+    const s = CC.userMove(pos, a7, a8, t);
+    assert.equal(s.san, san);
+    assert.equal(s.uci, 'a7a8' + t);
+    assert.equal(s.board[a8], t.toUpperCase());
+  }
+  assert.equal(CC.userMove(pos, a7, a8, 'k'), null);
+  // black promotes towards rank 1
+  const b = CC.posFromFen('8/8/8/8/8/8/4Kp2/7k b'), f2 = CC.sqIndex('f2'), f1 = CC.sqIndex('f1');
+  assert.equal(CC.isPromotion(b, f2, f1), true);
+  const n = CC.userMove(b, f2, f1, 'n');
+  assert.equal(n.san, 'f1=N');
+  assert.equal(n.board[f1], 'n');
+  // the piece doesn't matter to a move that isn't a promotion
+  assert.equal(CC.userMove(pos, CC.sqIndex('g2'), CC.sqIndex('g3'), 'n').san, 'Kg3');
+});
+
 test('a best move from a PGN variation keeps its promotion piece', () => {
   const N = CC.buildGame({ pgn: '1. e4 d5 2. exd5 c6 3. dxc6 Qd6 4. cxb7 Qd5 5. Nc3 (5. bxa8=Q) *' });
   assert.equal(N.plies[8].best.uci, 'b7a8q');

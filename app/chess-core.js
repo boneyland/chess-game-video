@@ -689,8 +689,9 @@
   // ---------- moves the viewer plays on the board ----------
   // castling rights from the FEN's third field; a FEN without one (the page's own) allows every castle
   const posFromFen = (fen) => { const f = fen.split(' '); return { b: fromFen(fen), ep: -1, turn: f[1] || 'w', castle: f[2] == null ? 'KQkq' : f[2].replace('-', '') }; };
-  // A legal move from `from` to `to` (square indices, 0 = a8), or null. Pawns reaching the last rank become queens.
-  function legalMove(pos, from, to) {
+  // A legal move from `from` to `to` (square indices, 0 = a8), or null. A pawn reaching the last rank becomes `promo`
+  // (q, r, b or n; a queen by default).
+  function legalMove(pos, from, to, promo = 'q') {
     const p = pos.b[from];
     if (!p || colorOf(p) !== pos.turn || from === to) return null;
     const t = tOf(p), color = pos.turn, opp = color === 'w' ? 'b' : 'w';
@@ -702,9 +703,10 @@
       if ((king ? [5, 6] : [1, 2, 3]).some((x) => pos.b[at(x, y)])) return null;
       if ([4, king ? 5 : 3, king ? 6 : 2].some((x) => attacked(pos.b, at(x, y), opp))) return null;
     } else if (!canReach(pos.b, from, to, t, color, pos.ep)) return null;
-    const promo = t === 'p' && (fy(to) === 0 || fy(to) === 7) ? 'q' : null;
-    const after = applyMove(pos, from, to, promo);
-    return inCheck(after.b, color) ? null : { from, to, promo, after };
+    const pr = t === 'p' && (fy(to) === 0 || fy(to) === 7) ? promo : null;
+    if (pr && !'qrbn'.includes(pr)) return null;
+    const after = applyMove(pos, from, to, pr);
+    return inCheck(after.b, color) ? null : { from, to, promo: pr, after };
   }
   const legalTargets = (pos, from) => { const out = []; for (let to = 0; to < 64; to++) if (legalMove(pos, from, to)) out.push(to); return out; };
   function sanOf(pos, mv) {
@@ -721,9 +723,11 @@
     if (inCheck(mv.after.b, mv.after.turn)) san += hasLegal(mv.after) ? '+' : '#';
     return san;
   }
-  // The viewer's move as a line step (same shape as playLine's), or null when it isn't legal
-  function userMove(pos, from, to) {
-    const mv = legalMove(pos, from, to);
+  // whether the move from `from` to `to` is legal and promotes, so the viewer picks the piece
+  const isPromotion = (pos, from, to) => { const mv = legalMove(pos, from, to); return !!(mv && mv.promo); };
+  // The viewer's move as a line step (same shape as playLine's), or null when it isn't legal; promo as legalMove's
+  function userMove(pos, from, to, promo) {
+    const mv = legalMove(pos, from, to, promo);
     if (!mv) return null;
     const check = inCheck(mv.after.b, mv.after.turn);
     return { san: sanOf(pos, mv), uci: idxSq(from) + idxSq(to) + (mv.promo || ''), board: mv.after.b.slice(), checkSq: check ? idxSq(kingIdx(mv.after.b, mv.after.turn)) : null, pos: mv.after };
@@ -753,5 +757,5 @@
     return { san: r.san, uci, board: r.pos.b.slice(), checkSq: check ? idxSq(kingIdx(r.pos.b, r.pos.turn)) : null, pos: r.pos };
   }
 
-  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  window.ChessCore = { sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();

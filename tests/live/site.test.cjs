@@ -213,6 +213,37 @@ for (const name of BROWSERS) for (const site of SITES) {
         assert.match(r.type, /image\/png/, ic.src);
       }
     });
+    // a pawn reaching the last rank asks for its piece: Esc takes the move back, a click on the column picks one
+    await t.test('desktop: an own promotion offers the four pieces', async () => {
+      const pr = await open(browser, { width: 1440, height: 900 });
+      await pr.page.goto(base, { waitUntil: 'load' });
+      await pr.page.locator('.dock-primary').waitFor();
+      await pr.page.setInputFiles('#game-files', { name: 'promo.pgn', mimeType: 'text/plain', buffer: Buffer.from('1. e4 d5 2. exd5 c6 3. dxc6 Qd6 4. cxb7 Qd5 *') });
+      await pr.page.waitForFunction(() => /Qd5/.test(document.body.innerText), null, { timeout: 10000 });
+      await pr.page.keyboard.press('End');
+      await assert.doesNotReject(pr.page.locator('.plabel').filter({ hasText: /Qd5/ }).waitFor({ timeout: 5000 }));
+      const b = await boardBox(pr.page), drag = async () => {
+        const from = square(b, 'b7'), to = square(b, 'a8');
+        await pr.page.mouse.move(from.x, from.y);
+        await pr.page.mouse.down();
+        await pr.page.mouse.move(to.x, to.y, { steps: 8 });
+        await pr.page.mouse.up();
+      };
+      const picker = pr.page.getByRole('button', { name: /^Promote to / });
+      await drag();
+      assert.deepEqual(await picker.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))), ['Promote to queen', 'Promote to knight', 'Promote to rook', 'Promote to bishop']);
+      await pr.page.screenshot({ path: path.join(OUT, host + '-promotion.png') });
+      await pr.page.keyboard.press('Escape');
+      assert.equal(await picker.count(), 0, 'Esc closes the picker');
+      assert.match(await pr.page.locator('.plabel').innerText(), /Qd5/, 'and plays nothing');
+      await drag();
+      const knight = square(b, 'a7'); // the column runs down from a8: queen, knight, rook, bishop
+      await pr.page.mouse.click(knight.x, knight.y);
+      await assert.doesNotReject(pr.page.locator('.plabel').filter({ hasText: /bxa8=N/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await picker.count(), 0);
+      assert.deepEqual(pr.errors, []);
+      await pr.ctx.close();
+    });
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {

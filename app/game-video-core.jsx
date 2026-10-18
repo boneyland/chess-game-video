@@ -314,7 +314,10 @@ function LineBoard({ a, sq, v, hide }) {
   );
 }
 
-function BoardTouch({ pos, sel, targets, drag, onDown, onMove, onUp, onCancel }) {
+// The pieces a pawn can become, in the picker's order, and where each sits: a column on the promotion square's file
+const PROMO_PIECES = ['q', 'n', 'r', 'b'];
+const promoPieces = (pr) => PROMO_PIECES.map((t, k) => ({ t, sq: pr.to + (pr.white ? 8 : -8) * k }));
+function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCancel }) {
   const dragged = drag && drag.moved ? pos.b[drag.from] : null;
   return (
     <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onCancel}
@@ -332,6 +335,13 @@ function BoardTouch({ pos, sel, targets, drag, onDown, onMove, onUp, onCancel })
         <img src={img(dragged === dragged.toUpperCase() ? 'w' : 'b', dragged.toLowerCase())} alt=""
           style={{ position: 'absolute', left: drag.x - SQ * 0.55, top: drag.y - SQ * 0.55, width: SQ * 1.1, height: SQ * 1.1, pointerEvents: 'none', filter: 'drop-shadow(0 10px 12px rgba(0,0,0,0.45))', zIndex: 3 }} />
       )}
+      {promo && <div style={{ position: 'absolute', inset: 0, background: 'rgba(21,16,13,0.45)', pointerEvents: 'none', zIndex: 4 }} />}
+      {promo && promoPieces(promo).map(({ t, sq }) => (
+        <div key={t} role="button" aria-label={'Promote to ' + { q: 'queen', r: 'rook', b: 'bishop', n: 'knight' }[t]}
+          style={{ position: 'absolute', left: (sq % 8) * SQ, top: Math.floor(sq / 8) * SQ, width: SQ, height: SQ, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: BOARD.light, boxShadow: '0 4px 14px rgba(0,0,0,0.45)', pointerEvents: 'none', zIndex: 5 }}>
+          <img src={img(promo.white ? 'w' : 'b', t)} alt="" style={{ width: SQ * 0.86, height: SQ * 0.86 }} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -782,14 +792,18 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   // ---- moves the viewer plays on the board ----
   const [sel, setSel] = React.useState(null); // selected square (0 = a8)
   const [drag, setDrag] = React.useState(null); // { from, x, y, x0, y0, moved } in board pixels
-  React.useEffect(() => { if (!vline) { setSel(null); setDrag(null); } }, [vline]);
+  const [promo, setPromo] = React.useState(null); // { from, to, white }: a pawn move waiting for its piece
+  React.useEffect(() => { if (!vline) { setSel(null); setDrag(null); setPromo(null); } }, [vline]);
   const gamePos = (cc) => (cc < 0 ? window.ChessCore.posFromFen(START_FEN) : { ...window.ChessCore.posFromFen(M.plies[cc].fen), castle: M.plies[cc].castle, ep: M.plies[cc].ep });
   const curPos = () => (vline ? (vline.upto >= 0 ? vline.moves[vline.upto].pos : vline.base) : gamePos(cNow));
   const newLine = () => ({ c: cNow, at: cNow + 1, src: 'you', moves: [], upto: -1, base: gamePos(cNow) });
   const explore = () => { tl.setPlaying(false); if (!vline) setVline(newLine()); };
   const leaveIfEmpty = () => setVline((v) => (v && v.src === 'you' && v.upto < 0 ? null : v));
-  const playMove = (from, to) => {
-    const step = window.ChessCore.userMove(curPos(), from, to);
+  // a promotion first shows the picker, and plays once a piece is picked
+  const playMove = (from, to, piece) => {
+    const pos = curPos();
+    if (!piece && window.ChessCore.isPromotion(pos, from, to)) { setPromo({ from, to, white: pos.turn === 'w' }); return true; }
+    const step = window.ChessCore.userMove(pos, from, to, piece);
     if (!step) return false;
     setVline((v) => { const b = v || newLine(); const prefix = b.moves.slice(0, b.upto + 1); return { ...b, src: 'you', moves: [...prefix, step], upto: prefix.length }; });
     return true;
@@ -821,6 +835,13 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const touch = {
     onDown: (e) => {
       const p = boardXY(e), pos = curPos();
+      if (promo) {
+        // the picker's squares run from the promotion square towards the middle; anywhere else takes the move back
+        const k = promoPieces(promo).findIndex((q) => q.sq === p.sq);
+        setPromo(null);
+        if (k >= 0) playMove(promo.from, promo.to, PROMO_PIECES[k]); else leaveIfEmpty();
+        return;
+      }
       if (sel != null && sel !== p.sq && targets.includes(p.sq)) { playMove(sel, p.sq); setSel(null); return; }
       const pc = pos.b[p.sq];
       if (pc && (pc === pc.toUpperCase() ? 'w' : 'b') === pos.turn) {
@@ -844,7 +865,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   // (before the first paint, so the title card never flashes)
   React.useLayoutEffect(() => { if (tl.setStart) tl.setStart(settled(-1)); }, []);
   const navRef = React.useRef(null);
-  navRef.current = { c: lastPly(T, S), goTo, vline, stepLine, setVline };
+  navRef.current = { c: lastPly(T, S), goTo, vline, stepLine, setVline, promo, setPromo, leaveIfEmpty };
   if (nav) {
     const cc = navRef.current.c;
     nav.current = vline ? {
@@ -864,6 +885,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
       const tag = e.target && e.target.tagName;
       if (e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       const n = navRef.current;
+      if (e.code === 'Escape' && n.promo) { e.preventDefault(); n.setPromo(null); n.leaveIfEmpty(); return; }
       if (e.code === 'Escape' && n.vline) { e.preventDefault(); n.setVline(null); return; }
       if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight' && e.code !== 'End') return;
       e.preventDefault(); // claims the key before the stage's own scrub handler
@@ -893,7 +915,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
           <EvalBar M={M} T={T} S={S} a={enter(1)} />
           <PlayerBar M={M} T={T} S={S} side="b" a={enter(1)} pieces={pieces} />
           <Board M={M} T={T} S={S} a={enter(0)} arrows={tw.bestArrows} pieces={pieces} queen={queen} vline={vline} hide={drag && drag.moved ? drag.from : null} />
-          <BoardTouch pos={touchPos} sel={sel} targets={targets} drag={drag} onDown={touch.onDown} onMove={touch.onMove} onUp={touch.onUp} onCancel={touch.onCancel} />
+          <BoardTouch pos={touchPos} sel={sel} targets={targets} drag={drag} promo={promo} onDown={touch.onDown} onMove={touch.onMove} onUp={touch.onUp} onCancel={touch.onCancel} />
           <PlayerBar M={M} T={T} S={S} side="w" a={enter(1)} pieces={pieces} />
           {L.header && <Header M={M} a={enter(2)} />}
           <MoveList M={M} T={T} S={S} a={enter(3)} paused={!playing} onPick={goTo} />
