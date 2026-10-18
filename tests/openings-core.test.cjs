@@ -48,3 +48,12 @@ test('positionKey keeps castling rights and only a legal en-passant square, like
   assert.ok(key('e2e4 d7d5').endsWith(' w KQkq -'), key('e2e4 d7d5'));
   assert.ok(key('e2e4 e7e5 e1e2 e8e7 e2e1 e7e8').endsWith(' w - -'), key('e2e4 e7e5 e1e2 e8e7 e2e1 e7e8'));
 });
+
+test('a FEN start inside the book is named', () => {
+  const O = window.Openings;
+  // the position after 1. e4 e5 2. Nf3 Nc6, given as a FEN, then 3. Bb5
+  const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+  assert.match(O.book().identify(['f1b5'], fen).name, /^Ruy Lopez/);
+  assert.equal(O.book().byPly(['e2e4']).length, 1); // the standard start still works without a FEN
+  assert.equal(O.book().identify(['e1g1'], '4k3/8/8/8/8/8/8/4K2R w - - 0 1'), null); // outside the book: no name
+});

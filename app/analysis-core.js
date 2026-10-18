@@ -181,7 +181,7 @@
       if (played) pos = played.pos;
       return m;
     });
-    return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis) : null, engine: { ...settings }, startFen });
+    return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis, startFen) : null, engine: { ...settings }, startFen });
   }
 
   window.AnalysisCore = { C, ENGINE, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };

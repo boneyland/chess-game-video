@@ -10,8 +10,9 @@
 
   // A line of moves from the start, with each position's key: placement, side to move, castling rights
   // and the en-passant square only when a capture there is legal (python-chess's epd())
-  function tracker() {
-    let pos = CC().posFromFen(START), rights = 'KQkq';
+  function tracker(startFen) {
+    const from = startFen ? CC().parseFen(startFen) : null;
+    let pos = from ? from.pos : CC().posFromFen(START), rights = from ? from.fen.split(' ')[2].replace('-', '') : 'KQkq';
     const key = () => {
       let ep = '-';
       if (pos.ep >= 0) {
@@ -49,8 +50,8 @@
       });
     }
     const table = new Map([...deepest].map(([k, v]) => [k, v[1]]));
-    const byPly = (ucis) => {
-      const t = tracker(), out = [];
+    const byPly = (ucis, startFen) => {
+      const t = tracker(startFen), out = [];
       let ok = true;
       for (const u of ucis) {
         const k = ok ? t.uci(u) : null;
@@ -59,7 +60,7 @@
       }
       return out;
     };
-    return { byPly, identify: (ucis) => byPly(ucis).filter(Boolean).pop() || null, size: table.size };
+    return { byPly, identify: (ucis, startFen) => byPly(ucis, startFen).filter(Boolean).pop() || null, size: table.size };
   }
 
   let cached = null;

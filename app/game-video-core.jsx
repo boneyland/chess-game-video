@@ -825,7 +825,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const lineKey = vline && vline.upto >= 0 ? M.plies.slice(0, vline.at).map((p) => p.uci).concat(vline.moves.slice(0, vline.upto + 1).map((m) => m.uci)).join(' ') : null;
   const lineBook = React.useMemo(() => {
     if (!lineKey || !window.Openings) return null;
-    try { return window.Openings.book().byPly(lineKey.split(' ')).pop() || null; } catch (e) { return null; }
+    try { return window.Openings.book().byPly(lineKey.split(' '), M.start.fen).pop() || null; } catch (e) { return null; }
   }, [lineKey]);
   const targets = sel != null ? window.ChessCore.legalTargets(touchPos, sel) : [];
   const boardXY = (e) => {
