@@ -189,6 +189,8 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 
 .q-panel { left: max(16px, env(safe-area-inset-left, 0px)); right: auto; width: min(400px, calc(100% - 32px)); }
 .q-panel .twk-hd b { color: var(--queen); }
+.q-hd { display: flex; align-items: center; gap: 8px; }
+.q-exp { padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--queen) 55%, transparent); color: var(--queen); font: 600 9px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
 .twk-note a { color: var(--accent); }
 .q-strong { color: var(--ink); }
 .q-busy { display: flex; align-items: center; gap: 8px; color: var(--ink); font: 500 12px var(--mono); }

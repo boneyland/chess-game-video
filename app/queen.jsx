@@ -381,7 +381,7 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
 
   return (
     <aside className="twk-panel q-panel" aria-label="Queen" style={left == null ? undefined : { left }}>
-      <div className="twk-hd"><b>Queen</b><button type="button" className="twk-x" aria-label="Close Queen" onClick={onClose}>✕</button></div>
+      <div className="twk-hd"><span className="q-hd"><b>Queen</b><span className="q-exp">Experimental</span></span><button type="button" className="twk-x" aria-label="Close Queen" onClick={onClose}>✕</button></div>
       <div className="twk-body">
         <div className="twk-note">A chess language model running on the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8 Space</a>. It is not an engine: its evaluations are estimates and its explanations can misdescribe tactics. Queen scores the position before a move and the one after it. Each new position takes about 20–35 s of GPU time from your daily Hugging Face ZeroGPU quota (5 min a day on a free account, 40 min on PRO); positions it has already answered cost nothing.</div>
         {Q.via === 'connector' && <div className="twk-note q-via">Connected through your Hugging Face connector on claude.ai.</div>}
