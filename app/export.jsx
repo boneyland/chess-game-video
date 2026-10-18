@@ -11,8 +11,9 @@ const EXPORT_LIBS = {
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
 };
 const EXPORT_FORMATS = ['MP4', 'WebP'];
-// WebP frames are lossy stills at this quality (0–1); 0.9 made frames about a quarter larger for little gain
-const WEBP_QUALITY = 0.8;
+// WebP frames are lossy stills at this quality (0–1). The file is still larger than the MP4 of the same clip, but looks
+// better than a WebP converted from that MP4
+const WEBP_QUALITY = 0.75;
 // the WebP's size against the frame's own (1920×1080, or the portrait frame); Half makes files about a third the size
 const WEBP_SIZES = { Full: 1, Half: 0.5 };
 // each library loads once; a failed load is tried again on the next export
