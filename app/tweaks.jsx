@@ -36,8 +36,8 @@ function TweaksPanel({ open, onClose, title = 'Settings', wide = false, children
   );
 }
 
-// a titled group of rows; the wide panel lays groups out in columns, never splitting one, and `column` starts a new one
-// when it is wide enough for four (with three, the groups are balanced across them)
+// a titled group of rows; the wide panel lays groups out in columns, never splitting one (with four columns, TweakColumn
+// sets which groups share one; with three, the groups are balanced across them)
 function TweakSection({ label, children }) { return <section className="twk-group"><div className="twk-sect">{label}</div>{children}</section>; }
 // The groups that make one column of the wide panel's four (on narrower screens the groups flow on their own)
 function TweakColumn({ children }) { return <div className="twk-column">{children}</div>; }

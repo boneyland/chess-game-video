@@ -419,9 +419,9 @@ function GameApp() {
             <div className="twk-note">Drag a piece (or tap it, then tap a square) to try your own moves from any position. Click a move in the Moves panel to jump to it. Keys: ← → step through moves, Shift+← → scrub by 1 s, Space plays or pauses, Home (or 0) jumps to the start at 0:00, End to the last move.</div>
             {(downloads || !IN_CLAUDE) && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
             {(downloads || !IN_CLAUDE) && webp && <>
-            <TweakSelect id="tw-webp-width" label="WebP width" value={webpPx(webpWidth)} options={webpWidths.map(webpPx)} onChange={(v) => setTweak('webpWidth', webpWidths.find((x) => webpPx(x) === v))} />
-            <TweakSlider id="tw-webp-q" label="WebP quality" value={webpQuality} min={WEBP_QUALITY.min} max={WEBP_QUALITY.max} step={WEBP_QUALITY.step} onChange={(v) => setTweak('webpQuality', v)} />
-          </>}
+              <TweakSelect id="tw-webp-width" label="WebP width" value={webpPx(webpWidth)} options={webpWidths.map(webpPx)} onChange={(v) => setTweak('webpWidth', webpWidths.find((x) => webpPx(x) === v))} />
+              <TweakSlider id="tw-webp-q" label="WebP quality" value={webpQuality} min={WEBP_QUALITY.min} max={WEBP_QUALITY.max} step={WEBP_QUALITY.step} onChange={(v) => setTweak('webpQuality', v)} />
+            </>}
             {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
             {(downloads || !IN_CLAUDE) && <>
               <div className="twk-pair">
