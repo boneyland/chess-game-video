@@ -1,4 +1,4 @@
-# Chess Replay (artifact sources)
+# Chess Replay
 
 ![The sample game playing through 28. Qxb5??: move rating, best line, commentary and eval graph](media/preview.webp)
 
