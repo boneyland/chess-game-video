@@ -88,9 +88,10 @@ ${out}
 </html>
 `;
 fs.writeFileSync(path.join(dir, 'out', 'site', 'chess-game-video.html'), site);
-// the engine, served next to the self-hosted page, and the link preview's image (a 1200×630 frame from the player)
+// the engine and the WebP export's encoder, served next to the self-hosted page, and the link preview's image (a
+// 1200×630 frame from the player)
 fs.copyFileSync(path.join(app, 'og-image.png'), path.join(dir, 'out', 'site', 'og-image.png'));
-for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm']) fs.copyFileSync(path.join(dir, 'vendor', f), path.join(dir, 'out', 'site', f));
+for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm']) fs.copyFileSync(path.join(dir, 'vendor', f), path.join(dir, 'out', 'site', f));
 // Add to Home Screen opens the page without the browser's bars (iPhone Safari has no other way to lose them).
 // The icons are the tab icon above drawn as PNGs; the maskable and Apple ones are full-bleed for the launcher to round.
 const ICONS = path.join(app, 'icons');

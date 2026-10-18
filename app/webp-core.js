@@ -1,4 +1,4 @@
-// Animated WebP for the export: the browser encodes each frame as a still WebP (canvas.toBlob), and this wraps
+// Animated WebP for the export: libwebp encodes each frame as a still WebP (export.jsx), and this wraps
 // those stills' image chunks in one animated file (RIFF: VP8X, ANIM, then an ANMF chunk per frame). Like libwebp's
 // own animation encoder, a frame holds only the rectangle that changed since the last one (changedBox), drawn over
 // the frame before: a moving piece is a small patch rather than the whole picture again.

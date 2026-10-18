@@ -106,3 +106,11 @@ test('the self-hosted page links a web app manifest, and its icons are written n
 test('the artifact links no manifest', () => {
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8'), /rel="manifest"/);
 });
+
+// the site serves the engine and the WebP encoder next to the page, unchanged
+test('the site carries the vendored wasm files as they are', () => {
+  for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm']) {
+    assert.ok(fs.readFileSync(path.join(ROOT, 'out', 'site', f)).equals(fs.readFileSync(path.join(ROOT, 'vendor', f))), f);
+  }
+  assert.match(fs.readFileSync(path.join(ROOT, 'app', 'export.jsx'), 'utf8'), /WEBP_LIB = \{ js: 'webp_enc_simd\.js', wasm: 'webp_enc_simd\.wasm' \}/);
+});

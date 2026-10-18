@@ -91,3 +91,43 @@ test('mux writes a well-formed animated WebP', () => {
     assert.deepEqual(durs, [83, 84, 1500]);
   }
 });
+
+// The export's encoder: vendor/webp_enc_simd.* (libwebp in WebAssembly) with export.jsx's WEBP_CONFIG
+const ROOT = path.join(__dirname, '..');
+const WEBP_CONFIG = Function('return ' + fs.readFileSync(path.join(ROOT, 'app', 'export.jsx'), 'utf8').match(/const WEBP_CONFIG = (\{[\s\S]*?\});/)[1])();
+const codec = async (glue, wasm) => (await import(glue)).default({ noInitialRun: true, wasmBinary: fs.readFileSync(wasm) });
+const encoder = () => codec(path.join(ROOT, 'vendor', 'webp_enc_simd.js'), path.join(ROOT, 'vendor', 'webp_enc_simd.wasm'));
+// libwebp's decoder, for the tests only
+const decoder = () => codec(path.join(__dirname, 'fixtures', 'webp_dec.js'), path.join(__dirname, 'fixtures', 'webp_dec.wasm'));
+const psnr = (a, b) => {
+  let s = 0, n = 0;
+  for (let i = 0; i < a.length; i += 4) for (let c = 0; c < 3; c++) { const d = a[i + c] - b[i + c]; s += d * d; n++; }
+  return 10 * Math.log10((255 * 255 * n) / s);
+};
+
+test('the encoder makes stills that mux into an animation', async () => {
+  const enc = await encoder(), w = 40, h = 30, px = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) px.set([(i % w) * 6, 120, 200, 255], i * 4);
+  const still = enc.encode(px, w, h, WEBP_CONFIG);
+  const { offset, alpha } = W.stillImage(still);
+  assert.equal(alpha, false);
+  assert.equal(Buffer.from(still).toString('ascii', offset, offset + 4), 'VP8 ');
+  const f = { data: still.subarray(offset), size: still.length - offset, duration: 100, alpha };
+  const c = chunks(join(W.mux([f, f], { width: w, height: h })));
+  assert.deepEqual(c.slice(2).map((x) => [x.w, x.h, x.inner]), [[w, h, 'VP8 '], [w, h, 'VP8 ']]);
+  const back = (await decoder()).decode(still);
+  assert.ok(psnr(px, back.data) > 35);
+});
+
+// A 907×476 patch of an export (the board, the header and the move list), which libwebp's default deblocking filter
+// smeared: the square edges and text went soft for that frame alone. WEBP_CONFIG turns the filter off.
+test('the WebP config keeps a patch sharp where the default filter blurs it', async () => {
+  const enc = await encoder(), dec = await decoder();
+  const src = dec.decode(new Uint8Array(fs.readFileSync(path.join(__dirname, 'fixtures', 'webp-blur.webp'))));
+  const quality = (opts) => psnr(src.data, dec.decode(enc.encode(src.data, src.width, src.height, { ...WEBP_CONFIG, ...opts })).data);
+  const blurred = quality({ filter_strength: 60 }), ours = quality({});
+  assert.ok(blurred < 37, 'the fixture shows the blur: ' + blurred.toFixed(2));
+  assert.ok(ours > blurred + 1.5 && ours > 38, ours.toFixed(2) + ' vs ' + blurred.toFixed(2));
+  // where the filter doesn't blur, leaving it off costs well under 1 dB
+  for (const q of [50, 70, 80, 95]) assert.ok(quality({ quality: q }) > quality({ quality: q, filter_strength: 60 }) - 0.6, 'quality ' + q);
+});

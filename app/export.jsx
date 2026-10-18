@@ -1,7 +1,7 @@
 // ---------- video export ----------
 // Steps the player through every frame, draws the stage into a canvas with html2canvas-pro and encodes it in
-// the browser: an MP4 (WebCodecs, muxed by Mediabunny), or an animated WebP (each frame a still from the canvas,
-// joined by webp-core.js). The libraries load from the CDN on the first export only.
+// the browser: an MP4 (WebCodecs, muxed by Mediabunny), or an animated WebP (each frame a still WebP from libwebp,
+// joined by webp-core.js). The libraries load on the first export only: from the CDN, and libwebp from the site.
 // frame rates offered in Settings; each frame takes about 0.2 s to draw, so the export time scales with it
 const EXPORT_FPS_OPTIONS = [8, 12, 15, 24, 30];
 // a new version needs a new hash: html2canvas-pro's here, mediabunny's in the import map in shell.html
@@ -12,10 +12,21 @@ const EXPORT_LIBS = {
 };
 const EXPORT_FORMATS = ['MP4', 'WebP'];
 // WebP widths offered besides the frame's own (1920, or the portrait frame's 840): 1676 fills GitHub's 838 px README
-// column on 2× screens. Quality is 50–95 (lossy, the canvas's toBlob). Encoded straight from the drawn frames, a WebP
-// looks better than one converted from the MP4, though it is larger than the MP4 of the same clip
+// column on 2× screens. Quality is 50–95 (lossy). Encoded straight from the drawn frames, a WebP looks better than one
+// converted from the MP4, though it is larger than the MP4 of the same clip
 const WEBP_WIDTHS = [1676, 1280, 960, 838, 640];
 const WEBP_QUALITY = { min: 50, max: 95, step: 5 };
+// libwebp 1.1.0 built to WebAssembly (Squoosh's codec, as packaged in @jsquash/webp 1.5.0), served next to the page.
+// The browser's own encoder (canvas.toBlob) takes only a quality, and at most qualities it sometimes chose a strong deblocking
+// filter for a frame, smearing the board's square edges and the text for that one frame. Here the filter is off, so
+// every frame is as sharp as its quality allows. These are all of libwebp's WebPConfig fields, which the codec needs
+const WEBP_LIB = { js: 'webp_enc_simd.js', wasm: 'webp_enc_simd.wasm' };
+const WEBP_CONFIG = {
+  quality: 75, target_size: 0, target_PSNR: 0, method: 4, sns_strength: 50, filter_strength: 0, filter_sharpness: 0,
+  filter_type: 1, partitions: 0, segments: 4, pass: 1, show_compressed: 0, preprocessing: 0, autofilter: 0,
+  partition_limit: 0, alpha_compression: 1, alpha_filtering: 1, alpha_quality: 100, lossless: 0, exact: 0, image_hint: 0,
+  emulate_jpeg_size: 0, thread_level: 0, low_memory: 0, near_lossless: 100, use_delta_palette: 0, use_sharp_yuv: 0,
+};
 // each library loads once; a failed load is tried again on the next export
 const once = (load) => { let p = null; return () => (p = p || load().catch((e) => { p = null; throw e; })); };
 const loadHtml2canvas = once(() => new Promise((ok, fail) => {
@@ -26,6 +37,15 @@ const loadHtml2canvas = once(() => new Promise((ok, fail) => {
   document.head.appendChild(s);
 }));
 const loadMediabunny = once(() => import(EXPORT_LIBS.mediabunny));
+// the codec's glue is an ES module; given the wasm's bytes, it doesn't fetch them itself
+const loadWebp = once(async () => {
+  const at = (f) => new URL(f, document.baseURI).href;
+  const [glue, wasm] = await Promise.all([import(at(WEBP_LIB.js)), fetch(at(WEBP_LIB.wasm)).then((r) => {
+    if (!r.ok) throw new Error('could not load the WebP encoder');
+    return r.arrayBuffer();
+  })]);
+  return glue.default({ noInitialRun: true, wasmBinary: wasm });
+});
 
 // The two encoders behind one interface: frame(isNew) after each frame is drawn into the canvas (isNew false when
 // run() left the canvas as it was, its markup unchanged), then finish() gives the file as { blob, ext }, or cancel()
@@ -63,15 +83,14 @@ async function mp4Encoder(cv, W, H, fps, audio) {
 // pixels (pauses, the title and end cards), and the comparison catches a new markup that draws the same picture.
 async function webpEncoder(cv, W, H, fps, { width = 0, quality = 75 } = {}) {
   const scale = width && width < W ? width / W : 1;
-  const w = Math.round(W * scale), h = Math.round(H * scale), q = quality / 100;
-  const canvas = (cw, ch) => Object.assign(document.createElement('canvas'), { width: cw, height: ch });
+  const w = Math.round(W * scale), h = Math.round(H * scale);
+  let codec;
+  try { codec = await loadWebp(); } catch (e) { throw new Error('could not load the WebP encoder. Try a recent Chrome, Edge, Firefox or Safari, or export an MP4.'); }
   // at the frame's own size the pixels are read straight from cv; a smaller WebP is drawn into its own canvas first
-  const out = scale === 1 ? cv : canvas(w, h), ox = out.getContext('2d', { willReadFrequently: true });
+  const out = scale === 1 ? cv : Object.assign(document.createElement('canvas'), { width: w, height: h });
+  const ox = out.getContext('2d', { willReadFrequently: true });
   ox.imageSmoothingQuality = 'high';
-  const part = canvas(1, 1), px = part.getContext('2d');
-  const encode = (c) => new Promise((ok) => c.toBlob(ok, 'image/webp', q));
-  const test = await encode(part);
-  if (!test || test.type !== 'image/webp') throw new Error('this browser cannot make WebP images. Try a recent Chrome, Edge or Firefox, or export an MP4.');
+  const config = { ...WEBP_CONFIG, quality };
   const frames = [];
   let i = 0, prev = null;
   // frame i ends at round((i + 1) * 1000 / fps) ms, so the whole file keeps time (see WebPAnim.durations)
@@ -86,15 +105,11 @@ async function webpEncoder(cv, W, H, fps, { width = 0, quality = 75 } = {}) {
       const box = prev ? window.WebPAnim.changedBox(prev, pixels, w, h) : { x: 0, y: 0, w, h };
       prev = pixels;
       if (!box) { last.duration += dur; return; }
-      let src = out;
-      if (box.w !== w || box.h !== h) {
-        part.width = box.w; part.height = box.h;
-        px.drawImage(out, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
-        src = part;
-      }
-      const blob = await encode(src);
-      const { offset, alpha } = window.WebPAnim.stillImage(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()));
-      frames.push({ data: blob.slice(offset), size: blob.size - offset, duration: dur, alpha, ...box });
+      const part = box.w === w && box.h === h ? pixels : ox.getImageData(box.x, box.y, box.w, box.h).data;
+      const still = codec.encode(part, box.w, box.h, config);
+      if (!still) throw new Error('the WebP encoder failed on frame ' + i);
+      const { offset, alpha } = window.WebPAnim.stillImage(still);
+      frames.push({ data: new Blob([still.subarray(offset)]), size: still.length - offset, duration: dur, alpha, ...box });
     },
     finish: async () => ({ blob: new Blob(window.WebPAnim.mux(frames, { width: w, height: h }), { type: 'image/webp' }), ext: '.webp' }),
     cancel: async () => {},

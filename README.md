@@ -24,6 +24,9 @@ Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sig
 - `vendor/`: stockfish.js v19.0.1 `lite-single` (GPL-3.0, https://github.com/nmrugg/stockfish.js), unchanged release files
   - `stockfish-19-lite-single.js` sha256 `ccb130d7ff29408531c47d859a49f91d59d4f482d05a53eb1a3231a4f624c91a`
   - `stockfish-19-lite-single.wasm` sha256 `ee4f115bdb2d32cadf96cada104a05b5ec257d7ad6f57582190b49bc71f096de`
+- `vendor/webp_enc_simd.*`: the WebP export's encoder, libwebp 1.1.0 (BSD-3-Clause, `webp_enc_simd.LICENSE`) built to WebAssembly by Squoosh, unchanged files from `codec/enc/` in @jsquash/webp 1.5.0 (Apache-2.0, https://github.com/jamsinclair/jSquash); the site serves them next to the page. `tests/fixtures/webp_dec.*` is the same package's decoder, used only by the tests
+  - `webp_enc_simd.js` sha256 `3038e60ebba6252baba08c691e31d1efe5036a185435daa7b4afaef3cc9273f9`
+  - `webp_enc_simd.wasm` sha256 `39c279269ec1163b987b6d69749458e3d5b03b9585f58b6ca5455b76b504a305`
 - `vendor/sounds/`: Lichess's futuristic, nes, piano and sfx sound sets by Enigmahack (AGPL-3.0-or-later, per lila's `COPYING.md`), unchanged files from `public/sound/` at lila commit `b003cfa2fab3a07ed6192e9edb8544f012b38e7f`; the page inlines them. Lichess's other sets aren't free (standard, woodland, robot, instrument) or are non-commercial (lisp), so they're left out. The built-in Wood set is synthesized in `sfx-core.js`
   - `futuristic/Move.mp3` sha256 `e68edeb6dfc9d0510b553c7d94adbb249c07e52c8e1c6ae1a207dea56c08195a`
   - `futuristic/Capture.mp3` sha256 `d043743b359844536b991600253453de9d3f95d6ca4688f25ec3eebcf0316874`
@@ -52,4 +55,4 @@ Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sig
 - `games/`: local PGNs (not committed)
 - `tests/`: `node --test --test-concurrency=1 tests/*.test.cjs` (GitHub Actions runs these on every push, and the Render build before building), then `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` (from the repo root). The Python checks import chess-animator, which must be checked out next to this repo. `make_rating_expected.py` and `make_openings_expected.py` regenerate the fixtures from the Python code. Building doesn't need chess-animator. `tests/live/site.test.cjs` smoke-tests the live site (or `LIVE_URLS=local`, a local build) in Chromium and Firefox with Playwright; GitHub Actions runs it on each push against that commit's build.
 
-Licence: GPL-3.0-or-later (`LICENSE`), the same as the bundled Stockfish. The Lichess sound files keep their own licence, the AGPL-3.0-or-later, which GPL-3.0 section 13 allows them to be combined with.
+Licence: GPL-3.0-or-later (`LICENSE`), the same as the bundled Stockfish. The Lichess sound files keep their own licence, the AGPL-3.0-or-later, which GPL-3.0 section 13 allows them to be combined with. The WebP encoder keeps libwebp's BSD-3-Clause and the Squoosh glue's Apache-2.0 licences, both compatible with the GPL-3.0.
