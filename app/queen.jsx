@@ -27,7 +27,7 @@ function queenError(e) {
   return (e && e.message) || 'Queen could not analyse this position.';
 }
 
-const plyLabel = (M, i) => `${Math.floor(i / 2) + 1}${i % 2 ? '…' : '.'}`;
+const plyLabel = (M, i) => window.ChessCore.moveNo(M.ply0 + i);
 const sanOf = (M, i) => M.plies[i].san + (M.plies[i].mark || '');
 // Stockfish's choice in the position before ply i, when the game data has it
 const engineBest = (M, i) => { const P = M.plies[i]; if (!P) return null; return P.best ? P.best.uci : P.cls === 'best' ? P.uci : null; };
@@ -231,7 +231,7 @@ const moverChange = (before, after, white) => (before == null || after == null ?
 
 function QueenResult({ M, at, r, after, afterState, onScoreAfter }) {
   if (!r) return null;
-  const i = at, next = M.plies[i], white = i % 2 === 0;
+  const i = at, next = M.plies[i], white = (M.ply0 + i) % 2 === 0;
   const sf = engineBest(M, i), sfSan = uciToSan(M, i, sf);
   const agree = sf && r.best === sf;
   const qBefore = queenEval(r.evalText), sfBefore = sfAt(M, at);

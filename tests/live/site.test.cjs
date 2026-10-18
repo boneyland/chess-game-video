@@ -244,6 +244,30 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(pr.errors, []);
       await pr.ctx.close();
     });
+    // a game from a FEN with Black to move: pieces from that position, numbering from move 3, own moves continue the count
+    await t.test('desktop: a game from a FEN with Black to move replays and takes own moves', async () => {
+      const fp = await open(browser, { width: 1440, height: 900 });
+      await fp.page.goto(base, { waitUntil: 'load' });
+      await fp.page.locator('.dock-primary').waitFor();
+      const pgn = '[SetUp "1"]\n[FEN "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 3 3"]\n\n3... Nf6 4. Nc3 Bc5 *';
+      await fp.page.setInputFiles('#game-files', { name: 'fen.pgn', mimeType: 'text/plain', buffer: Buffer.from(pgn) });
+      await fp.page.waitForFunction(() => /Bc5/.test(document.body.innerText), null, { timeout: 10000 });
+      await fp.page.keyboard.press('End');
+      await assert.doesNotReject(fp.page.locator('.plabel').filter({ hasText: /4… Bc5/ }).waitFor({ timeout: 5000 }));
+      const b = await boardBox(fp.page);
+      assert.equal(b.n, 32);
+      const moves = await fp.page.locator('[data-ply="0"]').evaluate((el) => el.parentElement.parentElement.parentElement.innerText);
+      assert.match(moves, /3\.\s*…\s*Nf6\s*4\.\s*Nc3\s*Bc5/);
+      const from = square(b, 'd2'), to = square(b, 'd3');
+      await fp.page.mouse.move(from.x, from.y);
+      await fp.page.mouse.down();
+      await fp.page.mouse.move(to.x, to.y, { steps: 8 });
+      await fp.page.mouse.up();
+      await assert.doesNotReject(fp.page.locator('.plabel').filter({ hasText: /5\. d3/ }).waitFor({ timeout: 5000 }));
+      await fp.page.screenshot({ path: path.join(OUT, host + '-fen-start.png') });
+      assert.deepEqual(fp.errors, []);
+      await fp.ctx.close();
+    });
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {

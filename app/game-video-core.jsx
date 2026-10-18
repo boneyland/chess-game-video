@@ -92,7 +92,7 @@ const setLayout = (frame) => {
 
 const sqXY = (sq) => [sq.charCodeAt(0) - 97, 8 - +sq[1]];
 const sqC = (sq) => { const [x, y] = sqXY(sq); return [x * SQ + SQ / 2, y * SQ + SQ / 2]; };
-const label = (M, i) => `${Math.floor(i / 2) + 1}${i % 2 ? '…' : '.'} ${M.plies[i].san}${M.plies[i].mark || ''}`;
+const label = (M, i) => `${window.ChessCore.moveNo(M.ply0 + i)} ${M.plies[i].san}${M.plies[i].mark || ''}`;
 const fmtEval = (p) => {
   if (!p) return '0.00';
   if (p.checkmate) return p.side === 'w' ? '1-0' : '0-1';
@@ -103,16 +103,12 @@ const fmtClock = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), x = 
 const img = (color, type) => window.PIECE_IMG[color + type.toUpperCase()];
 
 function simulate(M) {
-  const rows = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'.split('/');
   const board = {}, pieces = [];
-  rows.forEach((row, r) => {
-    let f = 0;
-    for (const ch of row) {
-      if (/\d/.test(ch)) { f += +ch; continue; }
-      const sq = String.fromCharCode(97 + f) + (8 - r);
-      const p = { id: sq, color: ch === ch.toUpperCase() ? 'w' : 'b', type: ch.toLowerCase(), home: sq, track: [], captured: -1, promo: null };
-      pieces.push(p); board[sq] = p; f++;
-    }
+  M.start.pos.b.forEach((ch, i) => {
+    if (!ch) return;
+    const sq = String.fromCharCode(97 + (i % 8)) + (8 - Math.floor(i / 8));
+    const p = { id: sq, color: ch === ch.toUpperCase() ? 'w' : 'b', type: ch.toLowerCase(), home: sq, track: [], captured: -1, promo: null };
+    pieces.push(p); board[sq] = p;
   });
   const step = (from, to, i) => {
     const p = board[from];
@@ -270,15 +266,14 @@ function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
 }
 
 // ---------- exploring a best line on the board ----------
-const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
 const LINE_CACHE = new Map();
 function playLineCached(M, c, moves) {
-  const P = c === 0 ? null : M.plies[c - 1];
-  const fen = P ? P.fen : START_FEN, castle = P ? P.castle : 'KQkq', ep = P ? P.ep : -1, key = fen + ' ' + castle + ' ' + ep + '|' + moves.join(' ');
+  const P = c === 0 ? M.start : M.plies[c - 1];
+  const fen = P.fen, castle = c === 0 ? M.start.pos.castle : P.castle, ep = c === 0 ? M.start.pos.ep : P.ep, key = fen + ' ' + castle + ' ' + ep + '|' + moves.join(' ');
   if (!LINE_CACHE.has(key)) LINE_CACHE.set(key, window.ChessCore.playLine(fen, moves, castle, ep));
   return LINE_CACHE.get(key);
 }
-const lineLabel = (c, j, san) => { const ply = c + j; return `${Math.floor(ply / 2) + 1}${ply % 2 ? '…' : '.'} ${san}`; };
+const lineLabel = (M, c, j, san) => `${window.ChessCore.moveNo(M.ply0 + c + j)} ${san}`;
 
 // What a search actually did: "Stockfish 19 lite · depth 22 (23 unfinished) · 3.0 s · 1.5M nodes" (the eval is from depth 22)
 const engineLabel = (name) => (name || 'Stockfish').replace(/\s*\(browser\)$/, '');
@@ -347,12 +342,12 @@ function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCa
 }
 
 // Move chips for a line; legal moves can be clicked to show the line on the board up to that move
-function LineChips({ name, nameColor, accent, moves, c, legal, sel, onPick }) {
+function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 6 }}>
       <span style={{ color: nameColor, marginRight: 8 }}>{name}</span>
       {moves.map((m, j) => {
-        const ply = c + j, white = ply % 2 === 0, num = Math.floor(ply / 2) + 1, ok = j < legal, on = sel === j;
+        const ply = ply0 + c + j, white = ply % 2 === 0, num = Math.floor(ply / 2) + 1, ok = j < legal, on = sel === j;
         return (
           <span key={j} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             {(white || j === 0) && <span style={{ color: C.dim, marginLeft: j ? 6 : 0, font: `500 15px ${MONO}` }}>{num}{white ? '.' : '…'}</span>}
@@ -456,7 +451,7 @@ function MoveList({ M, T, S, a, paused, onPick }) {
   const c = lastPly(T, S);
   // COLS move pairs to a row (the phone's full-width list), VIS rows in view
   const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1;
-  const scrollFor = (i) => Math.max(0, Math.floor(Math.max(i, 0) / (2 * COLS)) - (VIS - (COLS > 1 ? 2 : 3))) * ROW;
+  const odd = M.ply0 % 2, scrollFor = (i) => Math.max(0, Math.floor((Math.max(i, 0) + odd) / (2 * COLS)) - (VIS - (COLS > 1 ? 2 : 3))) * ROW;
   const k = c >= 0 ? MOTION.move(cl01((T - S.tp[c]) / 0.35)) : 1;
   const scroll = lerp(scrollFor(c - 1), scrollFor(c), k);
   // one Tab stop for the whole list (the current move); the arrows move between moves, and focus follows
@@ -471,6 +466,7 @@ function MoveList({ M, T, S, a, paused, onPick }) {
     requestAnimationFrame(() => { const el = listRef.current && listRef.current.querySelector(`[data-ply="${to}"]`); if (el) el.focus({ preventScroll: true }); });
   };
   const cell = (i) => {
+    if (i < 0) return <span key={i} style={{ color: C.dim }}>…</span>; // the White move before a game that starts on Black's
     if (i >= S.N) return <span key={i} />;
     // moves still to come (seen while paused) are dim rather than faded, so they stay readable
     const P = M.plies[i], cur = i === c, ahead = T < S.tp[i];
@@ -481,11 +477,11 @@ function MoveList({ M, T, S, a, paused, onPick }) {
         style={{ opacity: paused ? 1 : shown, padding: '3px 8px', borderRadius: 4, justifySelf: 'start', cursor: 'pointer', boxShadow: cur ? `inset 0 0 0 2px ${C.last}` : 'none', color: ahead ? C.dim : P.cls === 'none' ? C.ink : clsColor(P.cls), fontWeight: cur ? 700 : 500 }}>{P.san}{P.mark || ''}</span>
     );
   };
-  const pairs = Math.ceil(S.N / 2), rows = [];
+  const pairs = Math.ceil((S.N + odd) / 2), rows = [], first = Math.floor(M.ply0 / 2);
   for (let r = 0; r * COLS < pairs; r++) {
     const cells = [];
     for (let q = r * COLS; q < Math.min(pairs, (r + 1) * COLS); q++) {
-      cells.push(<span key={'n' + q} style={{ color: C.dim, opacity: T >= S.tp[2 * q] || paused ? 1 : 0 }}>{q + 1}.</span>, cell(2 * q), cell(2 * q + 1));
+      cells.push(<span key={'n' + q} style={{ color: C.dim, opacity: T >= S.tp[Math.max(0, 2 * q - odd)] || paused ? 1 : 0 }}>{first + q + 1}.</span>, cell(2 * q - odd), cell(2 * q + 1 - odd));
     }
     rows.push(
       <div key={r} style={{ display: 'grid', gridTemplateColumns: COLS > 1 ? `repeat(${COLS}, 50px 1fr 1fr)` : '50px 1fr 1fr', height: ROW, alignItems: 'center' }}>{cells}</div>
@@ -546,20 +542,20 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
   if (own && vline && vline.src === 'you' && vline.upto >= 0) {
     return (
       <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(window.AnalysisCore.ENGINE.name, own.after)}>
-        <OwnMoveAnalysis vline={vline} own={own} status={sf ? sf.status : 'idle'} onReply={onReply} />
+        <OwnMoveAnalysis M={M} vline={vline} own={own} status={sf ? sf.status : 'idle'} onReply={onReply} />
         <span style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>
-          <span style={{ color: lineAccent('you') }}>Your moves: {vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (vline.at + j) % 2 === 0 ? lineLabel(vline.at, j, m.san) : m.san)).join(' ')}</span> · ← → step · Esc returns to the game
+          <span style={{ color: lineAccent('you') }}>Your moves: {vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (M.ply0 + vline.at + j) % 2 === 0 ? lineLabel(M, vline.at, j, m.san) : m.san)).join(' ')}</span> · ← → step · Esc returns to the game
         </span>
       </Panel>
     );
   }
   if (!M.hasEval && !M.plies.some((p) => p.best)) {
-    return <Panel box={L.analysis} a={a} title="Analysis" right={right}>{sf ? <EngineEmptyState sf={sf} paused={paused} /> : <span style={{ font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis loaded.</span>}</Panel>;
+    return <Panel box={L.analysis} a={a} title="Analysis" right={right}>{sf ? <EngineEmptyState M={M} sf={sf} paused={paused} /> : <span style={{ font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis loaded.</span>}</Panel>;
   }
   if (c < 0) return (
     <Panel box={L.analysis} a={a} title="Analysis" right={right}>
       {paused && <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
-      {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState sf={sf} paused={paused} compact /></div>}
+      {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
     </Panel>
   );
   const P = M.plies[c], cls = P.cls;
@@ -597,14 +593,14 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
       </div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8, opacity: k }}>
         {P.best && P.best.line.length ? (
-          <LineChips name="Best line" nameColor={C.ink} accent={C.best} moves={P.best.line.slice(0, 8)} c={c} legal={sfLegal.length}
+          <LineChips name="Best line" nameColor={C.ink} accent={C.best} moves={P.best.line.slice(0, 8)} ply0={M.ply0} c={c} legal={sfLegal.length}
             sel={vline && vline.src === 'sf' ? vline.upto : null} onPick={(j) => onLine('sf', sfLegal, j)} />
         ) : cls === 'best' && agreeLegal.length ? (
-          <LineChips name="Best line" nameColor={C.ink} accent={C.best} moves={P.line.slice(0, 8)} c={c} legal={agreeLegal.length}
+          <LineChips name="Best line" nameColor={C.ink} accent={C.best} moves={P.line.slice(0, 8)} ply0={M.ply0} c={c} legal={agreeLegal.length}
             sel={vline && vline.src === 'sf' ? vline.upto : null} onPick={(j) => onLine('sf', agreeLegal, j)} />
         ) : cls === 'best' ? <span>{agreeText}</span> : <span />}
         {qLine.length > 0 && (
-          <LineChips name="Queen line" nameColor={C.queen} accent={C.queen} moves={qLine} c={c} legal={qLegal.length}
+          <LineChips name="Queen line" nameColor={C.queen} accent={C.queen} moves={qLine} ply0={M.ply0} c={c} legal={qLegal.length}
             sel={vline && vline.src === 'queen' ? vline.upto : null} onPick={(j) => onLine('queen', qLegal, j)} />
         )}
         {P.advice && <span style={{ color: C.inaccuracy }}>{P.advice}</span>}
@@ -612,12 +608,12 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
           <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>
             <span style={{ color: lineAccent(vline.src) }}>
               {vline.src === 'you'
-                ? (vline.upto < 0 ? 'Your moves: drag a piece to play' : `Your moves: ${vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (vline.at + j) % 2 === 0 ? lineLabel(vline.at, j, m.san) : m.san)).join(' ')}`)
-                : `On the board: ${vline.src === 'queen' ? 'Queen line' : 'best line'} to ${lineLabel(vline.at, vline.upto, vline.moves[vline.upto].san)} · drag a piece to branch off`}
+                ? (vline.upto < 0 ? 'Your moves: drag a piece to play' : `Your moves: ${vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (M.ply0 + vline.at + j) % 2 === 0 ? lineLabel(M, vline.at, j, m.san) : m.san)).join(' ')}`)
+                : `On the board: ${vline.src === 'queen' ? 'Queen line' : 'best line'} to ${lineLabel(M, vline.at, vline.upto, vline.moves[vline.upto].san)} · drag a piece to branch off`}
             </span> · ← → step · Esc returns to the game
           </span>
         )}
-        {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <EngineEmptyState sf={sf} paused={paused} compact />}
+        {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <EngineEmptyState M={M} sf={sf} paused={paused} compact />}
         {!vline && paused && M.hasEval && <FitOrHide style={{ font: `500 15px ${MONO}`, color: C.dim }}>Tip: drag a piece on the board to try your own move.</FitOrHide>}
       </div>
     </Panel>
@@ -794,7 +790,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const [drag, setDrag] = React.useState(null); // { from, x, y, x0, y0, moved } in board pixels
   const [promo, setPromo] = React.useState(null); // { from, to, white }: a pawn move waiting for its piece
   React.useEffect(() => { if (!vline) { setSel(null); setDrag(null); setPromo(null); } }, [vline]);
-  const gamePos = (cc) => (cc < 0 ? window.ChessCore.posFromFen(START_FEN) : { ...window.ChessCore.posFromFen(M.plies[cc].fen), castle: M.plies[cc].castle, ep: M.plies[cc].ep });
+  const gamePos = (cc) => (cc < 0 ? M.start.pos : { ...window.ChessCore.posFromFen(M.plies[cc].fen), castle: M.plies[cc].castle, ep: M.plies[cc].ep });
   const curPos = () => (vline ? (vline.upto >= 0 ? vline.moves[vline.upto].pos : vline.base) : gamePos(cNow));
   const newLine = () => ({ c: cNow, at: cNow + 1, src: 'you', moves: [], upto: -1, base: gamePos(cNow) });
   const explore = () => { tl.setPlaying(false); if (!vline) setVline(newLine()); };
@@ -826,7 +822,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   const lineBook = React.useMemo(() => {
     if (!lineKey || !window.Openings) return null;
     try { return window.Openings.book().byPly(lineKey.split(' '), M.start.fen).pop() || null; } catch (e) { return null; }
-  }, [lineKey]);
+  }, [lineKey, M.start.fen]);
   const targets = sel != null ? window.ChessCore.legalTargets(touchPos, sel) : [];
   const boardXY = (e) => {
     const r = e.currentTarget.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * BW, y = ((e.clientY - r.top) / r.height) * BW;
@@ -869,7 +865,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
   if (nav) {
     const cc = navRef.current.c;
     nav.current = vline ? {
-      label: vline.upto < 0 ? 'Your move' : (vline.src === 'you' ? 'You ' : 'Line ') + lineLabel(vline.at, vline.upto, vline.moves[vline.upto].san), color: lineAccent(vline.src),
+      label: vline.upto < 0 ? 'Your move' : (vline.src === 'you' ? 'You ' : 'Line ') + lineLabel(M, vline.at, vline.upto, vline.moves[vline.upto].san), color: lineAccent(vline.src),
       hasPrev: true, hasNext: vline.upto < vline.moves.length - 1, prev: () => stepLine(-1), next: () => stepLine(1),
       hasLast: true, last: () => goTo(S.N - 1),
     } : {

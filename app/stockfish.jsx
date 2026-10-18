@@ -114,7 +114,7 @@ const fmtEta = (s) => (s == null ? '' : s < 60 ? `about ${Math.max(5, Math.round
 
 // The Analysis panel's body for a game without evals
 // compact: a row under a panel that already shows PGN variations (no heading text)
-function EngineEmptyState({ sf, paused, compact }) {
+function EngineEmptyState({ M, sf, paused, compact }) {
   const run = sf.run;
   if (run.state === 'running') {
     const k = run.total ? run.done / run.total : 0;
@@ -140,7 +140,7 @@ function EngineEmptyState({ sf, paused, compact }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
       {text}
-      <FrameButton primary onClick={sf.start}>{run.resumeAt ? `Resume analysis from move ${Math.floor(run.resumeAt / 2) + 1} · about ${sf.estimateMin} min` : `Analyse with Stockfish · about ${sf.estimateMin} min`}</FrameButton>
+      <FrameButton primary onClick={sf.start}>{run.resumeAt ? `Resume analysis from move ${Math.floor((M.ply0 + run.resumeAt) / 2) + 1} · about ${sf.estimateMin} min` : `Analyse with Stockfish · about ${sf.estimateMin} min`}</FrameButton>
       {run.resumeAt > 0 && <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>{run.resumeAt} of {run.plies} moves analysed so far.</span>}
       {!compact && <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>Stockfish 19 lite runs in your browser.</span>}
       {run.err && <span style={{ font: `500 15px ${MONO}`, color: C.blunder }}>{run.err}</span>}
@@ -190,8 +190,8 @@ const fmtSf = (cp) => {
 };
 
 // The Analysis panel while the viewer plays their own line: their move, its eval, what it costs, Stockfish's reply
-function OwnMoveAnalysis({ vline, own, status, onReply }) {
-  const step = vline.moves[vline.upto], ply = vline.at + vline.upto, isWhite = ply % 2 === 0;
+function OwnMoveAnalysis({ M, vline, own, status, onReply }) {
+  const step = vline.moves[vline.upto], ply = vline.at + vline.upto, isWhite = (M.ply0 + ply) % 2 === 0;
   const { before, after } = own;
   const done = before && after && !before.partial && !after.partial;
   const rated = done ? window.AnalysisCore.rateMove({ bestEval: before.cp, currentEval: after.cp, isWhite, playedIsBest: step.uci === before.best, isCheckmate: step.san.endsWith('#') }) : null;
@@ -207,7 +207,7 @@ function OwnMoveAnalysis({ vline, own, status, onReply }) {
     <React.Fragment>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ font: `700 38px ${MONO}`, color: col }}>{lineLabel(vline.at, vline.upto, step.san)}</span>
+          <span style={{ font: `700 38px ${MONO}`, color: col }}>{lineLabel(M, vline.at, vline.upto, step.san)}</span>
           <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{who} · {bad ? CLASS_LABEL[rated.classification] + ' · ' : ''}{verdict}</span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -217,7 +217,7 @@ function OwnMoveAnalysis({ vline, own, status, onReply }) {
       </div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {replies.length > 0
-          ? <LineChips name="Stockfish replies" nameColor={C.ink} accent={C.best} moves={replies.map((r) => r.san)} c={ply + 1} legal={replies.length} sel={null} onPick={(j) => onReply(replies.slice(0, j + 1))} />
+          ? <LineChips name="Stockfish replies" nameColor={C.ink} accent={C.best} moves={replies.map((r) => r.san)} ply0={M.ply0} c={ply + 1} legal={replies.length} sel={null} onPick={(j) => onReply(replies.slice(0, j + 1))} />
           : <span>{step.san.endsWith('#') ? 'Checkmate.' : ' '}</span>}
       </div>
     </React.Fragment>
