@@ -190,5 +190,19 @@ for (const base of SITES) {
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });
+
+    // a phone held sideways used to get the 16:9 video shrunk to a board about 230 px high
+    await t.test('phone held sideways: the board fills the height and the buttons fold into a menu', async () => {
+      const ph = await open({ width: 844, height: 390 });
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await ph.page.getByRole('button', { name: 'Menu' }).waitFor();
+      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      const b = await boardBox(ph.page);
+      assert.equal(b.n, 32);
+      assert.ok(b.h > 260, `board ${Math.round(b.h)} px high`);
+      await ph.page.screenshot({ path: path.join(OUT, host + '-phone-sideways.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
   });
 }

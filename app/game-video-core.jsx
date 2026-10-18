@@ -65,10 +65,26 @@ function tallLayout(H) {
     card: { k: 1.3, w: 600, stack: true },
   };
 }
-let L = LAYOUTS.wide, BX = L.bx, BY = L.by, tallH = 0;
+// Phone held sideways: 900 high, as wide as the screen's shape (1900–2400). The board fills the height; Moves and
+// Commentary sit beside it with Analysis under them, all magnified; the eval graph is left out (the eval bar stays).
+const SHORT = { height: 900, minWidth: 1900, maxWidth: 2400, maxArea: 560 };
+function shortLayout(W) {
+  const x = 60 + BW + 24, w = W - x - 12, top = 430, k = 1.25;
+  return {
+    eval: 12, bx: 60, by: 4 + 48 + 6, bar: { k: 1.2, gap: 6 }, title: 16,
+    header: null,
+    moves: { x, y: 10, w: 330, h: top, k, rows: Math.floor((top / k - 61) / 38) },
+    comment: { x: x + 342, y: 10, w: w - 342, h: top, k, text: 1, gap: 14 },
+    analysis: { x, y: top + 22, w, h: 900 - top - 32, k },
+    plot: null,
+    card: { k: 1, w: 1700, stack: false },
+  };
+}
+let L = LAYOUTS.wide, BX = L.bx, BY = L.by, tallH = 0, shortW = 0;
 const setLayout = (frame) => {
   if (frame.tall && frame.height !== tallH) { tallH = frame.height; LAYOUTS.tall = tallLayout(tallH); }
-  L = frame.tall ? LAYOUTS.tall : LAYOUTS.wide; BX = L.bx; BY = L.by;
+  if (frame.short && frame.width !== shortW) { shortW = frame.width; LAYOUTS.short = shortLayout(shortW); }
+  L = frame.tall ? LAYOUTS.tall : frame.short ? LAYOUTS.short : LAYOUTS.wide; BX = L.bx; BY = L.by;
 };
 
 const sqXY = (sq) => [sq.charCodeAt(0) - 97, 8 - +sq[1]];
@@ -860,7 +876,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf }) {
           <MoveList M={M} T={T} S={S} a={enter(3)} paused={!playing} onPick={goTo} />
           <Commentary M={M} T={T} S={S} a={enter(4)} book={sf ? sf.book : null} line={lineKey ? { book: lineBook } : null} />
           <Analysis M={M} T={T} S={S} a={enter(5)} vline={vline} onLine={onLine} paused={!playing} sf={sf} own={own} onReply={onReply} />
-          <EvalPlot M={M} T={T} S={S} a={enter(6)} paused={!playing} onPick={goTo} />
+          {L.plot && <EvalPlot M={M} T={T} S={S} a={enter(6)} paused={!playing} onPick={goTo} />}
         </div>
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 220px rgba(228,85,63,${0.55 * flash})` }} />
         <TitleCard M={M} T={T} CUES={CUES} />

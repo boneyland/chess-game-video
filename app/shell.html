@@ -90,6 +90,9 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .stage-tall .pbar { padding: 3px 8px; gap: 8px; }
 .stage-tall .pbtn { width: 26px; height: 26px; }
 .stage-tall .pnav { width: 30px; height: 30px; }
+/* phone held sideways: the same slim bar, so the board keeps the height */
+.stage-short { padding-block: 4px 6px; gap: 6px; }
+.stage-short .pbar { padding: 3px 8px; gap: 8px; }
 .pmenu { position: relative; flex: none; }
 .pmenu-err .dock-menu { border-color: var(--danger); color: var(--danger); }
 .pmenu .dock-items {

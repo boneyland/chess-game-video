@@ -12,12 +12,13 @@ const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 const TimelineContext = React.createContext({ time: 0, duration: 10, playing: false });
 const useTimeline = () => React.useContext(TimelineContext);
-// which frame the stage shows: { tall: false } for landscape, { tall: true, height } for the portrait one
+// which frame the stage shows: { tall: false } for landscape, { tall: true, height } for the portrait one,
+// { short: true, width } for the wide, short one on a phone held sideways
 const FrameContext = React.createContext({ tall: false });
 const useFrame = () => React.useContext(FrameContext);
 
 
-function Stage({ width, height, portrait, menu, onLayout, duration, background, playback, nav, children }) {
+function Stage({ width, height, portrait, short, menu, onLayout, duration, background, playback, nav, children }) {
   const playTimes = playback && playback.mode === 'times' ? playback.count : null;
   const loop = !playback || playback.mode === 'loop';
   // The page opens paused on the composition's start frame (setStart); the first Play from that untouched frame
@@ -34,7 +35,7 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
   };
   const [scale, setScale] = React.useState(0.2);
   const [frame, setFrame] = React.useState({ tall: false });
-  const tallRef = React.useRef(false);
+  const tallRef = React.useRef(false), shortRef = React.useRef(false);
   const tall = frame.tall;
   const areaRef = React.useRef(null);
   const lastTsRef = React.useRef(null);
@@ -54,15 +55,26 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
       const next = sp > sl * (tallRef.current ? 1.1 : 1.15);
       tallRef.current = next;
       const ph = next ? clamp(Math.floor(h / sp), portrait.minHeight, portrait.maxHeight) : 0;
-      setFrame((f) => (f.tall === next && (f.height || 0) === ph ? f : next ? { tall: true, height: ph } : { tall: false }));
-      setScale(Math.max(0.05, next ? sp : sl));
+      // A short landscape area (a phone held sideways) gets a wider frame whose board fills the height, as wide as
+      // the area allows (between its min and max width); a desktop window keeps the 16:9 video
+      const ss = short && !next && h < short.maxArea ? Math.min(w / short.minWidth, h / short.height) : 0;
+      const nextShort = ss > sl * (shortRef.current ? 1.05 : 1.1);
+      shortRef.current = nextShort;
+      const sw = nextShort ? clamp(Math.floor(w / ss), short.minWidth, short.maxWidth) : 0;
+      // narrow: too little room beside the track for the page's buttons, which fold into a menu
+      const narrow = nextShort && w < 900;
+      setFrame((f) => (f.tall === next && !!f.short === nextShort && !!f.narrow === narrow && (f.height || 0) === ph && (f.width || 0) === sw ? f
+        : next ? { tall: true, height: ph } : nextShort ? { tall: false, short: true, narrow, width: sw } : { tall: false }));
+      setScale(Math.max(0.05, next ? sp : nextShort ? Math.min(w / sw, h / short.height) : sl));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [width, height, portrait && portrait.width, portrait && portrait.minHeight, portrait && portrait.maxHeight]);
-  React.useEffect(() => { if (onLayout) onLayout(tall); }, [tall]);
+  }, [width, height, portrait && portrait.width, portrait && portrait.minHeight, portrait && portrait.maxHeight, short && short.height]);
+  // onLayout(true): a phone frame (portrait, or a narrow one held sideways), where the page folds its buttons into a menu
+  const phone = tall || !!frame.narrow;
+  React.useEffect(() => { if (onLayout) onLayout(phone); }, [phone]);
 
   React.useEffect(() => {
     if (!playing) { lastTsRef.current = null; return; }
@@ -116,11 +128,11 @@ function Stage({ width, height, portrait, menu, onLayout, duration, background, 
     return () => window.removeEventListener('chess-video:seek', onSeek);
   }, [duration]);
 
-  const fw = tall ? portrait.width : width, fh = tall ? frame.height : height;
+  const fw = tall ? portrait.width : frame.short ? frame.width : width, fh = tall ? frame.height : frame.short ? short.height : height;
   const ctx = React.useMemo(() => ({ time, duration, playing, setTime, setPlaying, setStart }), [time, duration, playing]);
 
   return (
-    <div className={'stage' + (tall ? ' stage-tall' : '')}>
+    <div className={'stage' + (tall ? ' stage-tall' : frame.short ? ' stage-short' : '')}>
       <div ref={areaRef} className="stage-area">
         <div className="stage-frame" style={{ width: fw * scale, height: fh * scale }}>
           <div style={{ width: fw, height: fh, background, position: 'relative', overflow: 'hidden', transform: `scale(${scale})`, transformOrigin: '0 0' }}>
@@ -256,13 +268,13 @@ function CompositionClock({ derived, children }) {
   return <CompositionContext.Provider value={value}>{children}</CompositionContext.Provider>;
 }
 
-function CompositionStage({ width, height, portrait, menu, onLayout, scenes, playback, bg, nav, children }) {
+function CompositionStage({ width, height, portrait, short, menu, onLayout, scenes, playback, bg, nav, children }) {
   const parsed = React.useMemo(() => parseScenes(scenes), [scenes]);
   const derived = React.useMemo(() => (parsed ? deriveCues(parsed) : null), [parsed]);
   const pb = React.useMemo(() => { try { return JSON.parse(playback); } catch (e) { return null; } }, [playback]);
   if (!derived) return <div className="stage-error">This game produced an invalid scene list.</div>;
   return (
-    <Stage width={width} height={height} portrait={portrait} menu={menu} onLayout={onLayout} duration={derived.total} background={bg} playback={pb} nav={nav}>
+    <Stage width={width} height={height} portrait={portrait} short={short} menu={menu} onLayout={onLayout} duration={derived.total} background={bg} playback={pb} nav={nav}>
       <CompositionClock derived={derived}>{children}</CompositionClock>
     </Stage>
   );

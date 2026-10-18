@@ -92,7 +92,7 @@ function GameApp() {
   const nav = React.useRef(null);
   const [queenOpen, setQueenOpen] = React.useState(false);
   const [queenArrow, setQueenArrow] = React.useState(null);
-  // the portrait layout folds the dock's buttons into a menu in the transport bar; it closes on a pick, an outside tap or Esc
+  // the phone layouts (portrait, or a narrow one held sideways) fold the dock's buttons into a menu in the transport bar; it closes on a pick, an outside tap or Esc
   const [tall, setTall] = React.useState(false);
   const [menu, setMenu] = React.useState(false);
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
@@ -292,7 +292,7 @@ function GameApp() {
 
   return (
     <React.Fragment>
-      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
+      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={setTall} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
         <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} />
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
