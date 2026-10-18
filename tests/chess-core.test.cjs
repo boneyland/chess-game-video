@@ -136,7 +136,7 @@ test('annotatedPgn writes marks as NAGs, evals, clocks, notes and the better lin
   const pgn = '[White "A"]\n[Black "B"]\n[Result "*"]\n\n1. e4 { [%eval 0.3] [%clk 0:05:00] } e5 { [%eval 0.25] [%clk 0:04:58] } 2. Qh5 { [%eval -0.1] } Ke7?? { [%eval 5.0] } ( 2... Nc6 3. Bc4 ) *';
   const M = CC.buildGame({ pgn, notes: '[INTRO]\nA {short} game.\n[4]\nThe king walks.' });
   const out = CC.annotatedPgn(M);
-  assert.match(out, /^\[Event "\?"\]\n\[Site "\?"\]\n\[Round "\?"\]\n\[White "A"\]\n\[Black "B"\]\n\[Result "\*"\]/);
+  assert.match(out, /^\[Event "\?"\]\n\[Site "\?"\]\n\[Date "\?\?\?\?\.\?\?\.\?\?"\]\n\[Round "\?"\]\n\[White "A"\]\n\[Black "B"\]\n\[Result "\*"\]/);
   const moves = out.split('\n\n')[1].replace(/\n/g, ' ');
   assert.ok(out.split('\n').every((l) => l.length <= 80));
   assert.match(moves, /^\{A \(short\) game\.\} 1\. e4 \{\[%eval 0\.30\] \[%clk 0:05:00\]\} 1\.\.\. e5/);
@@ -145,4 +145,24 @@ test('annotatedPgn writes marks as NAGs, evals, clocks, notes and the better lin
   assert.deepEqual(back.plies.map((p) => p.san + (p.mark || '')), ['e4', 'e5', 'Qh5', 'Ke7??']);
   assert.equal(back.plies[3].cp, 500);
   assert.equal(back.plies[0].clk, 300);
+});
+
+test('annotatedPgn keeps the source PGN variations and other NAGs, and clocks in tenths', () => {
+  const M = CC.buildGame({ pgn: '1. a3? (1. e4 e5 (1... c5 {Sicilian}) 2. Nf3; a line comment\n) e5 2. h3 $14 $10 (2. Nf3) Nc6 { [%clk 0:00:05.3] } *' });
+  const out = CC.annotatedPgn(M);
+  assert.match(out, /\[Date "\?\?\?\?\.\?\?\.\?\?"\]\n\[Round "\?"\]\n\[White "\?"\]\n\[Black "\?"\]/);
+  const moves = out.split('\n\n')[1].replace(/\n/g, ' ');
+  assert.equal(moves, '1. a3 $2 (1. e4 e5 (1... c5 {Sicilian}) 2. Nf3 {a line comment}) 1... e5 2. h3 $14 $10 (2. Nf3) 2... Nc6 {[%clk 0:00:05.3]} * ');
+  const back = CC.buildGame({ pgn: out });
+  assert.deepEqual(back.plies[2].nags, [14, 10]);
+  assert.equal(back.plies[0].pgnVars.length, 1);
+  assert.equal(back.plies[3].clk, 5.3);
+});
+
+test('annotatedPgn never starts a line with %, which would make it an escape line', () => {
+  const word = 'x'.repeat(70);
+  const M = CC.buildGame({ pgn: '1. e4 e5 *', notes: `[1]\n${word} % up` });
+  const out = CC.annotatedPgn(M);
+  assert.ok(out.split('\n').every((l) => l[0] !== '%'), out);
+  assert.match(out.replace(/\n/g, ' '), /x % up\}/);
 });

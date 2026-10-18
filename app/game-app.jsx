@@ -212,7 +212,8 @@ function GameApp() {
     const a = typeof files.analysis === 'string' ? files.analysis : JSON.stringify(files.analysis, null, 2);
     saveFile(files.analysisName || fileStem + '_analysis.json', a, 'application/json');
   };
-  const savePgn = () => saveFile(fileStem + '_annotated.pgn', window.ChessCore.annotatedPgn(MV), 'application/x-chess-pgn');
+  // the whole annotation whatever the video shows: commentary even when hidden, Queen's answers even when out of the video
+  const savePgn = () => saveFile(fileStem + '_annotated.pgn', window.ChessCore.annotatedPgn(withQueen(M, Q.resultAt)), 'application/x-chess-pgn');
   const saveQueen = () => saveFile(fileStem + '_queen.json', JSON.stringify(Q.saved(), null, 1), 'application/json');
   const analysis = useGameAnalysis(M, files, () => filesRef.current, commit, engine, ES.game);
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
@@ -284,7 +285,7 @@ function GameApp() {
   );
   // landscape: the buttons sit at the end of the transport bar, with an error above them
   const deskDock = (
-    <div className={'pdock' + (shownErr ? ' pdock-err' : '')}>
+    <div className="pdock">
       {shownErr && <span className="dock-status" role="alert">{shownErr}</span>}
       {dockItems}
     </div>

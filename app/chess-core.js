@@ -277,7 +277,7 @@
   function parsePGN(text) {
     const headers = {};
     const body = text.replace(/\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]/g, (_, k, v) => { headers[k] = v; return ' '; });
-    const plies = []; let intro = '', depth = 0, varPly = -1, varSans = null, i = 0;
+    const plies = []; let intro = '', depth = 0, varPly = -1, varSans = null, varAt = 0, i = 0;
     const addComment = (raw) => {
       if (depth > 0) return;
       const ev = raw.match(/\[%eval\s+([^\]\s]+)/), ck = raw.match(/\[%clk\s+([\d:.]+)/);
@@ -299,12 +299,25 @@
       const ch = body[i];
       if (ch === '{') { const j = body.indexOf('}', i); addComment(body.slice(i + 1, j < 0 ? body.length : j)); i = j < 0 ? body.length : j + 1; continue; }
       if (ch === ';') { const j = body.indexOf('\n', i); i = j < 0 ? body.length : j + 1; continue; }
-      if (ch === '(') { depth++; if (depth === 1) { varPly = plies.length - 1; varSans = []; } i++; continue; }
-      if (ch === ')') { if (depth === 1 && varPly >= 0 && !plies[varPly].variation) plies[varPly].variation = varSans; depth = Math.max(0, depth - 1); i++; continue; }
+      if (ch === '(') { depth++; if (depth === 1) { varPly = plies.length - 1; varSans = []; varAt = i; } i++; continue; }
+      if (ch === ')') {
+        if (depth === 1 && varPly >= 0) {
+          const P = plies[varPly];
+          if (!P.variation) P.variation = varSans;
+          // every variation as written, nested ones and comments included, so an annotated PGN keeps them
+          (P.vars = P.vars || []).push(body.slice(varAt, i + 1));
+        }
+        depth = Math.max(0, depth - 1); i++; continue;
+      }
       if (/\s/.test(ch)) { i++; continue; }
       let j = i; while (j < body.length && !/[\s{}();]/.test(body[j])) j++;
       let tok = body.slice(i, j); i = j;
-      if (/^\$\d+$/.test(tok)) { if (depth === 0 && plies.length && NAG[+tok.slice(1)]) plies[plies.length - 1].mark = NAG[+tok.slice(1)]; continue; }
+      if (/^\$\d+$/.test(tok)) {
+        const P = depth === 0 && plies[plies.length - 1], n = +tok.slice(1);
+        // $1–$6 are the move's mark; the rest ($14 White is slightly better, …) are kept as they are
+        if (P) { if (NAG[n]) P.mark = NAG[n]; else (P.nags = P.nags || []).push(n); }
+        continue;
+      }
       tok = tok.replace(/^\d+\.+/, '');
       if (!tok || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) continue;
       const mm = tok.match(/^(.*?)([!?]{1,2})?$/);
@@ -394,6 +407,8 @@
       if (nextA && nextA.best_line && nextA.best_line.length) ply.expect = nextA.best_line.slice(0, 6);
       if (pp.clk != null) ply.clk = pp.clk;
       const note = NT && NT.plies[i + 1];
+      if (pp.vars) ply.pgnVars = pp.vars;
+      if (pp.nags) ply.nags = pp.nags;
       ply.pgnComment = pp.comment || '';
       ply.comment = note || pp.comment || '';
       plies.push(ply);
@@ -430,7 +445,7 @@
     const player = (side) => {
       const S = side === 'w' ? 'White' : 'Black', s = side === 'w' ? 'white' : 'black';
       const name = clean(H[S]) || (A && A[s]) || S;
-      return { name, short: surname(name), title: clean(H[S + 'Title']), elo: clean(H[S + 'Elo']) || (A && clean(A[s + '_elo'])) || '', team: clean(H[S + 'Team']), acc: useA && A[s + '_stats'] && A[s + '_stats'].accuracy };
+      return { name, named: name !== S, short: surname(name), title: clean(H[S + 'Title']), elo: clean(H[S + 'Elo']) || (A && clean(A[s + '_elo'])) || '', team: clean(H[S + 'Team']), acc: useA && A[s + '_stats'] && A[s + '_stats'].accuracy };
     };
     const result = clean(H.Result) || (A && A.result) || '*';
     // the PGN's opening, else the analysis file's, else Lichess's opening book (as AnalysisData.name_opening)
@@ -441,7 +456,7 @@
     const round = clean(H.Round) || (A && clean(A.round_num)) || '';
     return {
       white: player('w'), black: player('b'),
-      event: clean(H.Event) || (A && A.event) || '', round, site: clean(H.Site) || (A && A.site) || '', date: fmtDate(clean(H.Date) || (A && A.date)),
+      event: clean(H.Event) || (A && A.event) || '', round, site: clean(H.Site) || (A && A.site) || '', date: fmtDate(clean(H.Date) || (A && A.date)), pgnDate: clean(H.Date) || (A && clean(A.date)) || '',
       eco: opening.eco, opening: opening.name,
       result, intro: (NT && NT.intro) || (P && P.intro) || '', conclusion: (NT && (NT.conclusion || NT.result)) || '',
       engine, engineName: eng ? eng.name || '' : '', plies, evalStart, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
@@ -587,47 +602,68 @@
 
   // ---------- annotated PGN ----------
   const NB = '\u00a0';
+  const NAG_OF = Object.fromEntries(Object.entries(NAG).map(([n, m]) => [m, +n]));
   const pgnEsc = (t) => String(t).replace(/[{}]/g, (c) => (c === '{' ? '(' : ')')).replace(/\s+/g, ' ').trim();
-  // the game as PGN: marks as NAGs, evals and clocks as [%eval]/[%clk], commentary (and Queen's sentence) as
-  // comments, the engine's better line on !?/?/?? moves as a variation; wrapped at 80 columns
+  // a variation as written, on one line: ; comments become { } ones, whitespace collapses (also inside comments)
+  function flatVar(raw) {
+    let out = '', i = 0;
+    while (i < raw.length) {
+      const ch = raw[i];
+      if (ch === '{') { const j = raw.indexOf('}', i); const e = j < 0 ? raw.length : j; out += '{' + pgnEsc(raw.slice(i + 1, e)) + '}'; i = e + 1; continue; }
+      if (ch === ';') { const j = raw.indexOf('\n', i); const e = j < 0 ? raw.length : j; out += ' {' + pgnEsc(raw.slice(i + 1, e)) + '} '; i = e + 1; continue; }
+      out += /\s/.test(ch) ? ' ' : ch; i++;
+    }
+    return out.replace(/ +/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim();
+  }
+  // clock as h:mm:ss, keeping tenths (Lichess writes them under 10 s)
+  const pgnClk = (s) => {
+    const t = Math.round(s * 10) / 10, sec = t % 60;
+    return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${Number.isInteger(t) ? String(sec).padStart(2, '0') : sec.toFixed(1).padStart(4, '0')}`;
+  };
+  // the game as PGN: marks and the source's other NAGs, evals and clocks as [%eval]/[%clk], commentary (and
+  // Queen's sentence) as comments, the source's variations as written plus the engine's better line on ?!/?/??
+  // moves; wrapped at 80 columns
   function annotatedPgn(M) {
     const H = { ...(M.headers || {}) };
     const set = (k, v) => { if (!H[k] && v) H[k] = v; };
-    set('Event', M.event || '?'); set('Site', M.site || '?'); set('Round', M.round || '?');
-    set('White', M.white.name); set('Black', M.black.name); set('WhiteElo', M.white.elo); set('BlackElo', M.black.elo);
-    set('ECO', M.eco); set('Opening', M.opening);
+    set('Event', M.event || '?'); set('Site', M.site || '?'); set('Date', String(M.pgnDate || '').replace(/-/g, '.') || '????.??.??'); set('Round', M.round || '?');
+    set('White', M.white.named ? M.white.name : '?'); set('Black', M.black.named ? M.black.name : '?');
+    set('WhiteElo', M.white.elo); set('BlackElo', M.black.elo); set('ECO', M.eco); set('Opening', M.opening);
     H.Result = M.result || '*';
     const order = ['Event', 'Site', 'Date', 'Round', 'White', 'Black', 'Result'];
     const keys = order.filter((k) => H[k] != null).concat(Object.keys(H).filter((k) => !order.includes(k)));
     const head = keys.map((k) => `[${k} "${String(H[k]).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`).join('\n');
-    const clk = (s) => { const t = Math.round(s); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
     const toks = [];
     if (M.intro) toks.push(`{${pgnEsc(M.intro)}}`);
     M.plies.forEach((p, i) => {
       const n = Math.floor(i / 2) + 1;
       // a move number and its move stay on one line (NB is a no-break space until the wrap)
-      toks.push((i % 2 === 0 ? n + '.' + NB : /[})]$/.test(toks[toks.length - 1]) ? n + '...' + NB : '') + p.san); const nag = Object.keys(NAG).find((k) => NAG[k] === p.mark); if (nag) toks.push('$' + nag);
+      const num = i % 2 === 0 ? n + '.' + NB : /[})]$/.test(toks[toks.length - 1]) ? n + '...' + NB : '';
+      toks.push(num + p.san);
+      (NAG_OF[p.mark] ? [NAG_OF[p.mark]] : []).concat(p.nags || []).forEach((g) => toks.push('$' + g));
       const tags = [];
       if (!p.checkmate && p.mate != null) tags.push(`[%eval #${p.mate}]`);
       else if (!p.checkmate && p.cp != null) tags.push(`[%eval ${(p.cp / 100).toFixed(2)}]`);
-      if (p.clk != null) tags.push(`[%clk ${clk(p.clk)}]`);
+      if (p.clk != null) tags.push(`[%clk ${pgnClk(p.clk)}]`);
       const words = tags.concat([p.comment, p.queenText ? 'Queen: ' + p.queenText : ''].filter(Boolean).map(pgnEsc));
       if (words.length) toks.push(`{${words.join(' ')}}`);
-      if (p.best && p.best.line && p.best.line.length && ['inaccuracy', 'mistake', 'blunder'].includes(p.cls)) {
+      (p.pgnVars || []).forEach((v) => toks.push(flatVar(v)));
+      // without an analysis file the better line is the source's first variation, written just above
+      const fromPgn = p.pgnVars && M.evalSource !== 'analysis';
+      if (!fromPgn && p.best && p.best.line && p.best.line.length && ['inaccuracy', 'mistake', 'blunder'].includes(p.cls)) {
         const before = i ? M.plies[i - 1] : null;
-        const line = playLine(before ? before.fen : START + ' w KQkq - 0 1', p.best.line, before ? before.castle : 'KQkq', before ? before.ep : -1);
-        if (line.length) {
-          const v = [];
-          line.forEach((m, j) => { const k = i + j; v.push((k % 2 === 0 ? Math.floor(k / 2) + 1 + '.' + NB : j === 0 ? Math.floor(k / 2) + 1 + '...' + NB : '') + m.san); });
-          toks.push('(' + v.join(' ') + ')');
-        }
+        const line = playLine(before ? before.fen : START + ' w', p.best.line, before ? before.castle : 'KQkq', before ? before.ep : -1);
+        const v = line.map((m, j) => { const k = i + j; return (k % 2 === 0 ? Math.floor(k / 2) + 1 + '.' + NB : j === 0 ? Math.floor(k / 2) + 1 + '...' + NB : '') + m.san; });
+        if (v.length) toks.push('(' + v.join(' ') + ')');
       }
     });
     if (M.conclusion) toks.push(`{${pgnEsc(M.conclusion)}}`);
     toks.push(H.Result);
+    // break on spaces, comments included; a line never starts with % (in column 1 it makes an escape line)
     const lines = []; let cur = '';
-    // comments may run past 80 columns as one token; break them on spaces
-    toks.join(' ').split(' ').forEach((w) => { if (cur && cur.length + 1 + w.length > 80) { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; });
+    toks.join(' ').split(' ').forEach((w) => {
+      if (cur && cur.length + 1 + w.length > 80 && w[0] !== '%') { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+    });
     if (cur) lines.push(cur);
     return head + '\n\n' + lines.join('\n').replace(/\u00a0/g, ' ') + '\n';
   }
