@@ -64,6 +64,12 @@ const site = `<!doctype html>
 <meta name="theme-color" content="#f2ece3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#13100f" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="${ICON}">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Chess Replay">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -74,4 +80,19 @@ ${out}
 fs.writeFileSync(path.join(dir, 'out', 'site', 'chess-game-video.html'), site);
 // the engine, served next to the self-hosted page
 for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm']) fs.copyFileSync(path.join(dir, 'vendor', f), path.join(dir, 'out', 'site', f));
+// Add to Home Screen opens the page without the browser's bars (iPhone Safari has no other way to lose them).
+// The icons are the tab icon above drawn as PNGs; the maskable and Apple ones are full-bleed for the launcher to round.
+const ICONS = path.join(app, 'icons');
+for (const f of fs.readdirSync(ICONS)) fs.copyFileSync(path.join(ICONS, f), path.join(dir, 'out', 'site', f));
+const manifest = {
+  name: 'Chess Game Video', short_name: 'Chess Replay', description: DESCRIPTION,
+  start_url: './', scope: './', display: 'fullscreen', display_override: ['fullscreen', 'standalone'], orientation: 'any',
+  background_color: '#f2ece3', theme_color: '#f2ece3', // --bg in app/shell.html (light)
+  icons: [
+    { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+};
+fs.writeFileSync(path.join(dir, 'out', 'site', 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
 console.log('wrote', artifactOut.length, 'bytes (artifact),', site.length, 'bytes (site)');

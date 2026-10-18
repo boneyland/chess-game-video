@@ -175,6 +175,29 @@ for (const base of SITES) {
       assert.deepEqual(box, { x: 0, y: 0, width: 1440, height: 900 });
       assert.equal(await page.locator('.drop').evaluate((e) => getComputedStyle(e).position), 'fixed');
     });
+    await t.test('desktop: the dock toggles full screen, and hides the item where the browser can’t', async () => {
+      await page.getByRole('button', { name: 'Full screen', exact: true }).click();
+      await page.waitForFunction(() => document.documentElement === document.fullscreenElement, null, { timeout: 3000 });
+      await page.getByRole('button', { name: 'Exit full screen' }).click();
+      await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 });
+      // as on iPhone Safari, or in a frame without allow="fullscreen"
+      const off = await open({ width: 1440, height: 900 });
+      await off.ctx.addInitScript(() => { for (const k of ['fullscreenEnabled', 'webkitFullscreenEnabled']) Object.defineProperty(Document.prototype, k, { get: () => false }); });
+      await off.page.goto(base, { waitUntil: 'load' });
+      await off.page.locator('.dock-primary').waitFor();
+      assert.equal(await off.page.getByRole('button', { name: /full screen/i }).count(), 0);
+      await off.ctx.close();
+    });
+
+    await t.test('the web app manifest and its icons are served', async () => {
+      const m = await get('manifest.webmanifest');
+      assert.equal(m.status, 200);
+      for (const ic of JSON.parse(m.text).icons.concat({ src: 'apple-touch-icon.png' })) {
+        const r = await get(ic.src);
+        assert.equal(r.status, 200, ic.src);
+        assert.match(r.type, /image\/png/, ic.src);
+      }
+    });
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
@@ -187,6 +210,16 @@ for (const base of SITES) {
       await ph.page.screenshot({ path: path.join(OUT, host + '-phone.png') });
       await menu.click();
       await assert.doesNotReject(ph.page.getByRole('button', { name: 'Ask Queen' }).waitFor({ state: 'visible', timeout: 3000 }));
+      // Chromium supports element full screen, so the menu offers it; the label follows fullscreenchange
+      const fsOn = () => ph.page.evaluate(() => !!document.fullscreenElement);
+      await ph.page.getByRole('button', { name: 'Full screen', exact: true }).click();
+      await ph.page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 });
+      await menu.click();
+      await ph.page.getByRole('button', { name: 'Exit full screen' }).click();
+      await ph.page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 });
+      assert.equal(await fsOn(), false);
+      await menu.click();
+      await assert.doesNotReject(ph.page.getByRole('button', { name: 'Full screen', exact: true }).waitFor({ state: 'visible', timeout: 3000 }));
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });

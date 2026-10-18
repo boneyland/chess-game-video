@@ -3,7 +3,7 @@
 Browser player for annotated chess games: the claude.ai artifact, https://chess-replay.netlify.app/ and https://chess-replay.onrender.com/. Split out of `~/projects/chess-animator` (Python/Manim renderer) on 2026-10-17; that repo must stay checked out next to this one.
 
 ## Commands
-- `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page + two Stockfish files)
+- `node build.cjs` - writes `out/chess-game-video.html` (artifact, engine inlined) and `out/site/` (page, two Stockfish files, web app manifest + icons from `app/icons/`)
 - `node --test --test-concurrency=1 tests/*.test.cjs` - JS tests (also writes `tests/out/`); GitHub Actions (`.github/workflows/test.yml`) runs them on every push, and the Netlify build before building
 - `node --test tests/live/site.test.cjs` - smoke tests against both live sites (Playwright, real mouse input; screenshots in `tests/out/live/`); `LIVE_URLS` picks other sites (e.g. a deploy preview), `LIVE_CDN_DIR` serves React from local npm packages where cdnjs is blocked. Never in deploy builds
 - `../chess-animator/.venv/bin/python -m unittest tests/check_browser_json.py` - checks the browser's analysis JSON against the Python pipeline; run after the JS tests
@@ -23,6 +23,7 @@ Browser player for annotated chess games: the claude.ai artifact, https://chess-
 
 ## Gotchas
 - Layout lives in `app/game-video-core.jsx`: `LAYOUTS.wide` is the 1920×1080 frame, `tallLayout(H)` the 840-wide phone frame (scaled to fit, so phone text reads smaller); the frame's outer padding is `.stage-tall` in `app/shell.html`
+- The Full screen menu item shows only where `document.fullscreenEnabled` (or the `webkit` one) is true: not on iPhone Safari, whose way out of the bars is Add to Home Screen (the manifest)
 - Settings defaults are `window.TWEAK_DEFAULTS` in `app/shell.html`; viewers' changed settings persist in localStorage and override new defaults
 - Hugging Face sign-in returns to the folder the page is served from (`HF_OAUTH.redirect` in `app/queen.jsx`); every such URL must also be listed in the HF OAuth app's redirect URLs (huggingface.co/settings/applications), exactly, trailing slash included
 - Ask Queen calls the user's HF Space boneyland/queen-pawn-8 (`gr3_queen_pawn_8_analyse_position`, `{fen, moves}`) via the artifact's `mcp` capability; its answer is a Python dict repr (`pyParse` in `app/queen-core.js`). ZeroGPU quota is small (~20–33 s per position): never suggest whole-game Queen runs without the cost

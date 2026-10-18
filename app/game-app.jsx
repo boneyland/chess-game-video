@@ -8,6 +8,30 @@ const CLAUDE_URL = 'https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT';
 function readStored() { try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s && (s.pgn || s.analysis)) return s; } catch (e) {} return SAMPLE; }
 const PLAYBACK = '{"mode":"loop"}';
 
+// Full screen hides the browser's bars, and the phone layouts grow into the space. iPhone Safari has no element
+// full screen (only <video>) and a frame may not allow it, so the item shows only where the browser says it works;
+// an installed copy opened full screen (the manifest) has no bars to hide
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+const FS_OK = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !(() => { try { return window.matchMedia('(display-mode: fullscreen)').matches; } catch (e) { return false; } })();
+function useFullscreen() {
+  const [on, setOn] = React.useState(() => !!fsElement());
+  React.useEffect(() => {
+    const sync = () => setOn(!!fsElement());
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => { document.removeEventListener('fullscreenchange', sync); document.removeEventListener('webkitfullscreenchange', sync); };
+  }, []);
+  // called from the tap itself: browsers refuse full screen outside a user gesture (iPad Safari's prefixed call returns no promise)
+  const toggle = () => {
+    const el = document.documentElement;
+    try {
+      const r = fsElement() ? (document.exitFullscreen || document.webkitExitFullscreen).call(document) : (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      if (r && r.catch) r.catch(() => {});
+    } catch (e) {}
+  };
+  return { ok: FS_OK, on, toggle };
+}
+
 function useCapability(name) {
   const [cap, setCap] = React.useState(null);
   React.useEffect(() => {
@@ -90,6 +114,7 @@ function GameApp() {
   const mcp = useCapability('mcp');
   const probe = React.useRef(null);
   const nav = React.useRef(null);
+  const fullscreen = useFullscreen();
   const [queenOpen, setQueenOpen] = React.useState(false);
   const [queenArrow, setQueenArrow] = React.useState(null);
   // the phone layouts (portrait, or a narrow one held sideways) fold the dock's buttons into a menu in the transport bar; it closes on a pick, an outside tap or Esc
@@ -268,6 +293,7 @@ function GameApp() {
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); inputRef.current.click(); }}>Load game…</button>
       <button ref={queenBtn} type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>
       <button type="button" className="dock-btn" aria-expanded={panel} onClick={() => { setMenu(false); setPanel((p) => !p); setQueenOpen(false); }}>Settings</button>
+      {fullscreen.ok && <button type="button" className="dock-btn" onClick={() => { setMenu(false); fullscreen.toggle(); }}>{fullscreen.on ? 'Exit full screen' : 'Full screen'}</button>}
     </div>
   );
   const menuEl = (

@@ -70,3 +70,27 @@ test('the self-hosted page has a description, a preview title and an icon', () =
   assert.match(head, /<meta property="og:title" content="Chess Game Video">/);
   assert.match(head, /<link rel="icon" href="data:image\/svg\+xml,/);
 });
+
+// Add to Home Screen: the self-hosted page links a manifest whose icons are PNGs written next to it
+test('the self-hosted page links a web app manifest, and its icons are written next to it', () => {
+  const site = path.join(ROOT, 'out', 'site');
+  const head = fs.readFileSync(path.join(site, 'chess-game-video.html'), 'utf8').split('</head>')[0];
+  assert.match(head, /<link rel="manifest" href="manifest\.webmanifest">/);
+  assert.match(head, /<link rel="apple-touch-icon" href="apple-touch-icon\.png">/);
+  assert.match(head, /<meta name="apple-mobile-web-app-capable" content="yes">/);
+  const m = JSON.parse(fs.readFileSync(path.join(site, 'manifest.webmanifest'), 'utf8'));
+  assert.equal(m.start_url, './');
+  assert.match(m.display, /^(fullscreen|standalone)$/);
+  const bg = fs.readFileSync(path.join(ROOT, 'app', 'shell.html'), 'utf8').match(/--bg: (#\w+)/)[1];
+  assert.equal(m.background_color, bg, '--bg in app/shell.html');
+  const png = (f) => { const b = fs.readFileSync(path.join(site, f)); assert.equal(b.subarray(1, 4).toString(), 'PNG', f); return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`; };
+  for (const ic of m.icons) assert.equal(png(ic.src), ic.sizes, ic.src);
+  assert.deepEqual(m.icons.map((ic) => ic.sizes).sort(), ['192x192', '512x512', '512x512']);
+  assert.ok(m.icons.some((ic) => ic.purpose === 'maskable'));
+  assert.equal(png('apple-touch-icon.png'), '180x180');
+});
+
+// claude.ai provides the artifact's document shell, so the artifact carries no manifest
+test('the artifact links no manifest', () => {
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8'), /rel="manifest"/);
+});
