@@ -132,13 +132,20 @@ function FrameButton({ primary, color, onClick, children, label }) {
   const c = color || C.best;
   return (
     <button type="button" aria-label={label} onClick={(e) => { e.stopPropagation(); onClick(); }} onPointerDown={(e) => e.stopPropagation()}
-      style={{ font: `600 ${primary ? 20 : 15}px ${MONO}`, letterSpacing: primary ? '0.02em' : '0.1em', textTransform: primary ? 'none' : 'uppercase', padding: primary ? '12px 22px' : '5px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', border: `1.5px solid ${c}`, background: primary ? c : 'transparent', color: primary ? C.bg : c }}>
+      style={{ whiteSpace: 'nowrap', font: `600 ${primary ? 20 : 15}px ${MONO}`, letterSpacing: primary ? '0.02em' : '0.1em', textTransform: primary ? 'none' : 'uppercase', padding: primary ? '12px 22px' : '5px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', border: `1.5px solid ${c}`, background: primary ? c : 'transparent', color: primary ? C.bg : c }}>
       {children}
     </button>
   );
 }
 
-const fmtEta = (s) => (s == null ? '' : s < 60 ? `about ${Math.max(5, Math.round(s / 5) * 5)} s left` : `about ${Math.round(s / 60)} min left`);
+// time left: to 5 s under a minute, to 10 s under 5 min (so it visibly counts down), then to the minute
+const fmtEta = (s) => {
+  if (s == null) return '';
+  if (Math.round(s / 5) * 5 < 60) return `about ${Math.max(5, Math.round(s / 5) * 5)} s left`;
+  if (s >= 300) return `about ${Math.round(s / 60)} min left`;
+  const t = Math.round(s / 10) * 10, m = Math.floor(t / 60), x = t % 60;
+  return `about ${m} min${x ? ` ${x} s` : ''} left`;
+};
 
 // The Analysis panel's body for a game without evals
 // compact: a row under a panel that already shows PGN variations (no heading text)
@@ -154,6 +161,7 @@ function EngineEmptyState({ M, sf, paused, compact }) {
       </div>
     );
   }
+  const narrow = !L.header, est = `about ${sf.estimateMin} min`;
   const text = compact ? null : <span style={{ ...NO_SELECT, font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis for this game.</span>;
   if (!paused) return text;
   if (sf.status === 'unavailable') {
@@ -168,7 +176,11 @@ function EngineEmptyState({ M, sf, paused, compact }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
       {text}
-      <FrameButton primary onClick={sf.start}>{run.resumeAt ? `Resume analysis from move ${Math.floor((M.ply0 + run.resumeAt) / 2) + 1} · about ${sf.estimateMin} min` : `Analyse with Stockfish · about ${sf.estimateMin} min`}</FrameButton>
+      {/* the phone's panel is too narrow for the estimate on the button: it goes beside it */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <FrameButton primary onClick={sf.start}>{(run.resumeAt ? `${narrow ? 'Resume' : 'Resume analysis'} from move ${Math.floor((M.ply0 + run.resumeAt) / 2) + 1}` : 'Analyse with Stockfish') + (narrow ? '' : ` · ${est}`)}</FrameButton>
+        {narrow && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>{est}</span>}
+      </div>
       {run.resumeAt > 0 && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>{run.resumeAt} of {run.plies} moves analysed so far.</span>}
       {!compact && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>Stockfish 19 lite runs in your browser.</span>}
       {run.err && <span style={{ font: `500 15px ${MONO}`, color: C.blunder }}>{run.err}</span>}

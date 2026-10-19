@@ -602,7 +602,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
   if (c < 0) return (
     <Panel box={L.analysis} a={a} title="Analysis" right={right}>
       {paused && <span style={{ ...NO_SELECT, font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
-      {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
+      {sf && !M.hasAnalysis && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
     </Panel>
   );
   const P = M.plies[c], cls = P.cls;
@@ -660,7 +660,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
             </span> · ← → step · Esc returns to the game
           </span>
         )}
-        {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <EngineEmptyState M={M} sf={sf} paused={paused} compact />}
+        {sf && !M.hasAnalysis && (sf.run.state === 'running' || paused) && <EngineEmptyState M={M} sf={sf} paused={paused} compact />}
         {!vline && paused && M.hasEval && <FitOrHide style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>Tip: drag a piece on the board to try your own move.</FitOrHide>}
       </div>
     </Panel>

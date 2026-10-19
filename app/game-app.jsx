@@ -514,7 +514,7 @@ function GameApp() {
             {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
             {!board && (analysis.state === 'running'
               ? <>
-                <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ` · about ${Math.max(1, Math.round(analysis.etaSec / 60))} min left` : ''}</div>
+                <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ' · ' + fmtEta(analysis.etaSec) : ''}</div>
                 <TweakButton secondary label="Stop the analysis" onClick={analysis.stop} />
               </>
               : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}
