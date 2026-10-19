@@ -24,6 +24,9 @@ function FreeBar({ pos, side, a }) {
   );
 }
 
+// a key's name drawn as a key: filled and bordered like a button, but only a label (no pointer, no clicks)
+const KeyCap = ({ children }) => <span style={{ display: 'inline-block', padding: '0 7px', margin: '0 1px', borderRadius: 4, background: C.off, border: `1px solid ${C.line}`, boxShadow: `0 1px 0 ${C.line}`, color: C.ink, lineHeight: 1.45, pointerEvents: 'none', userSelect: 'none' }}>{children}</span>;
+
 // the book's name for the position on the board (the last named one on the way there, the start included), or null
 function boardOpening(board, book) {
   if (!book) return null;
@@ -167,7 +170,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
           ? <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>{bookMoves(board, book).length ? 'Drag a piece to play a move, or pick a book move in the explorer.' : 'Drag a piece to play a move.'} Stockfish rates every move, for either side.</span>
           : <React.Fragment>
             <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
-            <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · Home the start · End the last move</FitOrHide>
+            <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
           </React.Fragment>}
       </Panel>
     </div>
