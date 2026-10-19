@@ -95,10 +95,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 /* landscape: panels open above the transport bar, so they leave its buttons uncovered */
 body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 86px); }
 .dock-btn { flex: none; font: 600 12px var(--mono); padding: 0 10px; height: 34px; border-radius: 6px; cursor: pointer; white-space: nowrap; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
-/* Settings and Full screen: their labels, or only their icons in the landscape bar below 1100 px (no times there either) */
+/* Settings and Full screen: their labels, or only their icons in the landscape bar below 1200 px (no times there either) */
 .dock-iconic { display: inline-flex; align-items: center; }
 .dock-icon { display: none; }
-@media (max-width: 1099px) {
+@media (max-width: 1199px) {
   .pdock .dock-iconic { width: 34px; padding: 0; justify-content: center; }
   .pdock .dock-icon { display: block; }
   .pdock .dock-label { display: none; }

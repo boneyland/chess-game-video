@@ -78,9 +78,9 @@ function Stage({ width, height, portrait, square, short, menu, top, onLayout, du
       shortRef.current = nextShort;
       const sw = nextShort ? clamp(Math.floor(kw / ss), short.minWidth, short.maxWidth) : 0;
       // narrow: too little room beside the track for the page's buttons, which fold into a menu
-      const narrow = nextShort && kw < 900;
+      const narrow = (nextShort && kw < 900) || (nextSq && st.clientWidth < 900);
       setFrame((f) => (f.tall === next && !!f.square === nextSq && !!f.short === nextShort && !!f.narrow === narrow && (f.height || 0) === (ph || qh) && (f.width || 0) === sw ? f
-        : next ? { tall: true, height: ph } : nextSq ? { tall: false, square: true, height: qh } : nextShort ? { tall: false, short: true, narrow, width: sw } : { tall: false }));
+        : next ? { tall: true, height: ph } : nextSq ? { tall: false, square: true, narrow, height: qh } : nextShort ? { tall: false, short: true, narrow, width: sw } : { tall: false }));
       setScale(Math.max(0.05, next ? sp : nextSq ? Math.min(w / square.width, h / qh) : nextShort ? Math.min(kw / sw, kh / short.height) : sl));
     };
     measure();
@@ -88,7 +88,7 @@ function Stage({ width, height, portrait, square, short, menu, top, onLayout, du
     ro.observe(el);
     return () => ro.disconnect();
   }, [width, height, portrait && portrait.width, portrait && portrait.minHeight, portrait && portrait.maxHeight, square && square.minHeight, short && short.height]);
-  // onLayout(true, w): a phone frame (portrait, or a narrow one held sideways), where the page folds its buttons into a menu; w is the frame's width
+  // onLayout(true, w): a phone frame (portrait, or a narrow sideways or square one), where the page folds its buttons into a menu; w is the frame's width
   const phone = tall || !!frame.narrow, fw = tall ? portrait.width : frame.square ? square.width : frame.short ? frame.width : width;
   React.useEffect(() => { if (onLayout) onLayout(phone, fw); }, [phone, fw]);
 

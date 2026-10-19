@@ -419,7 +419,7 @@ function GameApp() {
         </div>
       )}
       {!board && <button ref={queenBtn} type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>}
-      {/* below 1100 px wide these two show only their icons (shell.html), so the seek bar keeps some width */}
+      {/* below 1200 px wide these two show only their icons (shell.html), so the seek bar keeps some width */}
       <button type="button" className="dock-btn dock-iconic" aria-label="Settings" title="Settings" aria-expanded={panel} onClick={() => { setMenu(false); setPanel((p) => !p); setQueenOpen(false); }}>
         <svg className="dock-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fillRule="evenodd" d={GEAR} /></svg>
         <span className="dock-label">Settings</span>
