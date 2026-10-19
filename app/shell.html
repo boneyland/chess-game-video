@@ -98,12 +98,18 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .dock-menu-status { display: none; }
 /* portrait layout: the dock's buttons fold into a menu at the end of the transport bar */
 /* phones: a slimmer transport bar and less padding around it, so the frame can be larger */
-.stage-tall { padding-block: 2px 8px; gap: 6px; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+.stage-tall { padding-block: 2px 5px; gap: 6px; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 /* phone held sideways: the same slim bar, so the board keeps the height */
 .stage-short { padding-block: 4px 6px; gap: 6px; }
 .stage-tall .pbar, .stage-short .pbar { padding: 3px 6px; gap: 6px; }
 /* every button on a phone's bar is one size, large enough to tap; the narrower stage padding and gaps leave the track its room */
-.stage-tall .pbtn, .stage-short .pbtn { width: 36px; height: 36px; }
+.stage-short .pbtn { width: 36px; height: 36px; }
+/* a phone held upright: smaller buttons (the same icons) and gaps, so the seek bar keeps a usable width; below 360 px
+   the first and last move buttons go, rather than the seek bar */
+.stage-tall .pbar { gap: 4px; padding-block: 2px; }
+.stage-tall .pbtn { width: 30px; height: 30px; }
+.stage-tall .ptrack { min-width: 96px; }
+@media (max-width: 359px) { .stage-tall .pbtn-end { display: none; } }
 .pmenu { position: relative; flex: none; }
 .pmenu-err .dock-menu { border-color: var(--danger); color: var(--danger); }
 .pmenu .dock-items {

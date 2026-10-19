@@ -197,7 +197,7 @@ function PlaybackBar({ time, duration, playing, nav, menu, still, onPlayPause, o
   const fmt = (t) => { const x = Math.max(0, t); return `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}.${String(Math.floor((x * 100) % 100)).padStart(2, '0')}`; };
   return (
     <div className="pbar">
-      <button type="button" className="pbtn" disabled={still && !(nav && nav.current && nav.current.hasPrev)} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
+      <button type="button" className="pbtn pbtn-end" disabled={still && !(nav && nav.current && nav.current.hasPrev)} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
       </button>
       {nav && nav.current && (
@@ -218,7 +218,7 @@ function PlaybackBar({ time, duration, playing, nav, menu, still, onPlayPause, o
         </NavButton>
       )}
       {nav && nav.current && (
-        <button type="button" className="pbtn" disabled={!nav.current.hasLast} onClick={() => nav.current.last()} aria-label="Last move (End)" title="Last move (End)">
+        <button type="button" className="pbtn pbtn-end" disabled={!nav.current.hasLast} onClick={() => nav.current.last()} aria-label="Last move (End)" title="Last move (End)">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 2v10M2 2l7 5-7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
         </button>
       )}
