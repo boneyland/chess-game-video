@@ -1,5 +1,5 @@
 // ---------- the free board ----------
-// A board without a game (New board): the viewer plays both sides and Stockfish rates every move. A view of its own
+// A board without a game (Play/Explore → Starting position): the viewer plays both sides and Stockfish rates every move. A view of its own
 // rather than a zero-ply GameVideo, so the replay's timeline never has to handle it; it shares the frame's layout,
 // panels, board drawing and input. The board (BoardCore) lives in GameApp's files, so it is stored like a loaded game.
 const FULL_SET = { q: 1, r: 2, b: 2, n: 2, p: 8 };
@@ -138,46 +138,57 @@ function GameInfo({ board }) {
   return (
     <Panel box={{ ...L.comment, scroll: true }} a={1} title="Play vs human" right={G.tc || 'No clock'}>
       <span style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: C.ink }}>{board.fen === window.ChessCore.START_FEN ? 'From the starting position' : 'From a set-up position'}</span>
-      {note('Two players at one board. It turns after each move, so the side to move plays from the bottom.')}
+      {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Agree a draw and Resign are in the Game box.')}
       {note(t ? `Each side has ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.')}
       {note('No engine and no hints: Stockfish is off until the game ends.')}
     </Panel>
   );
 }
 
-// The Analysis box in a game: whose move it is and Resign, or the result with Play again and Analyse
+// The Analysis box in a game: whose move it is, with Take back, Agree a draw and Resign (the last two asked twice), or
+// the result with Play again beside it and Analyse on the free board below
 function GameStatus({ board, onChange }) {
   const P = window.PlayCore, G = board.game, last = board.steps.length ? board.steps[board.steps.length - 1] : null;
   const turn = (last ? last.pos : board.start.pos).turn, side = turn === 'w' ? 'White' : 'Black';
+  // the question waiting on an answer: 'resign' or 'draw'; another position or result drops it
+  const [ask, setAsk] = React.useState(null);
+  React.useEffect(() => { setAsk(null); }, [board.steps.length, !!G.result]);
   const big = (txt, col) => <span style={{ font: `700 38px ${MONO}`, color: col }}>{txt}</span>;
   const small = (txt, col) => <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{txt}</span>;
   const hint = (txt) => <FitOrHide style={{ display: 'block', marginTop: 14, font: `500 15px ${MONO}`, color: C.dim }}>{txt}</FitOrHide>;
+  const row = (children) => <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap', alignItems: 'center' }}>{children}</div>;
   if (G.result) {
     const r = P.resultText(G.result);
     const { game, ...free } = board;
     return (
       <React.Fragment>
-        <div className="game-result" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{big(r.score, C.ink)}{small(r.why, C.last)}</div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap' }}>
-          <FrameButton primary onClick={() => onChange(P.start(window.BoardCore.fromFen(board.fen), G.tc))}>Play again</FrameButton>
-          <FrameButton primary color={C.last} onClick={() => onChange(free)}>Analyse on the free board</FrameButton>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+          <div className="game-result" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{big(r.score, C.ink)}{small(r.why, C.last)}</div>
+          <div style={{ marginLeft: 'auto' }}><FrameButton primary onClick={() => onChange(P.start(window.BoardCore.fromFen(board.fen), G.tc))}>Play again</FrameButton></div>
         </div>
+        {row(<FrameButton primary color={C.last} onClick={() => onChange(free)}>Analyse on the free board</FrameButton>)}
         {hint('← → step through the game')}
       </React.Fragment>
     );
   }
   const check = last && last.checkSq;
   const paused = G.clock && G.clock.since == null && board.steps.length > 0;
+  const now = () => Date.now();
   return (
     <React.Fragment>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {big(`${side} to move`, C.last)}
         {small(check ? 'Check' : G.clock && !board.steps.length ? 'The clocks start with the first move' : paused ? 'Clocks paused by the reload · they run again from the next move' : ' ', check ? C.blunder : C.dim)}
       </div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
-        <FrameButton color={C.dim} onClick={() => onChange(P.resign(board, Date.now()))}>Resign as {side}</FrameButton>
-      </div>
-      {hint('← takes back a move')}
+      {ask ? row(<React.Fragment>
+        <span style={{ font: `600 18px ${SANS}`, color: C.ink }}>{ask === 'resign' ? `Resign as ${side}?` : 'Do both players agree to a draw?'}</span>
+        <FrameButton color={ask === 'resign' ? C.blunder : C.last} onClick={() => onChange(ask === 'resign' ? P.resign(board, now()) : P.agreeDraw(board, now()))}>{ask === 'resign' ? 'Resign' : 'Agree'}</FrameButton>
+        <FrameButton color={C.dim} onClick={() => setAsk(null)}>Keep playing</FrameButton>
+      </React.Fragment>) : row(<React.Fragment>
+        {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => onChange(P.takeback(board, now()))}>Take back</FrameButton>}
+        {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => setAsk('draw')}>Agree a draw</FrameButton>}
+        <FrameButton color={C.dim} onClick={() => setAsk('resign')}>Resign as {side}</FrameButton>
+      </React.Fragment>)}
     </React.Fragment>
   );
 }
@@ -190,7 +201,6 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   const G = board.game || null, live = P.inProgress(board);
   setOrient(G ? (last >= 0 ? steps[last].pos : board.start.pos).turn : orient);
   const go = (u) => onChange(B.go(board, u));
-  const takeback = () => onChange(P.takeback(board, Date.now()));
   const play = (step) => onChange(live ? P.move(board, step, Date.now()) : B.play(board, step));
   const input = useBoardInput({ pos, onPick: () => {}, onMiss: () => {}, onMove: play });
   // a finished game takes no moves (Analyse on the free board does)
@@ -232,11 +242,12 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
     prevStep.current = stepKey;
     if (stepKey && stepKey !== p && tw.sound !== false) sfxPlayer.play(tw.soundSet, window.Sfx.kinds(steps[upto].san), tw.soundVolume);
   }, [stepKey]);
-  // the transport bar's buttons and label, and the keys: ← → step, Home the start, End the last move; in a game ← takes back
+  // the transport bar's buttons and label, and the keys: ← → step, Home the start, End the last move; none in a game
+  // in progress (Take back is a button by Resign)
   if (nav) nav.current = live ? {
     label: upto < 0 ? 'Start' : B.label(board, upto), color: C.last,
-    hasPrev: steps.length > 0, prevLabel: 'Take back (←)', hasNext: false, hasLast: false, hasFirst: false,
-    prev: takeback, next: () => {}, last: () => {}, first: () => {},
+    hasPrev: false, hasNext: false, hasLast: false, hasFirst: false,
+    prev: () => {}, next: () => {}, last: () => {}, first: () => {},
   } : {
     label: upto < 0 ? 'Start' : B.label(board, upto), color: C.last,
     hasPrev: upto >= 0, hasNext: upto < last, hasLast: upto < last,
@@ -245,14 +256,14 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   const navSig = nav && nav.current ? `${nav.current.label}|${upto}|${last}|${live}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);
   const keyRef = React.useRef(null);
-  keyRef.current = { go, upto, last, live, takeback, promo: input.promo, cancelPromo: input.cancelPromo };
+  keyRef.current = { go, upto, last, live, promo: input.promo, cancelPromo: input.cancelPromo };
   React.useEffect(() => {
     const onKey = (e) => {
       const tag = e.target && e.target.tagName;
       if (e.defaultPrevented || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       const k = keyRef.current;
       if (e.code === 'Escape' && k.promo) { e.preventDefault(); k.cancelPromo(); return; }
-      if (k.live) { if (e.code === 'ArrowLeft') { e.preventDefault(); if (k.last >= 0) k.takeback(); } return; }
+      if (k.live) return;
       const to = { ArrowLeft: k.upto - 1, ArrowRight: k.upto + 1, Home: -1, End: k.last }[e.code];
       if (to == null) return;
       e.preventDefault();
@@ -379,7 +390,7 @@ function PlayDialog({ setUpFen, clock, onStart, onClose }) {
     <DialogBox label="Play vs human" onClose={onClose}>
       {setUpFen && <DialogChoice label="Start from" value={from} options={[{ label: 'Starting position', value: 'start' }, { label: 'Set-up position', value: 'setup' }]} onChange={setFrom} />}
       <DialogChoice label="Clock" value={tc} options={[{ label: 'Off', value: null }].concat(window.PlayCore.TIME_CONTROLS.map((x) => ({ label: x, value: x })))} onChange={setTc} />
-      <div className="fen-note">Two players at this screen. The board turns after each move, so the side to move plays from the bottom; ← takes back a move. Stockfish stays off until the game ends.</div>
+      <div className="fen-note">Two players at this screen. The board turns after each move, so the side to move plays from the bottom; Take back is a button by Resign. Stockfish stays off until the game ends.</div>
       <div className="fen-btns">
         <button type="button" className="twk-btn secondary" onClick={onClose}>Cancel</button>
         <button type="button" className="twk-btn" data-autofocus onClick={start}>Start game</button>
