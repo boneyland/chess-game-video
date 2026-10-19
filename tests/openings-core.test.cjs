@@ -57,3 +57,24 @@ test('a FEN start inside the book is named', () => {
   assert.equal(O.book().byPly(['e2e4']).length, 1); // the standard start still works without a FEN
   assert.equal(O.book().identify(['e1g1'], '4k3/8/8/8/8/8/8/4K2R w - - 0 1'), null); // outside the book: no name
 });
+
+test('continuations from the start are the book first moves, most lines first', () => {
+  const next = window.Openings.book().continuations([]);
+  assert.deepEqual(next.slice(0, 2).map((m) => m.uci).sort(), ['d2d4', 'e2e4']);
+  assert.ok(next.length >= 15, next.length);
+  assert.ok(next.every((m) => m.san && m.uci), 'every move has SAN and UCI');
+  assert.equal(new Set(next.map((m) => m.uci)).size, next.length, 'no move twice');
+});
+test('continuations name the opening each move reaches, from moves or a FEN', () => {
+  const book = window.Openings.book();
+  const bb5 = book.continuations(['e2e4', 'e7e5', 'g1f3', 'b8c6']).find((m) => m.uci === 'f1b5');
+  assert.match(bb5.name, /^Ruy Lopez/); assert.equal(bb5.san, 'Bb5');
+  const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+  assert.deepEqual(book.continuations([], fen), book.continuations(['e2e4', 'e7e5', 'g1f3', 'b8c6']));
+});
+test('continuations out of the book, or after an illegal move, are empty', () => {
+  const book = window.Openings.book();
+  assert.deepEqual(book.continuations(['e2e4', 'e7e5', 'e1e2', 'e8e7', 'e2e1', 'e7e8']), []);
+  assert.deepEqual(book.continuations(['e2e5']), []);
+  assert.deepEqual(book.continuations([], '4k3/8/8/8/8/8/8/4K2R w - - 0 1'), []);
+});
