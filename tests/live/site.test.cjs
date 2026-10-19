@@ -52,6 +52,8 @@ async function open(browser, viewport, opts) {
   page.on('pageerror', (e) => errors.push(e.message));
   return { ctx, page, errors };
 }
+// the page has rendered and the board has its pieces
+const loadedOn = async (page) => { await page.locator('.dock-primary').waitFor({ state: 'attached' }); await page.waitForFunction(() => document.querySelectorAll('img').length >= 32); };
 
 // The board is where the 32 pieces stand at the start: the union of the piece images' boxes
 async function boardBox(page) {
@@ -355,6 +357,89 @@ for (const name of BROWSERS) for (const site of SITES) {
       await fp.page.screenshot({ path: path.join(OUT, host + '-fen-start.png') });
       assert.deepEqual(fp.errors, []);
       await fp.ctx.close();
+    });
+    // New board: the starting position with no game, every move (either side's) rated by Stockfish; it survives a reload
+    await t.test('desktop: New board sets up the starting position and rates both sides\' moves', async () => {
+      const nb = await open(browser, { width: 1440, height: 900 });
+      const p = nb.page, label = p.locator('.plabel');
+      // a panel's text, found by its title (the title span's own text, before CSS upper-cases it)
+      const panel = (title) => p.evaluate((tt) => { const d = [...document.querySelectorAll('div')].find((e) => e.firstElementChild && e.firstElementChild.firstElementChild && e.firstElementChild.firstElementChild.textContent === tt); return d ? d.innerText : ''; }, title);
+      // the Analysis headline: the move it rates
+      const headline = () => p.evaluate(() => { const s = [...document.querySelectorAll('span')].find((e) => getComputedStyle(e).fontSize === '38px' && /^\d+(\.|…) /.test(e.textContent)); return s ? s.textContent : null; });
+      const verdict = /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i;
+      const drag = async (b, from, to) => {
+        const f = square(b, from), tt = square(b, to);
+        await p.mouse.move(f.x, f.y);
+        await p.mouse.down();
+        await p.mouse.move(tt.x, tt.y, { steps: 8 });
+        await p.mouse.up();
+      };
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('menuitem', { name: 'Starting position' }).click();
+      // the sample's start reads "Start" too: the board is in once Play has gone
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      const b = await boardBox(p);
+      assert.equal(b.n, 32, 'pieces on the board');
+      assert.equal(await p.getByRole('button', { name: 'Ask Queen' }).count(), 0, 'no Ask Queen on the free board');
+      assert.equal(await p.getByRole('menuitem', { name: 'Starting position' }).count(), 0, 'the menu closes on a pick');
+      await drag(b, 'e2', 'e4');
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await p.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), verdict.source, { timeout: 45000 });
+      assert.doesNotMatch(await panel('Analysis'), /can’t run here|stopped/i);
+      // Black's move, by the same viewer
+      await drag(b, 'e7', 'e5');
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      // a move taken back while Stockfish still searches it: the panel rates the move shown, never the late answer
+      await drag(b, 'g1', 'f3');
+      await assert.doesNotReject(label.filter({ hasText: /2\. Nf3/ }).waitFor({ timeout: 5000 }));
+      await p.keyboard.press('ArrowLeft');
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      await p.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), verdict.source, { timeout: 45000 });
+      await p.waitForTimeout(1500);
+      assert.equal(await headline(), '1… e5');
+      assert.match(await label.innerText(), /1… e5/);
+      assert.match(await panel('Moves'), /1\.\s*e4\s*e5\s*2\.\s*Nf3/);
+      await p.screenshot({ path: path.join(OUT, host + '-board.png') });
+      // the board comes back after a reload, on the move shown
+      await p.reload({ waitUntil: 'load' });
+      await loadedOn(p);
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Moves'), /1\.\s*e4\s*e5\s*2\.\s*Nf3/);
+      assert.equal(await p.getByRole('button', { name: 'Ask Queen' }).count(), 0);
+      // Back to sample game leaves the free board
+      await p.getByRole('button', { name: 'Settings' }).click();
+      await p.getByRole('button', { name: 'Back to sample game' }).click();
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: 'Ask Queen' }).waitFor({ timeout: 5000 }));
+      assert.equal((await boardBox(p)).n, 32);
+      assert.deepEqual(nb.errors, []);
+      await nb.ctx.close();
+      // the phone: New board's items sit in the folded menu under a label (Playwright's Firefox, given touch, drops
+      // the mouse's drags, the replay's too; there it is a narrow window)
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await ph.page.getByRole('button', { name: 'Menu' }).click();
+      const start = ph.page.getByRole('button', { name: 'Starting position' });
+      await start.waitFor({ state: 'visible', timeout: 3000 });
+      await ph.page.screenshot({ path: path.join(OUT, host + '-board-phone-menu.png') });
+      await start.click();
+      await assert.doesNotReject(ph.page.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      const pb = await boardBox(ph.page), pf = square(pb, 'e2'), pt = square(pb, 'e4');
+      assert.equal(pb.n, 32);
+      await ph.page.mouse.move(pf.x, pf.y);
+      await ph.page.mouse.down();
+      await ph.page.mouse.move(pt.x, pt.y, { steps: 8 });
+      await ph.page.mouse.up();
+      await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await ph.page.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), verdict.source, { timeout: 45000 });
+      await ph.page.screenshot({ path: path.join(OUT, host + '-board-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
     });
     await ctx.close();
 

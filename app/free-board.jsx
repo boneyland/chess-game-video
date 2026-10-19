@@ -1,0 +1,151 @@
+// ---------- the free board ----------
+// A board without a game (New board): the viewer plays both sides and Stockfish rates every move. A view of its own
+// rather than a zero-ply GameVideo, so the replay's timeline never has to handle it; it shares the frame's layout,
+// panels, board drawing and input. The board (BoardCore) lives in GameApp's files, so it is stored like a loaded game.
+const FULL_SET = { q: 1, r: 2, b: 2, n: 2, p: 8 };
+
+// the squares and their coordinates, as Board draws them (through view(), so a flipped board turns them)
+function freeSquares() {
+  const sq = [];
+  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+    const light = (r + f) % 2 === 0, [sf, sr] = view(f, r);
+    sq.push(
+      <div key={r * 8 + f} style={{ position: 'absolute', left: f * SQ, top: r * SQ, width: SQ, height: SQ, background: light ? C.light : C.dark }}>
+        {f === 0 && <span style={{ position: 'absolute', left: 6, top: 4, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{8 - sr}</span>}
+        {r === 7 && <span style={{ position: 'absolute', right: 6, bottom: 3, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{String.fromCharCode(97 + sf)}</span>}
+      </div>
+    );
+  }
+  return sq;
+}
+
+// A player bar for "White" or "Black": the pieces taken and the material edge, counted from the pieces on the board
+// against a full set (so a position set up with an edge shows it)
+function FreeBar({ pos, side, a }) {
+  const left = (col, t) => pos.b.filter((p) => p === (col === 'w' ? t.toUpperCase() : t)).length;
+  const lost = (col, t) => Math.max(0, FULL_SET[t] - left(col, t));
+  const worth = (col) => Object.keys(FULL_SET).reduce((s, t) => s + left(col, t) * VALUE[t], 0);
+  const opp = side === 'w' ? 'b' : 'w', pts = worth(side) - worth(opp), shown = [];
+  Object.keys(FULL_SET).forEach((t) => {
+    for (let i = 0; i < lost(opp, t) - lost(side, t); i++) shown.push(<img key={t + i} src={img(opp, t)} alt="" style={{ width: 30, height: 30, flex: 'none', marginLeft: shown.length ? -8 : 0, filter: opp === 'b' ? C.rim : 'none' }} />);
+  });
+  return (
+    <div style={{ position: 'absolute', left: BX, width: BW / L.bar.k, top: side === ORIENT ? BY + BW + L.bar.gap : BY - L.bar.gap - 40 * L.bar.k, height: 40, transform: `scale(${L.bar.k})`, transformOrigin: '0 0', display: 'flex', alignItems: 'center', gap: 14, opacity: a }}>
+      <span style={{ width: 14, height: 14, borderRadius: 3, background: side === 'w' ? '#f1ebe1' : '#1c1613', border: `1.5px solid ${C.dim}`, flex: 'none' }} />
+      <span style={{ font: `600 20px ${SANS}`, color: C.ink, whiteSpace: 'nowrap' }}>{side === 'w' ? 'White' : 'Black'}</span>
+      <span style={{ display: 'flex', alignItems: 'center', marginLeft: 6 }}>{shown}</span>
+      {pts > 0 && <span style={{ font: `600 16px ${MONO}`, color: C.dim, marginLeft: 8 }}>+{pts}</span>}
+    </div>
+  );
+}
+
+// the book's name for the position on the board (the last named one on the way there), or null
+function boardOpening(board, book) {
+  if (!book) return null;
+  try { return book.identify(window.BoardCore.ucis(board), board.fen); } catch (e) { return null; }
+}
+
+// The Commentary box on the free board. For now it names the position; the book's continuations come next.
+function OpeningExplorer({ board, book }) {
+  const named = boardOpening(board, book), start = board.upto < 0 && board.fen === window.ChessCore.START_FEN;
+  return (
+    <Panel box={L.comment} a={1} title="Opening explorer" right={named ? `${named.eco} ${named.name}` : null}>
+      {named || start
+        ? <span style={{ font: `400 ${Math.round(40 * L.comment.text)}px/1.14 ${SERIF}`, color: C.ink, textWrap: 'pretty' }}>{named ? named.name : 'Starting position'}</span>
+        : <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>{book ? 'This position isn’t in the opening book.' : 'Loading the opening book…'}</span>}
+    </Panel>
+  );
+}
+
+// The frame's layout without the eval graph, whose room goes to the panels: on the wide frame Moves and the explorer grow
+// down into it (more moves, and room for book moves) and Analysis moves down; on the phone the explorer grows up into it.
+// GameVideo sets the plain layout again on its next render.
+const BOARD_LAYOUTS = new WeakMap();
+function boardLayout(base) {
+  if (!base.plot) return base;
+  if (!BOARD_LAYOUTS.has(base)) {
+    const p = base.plot, an = base.analysis, grow = p.y + p.h - (an.y + an.h);
+    BOARD_LAYOUTS.set(base, base.header
+      ? { ...base, plot: null, moves: { ...base.moves, h: base.moves.h + grow, rows: base.moves.rows + Math.floor(grow / base.moves.k / 38) }, comment: { ...base.comment, h: base.comment.h + grow }, analysis: { ...an, y: an.y + grow } }
+      : { ...base, plot: null, comment: { ...base.comment, y: p.y, h: base.comment.h + base.comment.y - p.y } });
+  }
+  return BOARD_LAYOUTS.get(base);
+}
+
+function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
+  setLayout(useFrame()); // before the children render, which read the layout
+  L = boardLayout(L);
+  setOrient(orient);
+  const B = window.BoardCore, pos = B.pos(board), { steps, upto } = board, last = steps.length - 1;
+  const go = (u) => onChange(B.go(board, u));
+  const input = useBoardInput({ pos, onPick: () => {}, onMiss: () => {}, onMove: (step) => onChange(B.play(board, step)) });
+  const boardKey = board.fen + '|' + B.ucis(board).join(' ');
+  // another position (a step, a takeback) drops a half-made move: a selected piece, the promotion picker
+  React.useEffect(() => { input.clear(); }, [boardKey]);
+  // Stockfish rates the move on the board: the positions before and after it (before the first move, both the start)
+  const ev = useMoveEval(sf.engine, B.ucis(board, upto), B.ucis(board), sf.own, board.fen);
+  const posBefore = upto > 0 ? steps[upto - 1].pos : board.start.pos;
+  const bm = upto >= 0 && ev.before && ev.before.best ? window.ChessCore.applyUci(posBefore, ev.before.best) : null;
+  const own = { ...ev, bestSan: bm ? bm.san : null };
+  const onReply = (replies) => { let b = board; for (const s of replies) b = B.play(b, s); onChange(b); };
+  const down = sf.status === 'unavailable' || sf.status === 'stopped';
+  const cp = ev.after && ev.after.cp != null ? ev.after.cp : null;
+  // a move lands with its sound, as a line's moves do in the replay
+  const stepKey = upto >= 0 ? upto + ':' + steps[upto].uci : '';
+  const prevStep = React.useRef(stepKey);
+  React.useEffect(() => { sfxPlayer.prepare(tw.soundSet); }, [tw.soundSet]);
+  React.useEffect(() => {
+    const p = prevStep.current;
+    prevStep.current = stepKey;
+    if (stepKey && stepKey !== p && tw.sound !== false) sfxPlayer.play(tw.soundSet, window.Sfx.kinds(steps[upto].san), tw.soundVolume);
+  }, [stepKey]);
+  // the transport bar's buttons and label, and the keys: ← → step, Home the start, End the last move
+  if (nav) nav.current = {
+    label: upto < 0 ? 'Start' : B.label(board, upto), color: C.last,
+    hasPrev: upto >= 0, hasNext: upto < last, hasLast: upto < last,
+    prev: () => go(upto - 1), next: () => go(upto + 1), last: () => go(last), first: () => go(-1),
+  };
+  const navSig = nav && nav.current ? `${nav.current.label}|${upto}|${last}` : '';
+  React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);
+  const keyRef = React.useRef(null);
+  keyRef.current = { go, upto, last, promo: input.promo, cancelPromo: input.cancelPromo };
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const tag = e.target && e.target.tagName;
+      if (e.defaultPrevented || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const k = keyRef.current;
+      if (e.code === 'Escape' && k.promo) { e.preventDefault(); k.cancelPromo(); return; }
+      const to = { ArrowLeft: k.upto - 1, ArrowRight: k.upto + 1, Home: -1, End: k.last }[e.code];
+      if (to == null) return;
+      e.preventDefault();
+      if (to >= -1 && to <= k.last && to !== k.upto) k.go(to);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  // MoveList draws a game at time T: one second a move, with T just short of the next, so the move shown is current and later ones dim
+  const MV = React.useMemo(() => ({ ply0: board.start.ply0, plies: steps.map((s) => ({ san: s.san, cls: 'none' })) }), [steps, board.start.ply0]);
+  const S = React.useMemo(() => ({ N: steps.length, tp: steps.map((_, i) => i) }), [steps.length]);
+  const named = boardOpening(board, book);
+  const HM = { white: { name: 'White' }, black: { name: 'Black' }, event: 'Free board', site: board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN', eco: named && named.eco, opening: named && named.name };
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: C.bg, overflow: 'hidden' }}>
+      <EvalBarView cp={cp == null ? 0 : cp} txt={cp == null ? (down ? '' : '…') : fmtSf(cp)} a={1} />
+      <FreeBar pos={pos} side="b" a={1} />
+      <LineBoard a={1} sq={freeSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} />
+      <BoardTouch pos={pos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...input.handlers} />
+      <FreeBar pos={pos} side="w" a={1} />
+      {L.header && <Header M={HM} a={1} />}
+      <MoveList M={MV} T={upto + 0.999} S={S} a={1} paused onPick={go} />
+      <OpeningExplorer board={board} book={book} />
+      <Panel box={L.analysis} a={1} title="Analysis" right={down ? null : searchStats(window.AnalysisCore.ENGINE.name, ev.after)}>
+        {upto < 0
+          ? <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Drag a piece to play a move. Stockfish rates every move, for either side.</span>
+          : <React.Fragment>
+            <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
+            <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · Home the start · End the last move</FitOrHide>
+          </React.Fragment>}
+      </Panel>
+    </div>
+  );
+}

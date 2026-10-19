@@ -73,6 +73,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
 .plabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ptime { flex: none; width: 64px; text-align: right; font: 500 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 .ptime-total { text-align: left; color: var(--dim); }
+.pspacer { flex: 1; min-width: 0; }
 .ptrack { position: relative; flex: 1; min-width: 0; height: 28px; cursor: pointer; touch-action: none; }
 .ptrack-bg, .ptrack-fill { position: absolute; left: 0; top: 12px; height: 4px; border-radius: 2px; }
 .ptrack-bg { right: 0; background: var(--track); }
@@ -112,6 +113,14 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .pmenu .dock-btn { height: auto; padding: 10px 14px; text-align: left; }
 .pmenu .dock-menu-status { display: block; max-width: 240px; padding: 2px 4px 4px; font: 500 11px/1.4 var(--mono); color: var(--dim); white-space: normal; }
 .pmenu-err .dock-menu-status { color: var(--danger); }
+/* New board: a small menu above its dock button; on a phone its items sit in the folded menu under a label */
+.dock-new { position: relative; flex: none; }
+.dock-pop {
+  position: absolute; z-index: 60; bottom: calc(100% + 12px); left: 0; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  width: max-content; padding: 8px; border-radius: 10px; background: var(--panel-glass); border: 1px solid var(--line); box-shadow: 0 12px 32px var(--shadow);
+}
+.dock-pop .dock-btn { text-align: left; }
+.dock-menu-label { padding: 6px 4px 0; font: 600 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 
 .drop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .drop-box { padding: 40px 60px; margin: 0 16px; border: 2px dashed var(--accent); border-radius: 12px; text-align: center; font: 500 20px/1.6 var(--mono); color: var(--ink); }

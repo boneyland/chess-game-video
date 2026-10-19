@@ -18,7 +18,8 @@ const FrameContext = React.createContext({ tall: false });
 const useFrame = () => React.useContext(FrameContext);
 
 
-function Stage({ width, height, portrait, short, menu, onLayout, duration, background, playback, nav, children }) {
+// still: a board without a timeline (the free board): no playing, no seeking keys, and a transport bar of moves only
+function Stage({ width, height, portrait, short, menu, onLayout, duration, background, playback, nav, still, children }) {
   const playTimes = playback && playback.mode === 'times' ? playback.count : null;
   const loop = !playback || playback.mode === 'loop';
   // The page opens paused on the composition's start frame (setStart); the first Play from that untouched frame
@@ -37,6 +38,7 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
   const [frame, setFrame] = React.useState({ tall: false });
   const tallRef = React.useRef(false), shortRef = React.useRef(false);
   const tall = frame.tall;
+  React.useEffect(() => { if (still) setPlaying(false); }, [still]);
   const areaRef = React.useRef(null);
   const lastTsRef = React.useRef(null);
   const passesRef = React.useRef(0);
@@ -103,6 +105,7 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
 
   // Keyboard: space = play/pause, arrows = seek (shift for 1 s), 0/Home = start
   React.useEffect(() => {
+    if (still) return;
     const onKey = (e) => {
       const tag = e.target && e.target.tagName;
       if (e.defaultPrevented || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -115,7 +118,7 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [duration]);
+  }, [duration, still]);
 
   // Page controls outside the stage (Queen panel, video export) pause and seek through this event;
   // `sync` renders the new frame before dispatchEvent returns, so the export can draw it straight away
@@ -142,7 +145,7 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
           </div>
         </div>
       </div>
-      <PlaybackBar time={time} duration={duration} playing={playing} nav={nav} menu={menu}
+      <PlaybackBar time={time} duration={duration} playing={playing} nav={nav} menu={menu} still={still}
         onPlayPause={togglePlay} onReset={() => setTime(0)}
         onSeek={(t) => setTime(t)} />
     </div>
@@ -175,7 +178,7 @@ function NavButton({ nav, dir, label, children }) {
   );
 }
 
-function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset, onSeek }) {
+function PlaybackBar({ time, duration, playing, nav, menu, still, onPlayPause, onReset, onSeek }) {
   const trackRef = React.useRef(null);
   const dragging = React.useRef(false);
   // the video calls nav.listen when its move label changes while the playhead is still (stepping through a line)
@@ -192,7 +195,7 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
   const fmt = (t) => { const x = Math.max(0, t); return `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}.${String(Math.floor((x * 100) % 100)).padStart(2, '0')}`; };
   return (
     <div className="pbar">
-      <button type="button" className="pbtn" onClick={onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
+      <button type="button" className="pbtn" disabled={still && !(nav && nav.current && nav.current.hasPrev)} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
       </button>
       {nav && nav.current && (
@@ -200,11 +203,13 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </NavButton>
       )}
-      <button type="button" className="pbtn" onClick={onPlayPause} aria-label={playing ? 'Pause (space)' : 'Play (space)'} title={playing ? 'Pause (space)' : 'Play (space)'}>
-        {playing
-          ? <svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="2" width="3" height="10" fill="currentColor" /><rect x="8" y="2" width="3" height="10" fill="currentColor" /></svg>
-          : <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 2l9 5-9 5V2z" fill="currentColor" /></svg>}
-      </button>
+      {!still && (
+        <button type="button" className="pbtn" onClick={onPlayPause} aria-label={playing ? 'Pause (space)' : 'Play (space)'} title={playing ? 'Pause (space)' : 'Play (space)'}>
+          {playing
+            ? <svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="2" width="3" height="10" fill="currentColor" /><rect x="8" y="2" width="3" height="10" fill="currentColor" /></svg>
+            : <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 2l9 5-9 5V2z" fill="currentColor" /></svg>}
+        </button>
+      )}
       {nav && nav.current && (
         <NavButton nav={nav} dir="next" label="Next move (→)">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -216,26 +221,28 @@ function PlaybackBar({ time, duration, playing, nav, menu, onPlayPause, onReset,
         </button>
       )}
       {nav && nav.current && <span className="plabel" style={{ color: nav.current.color }} aria-live="polite">{nav.current.label}</span>}
-      <span className="ptime">{fmt(time)}</span>
-      <div ref={trackRef} className="ptrack" role="slider" tabIndex={0} aria-label="Playhead" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)}
-        aria-valuetext={`${say(time)} of ${say(duration)}`}
-        onKeyDown={(e) => {
-          // focused, the arrows move the playhead by seconds rather than stepping through the moves
-          const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
-          const to = step != null ? time + step * (e.shiftKey ? 5 : 1) : e.key === 'Home' ? 0 : e.key === 'End' ? duration : null;
-          if (to == null || e.altKey || e.metaKey || e.ctrlKey) return;
-          e.preventDefault(); e.stopPropagation();
-          onSeek(clamp(to, 0, duration));
-        }}
-        onPointerDown={(e) => { dragging.current = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} onSeek(timeAt(e)); }}
-        onPointerMove={(e) => { if (dragging.current) onSeek(timeAt(e)); }}
-        onPointerUp={() => { dragging.current = false; }}
-        onPointerCancel={() => { dragging.current = false; }}>
-        <div className="ptrack-bg" />
-        <div className="ptrack-fill" style={{ width: `${pct}%` }} />
-        <div className="ptrack-knob" style={{ left: `${pct}%` }} />
-      </div>
-      <span className="ptime ptime-total">{fmt(duration)}</span>
+      {still ? <span className="pspacer" /> : <React.Fragment>
+        <span className="ptime">{fmt(time)}</span>
+        <div ref={trackRef} className="ptrack" role="slider" tabIndex={0} aria-label="Playhead" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)}
+          aria-valuetext={`${say(time)} of ${say(duration)}`}
+          onKeyDown={(e) => {
+            // focused, the arrows move the playhead by seconds rather than stepping through the moves
+            const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
+            const to = step != null ? time + step * (e.shiftKey ? 5 : 1) : e.key === 'Home' ? 0 : e.key === 'End' ? duration : null;
+            if (to == null || e.altKey || e.metaKey || e.ctrlKey) return;
+            e.preventDefault(); e.stopPropagation();
+            onSeek(clamp(to, 0, duration));
+          }}
+          onPointerDown={(e) => { dragging.current = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} onSeek(timeAt(e)); }}
+          onPointerMove={(e) => { if (dragging.current) onSeek(timeAt(e)); }}
+          onPointerUp={() => { dragging.current = false; }}
+          onPointerCancel={() => { dragging.current = false; }}>
+          <div className="ptrack-bg" />
+          <div className="ptrack-fill" style={{ width: `${pct}%` }} />
+          <div className="ptrack-knob" style={{ left: `${pct}%` }} />
+        </div>
+        <span className="ptime ptime-total">{fmt(duration)}</span>
+      </React.Fragment>}
       {menu}
     </div>
   );
@@ -268,13 +275,13 @@ function CompositionClock({ derived, children }) {
   return <CompositionContext.Provider value={value}>{children}</CompositionContext.Provider>;
 }
 
-function CompositionStage({ width, height, portrait, short, menu, onLayout, scenes, playback, bg, nav, children }) {
+function CompositionStage({ width, height, portrait, short, menu, onLayout, scenes, playback, bg, nav, still, children }) {
   const parsed = React.useMemo(() => parseScenes(scenes), [scenes]);
   const derived = React.useMemo(() => (parsed ? deriveCues(parsed) : null), [parsed]);
   const pb = React.useMemo(() => { try { return JSON.parse(playback); } catch (e) { return null; } }, [playback]);
   if (!derived) return <div className="stage-error">This game produced an invalid scene list.</div>;
   return (
-    <Stage width={width} height={height} portrait={portrait} short={short} menu={menu} onLayout={onLayout} duration={derived.total} background={bg} playback={pb} nav={nav}>
+    <Stage width={width} height={height} portrait={portrait} short={short} menu={menu} onLayout={onLayout} duration={derived.total} background={bg} playback={pb} nav={nav} still={still}>
       <CompositionClock derived={derived}>{children}</CompositionClock>
     </Stage>
   );

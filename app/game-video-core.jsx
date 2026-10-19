@@ -370,9 +370,13 @@ function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick
 
 function EvalBar({ M, T, S, a }) {
   const { c, cp } = evalNow(M, T, S);
-  const f = M.hasEval ? (winChance(cp) + 1) / 2 : 0.5;
   const shown = c >= 0 ? M.plies[c] : null;
   const txt = !M.hasEval ? '' : shown && shown.checkmate && T > S.tp[c] + 1 ? fmtEval(shown) : shown && shown.mate != null ? fmtEval(shown) : fmtEval({ cp });
+  return <EvalBarView cp={M.hasEval ? cp : 0} txt={txt} a={a} />;
+}
+// the bar itself: White's share from cp (White's view), and txt in the part of the bar it favours
+function EvalBarView({ cp, txt, a }) {
+  const f = (winChance(cp) + 1) / 2;
   const flip = ORIENT === 'b', inWhite = cp >= 0, top = inWhite === flip; // the number sits in the part of the bar it favours
   return (
     <div style={{ position: 'absolute', left: L.eval, top: BY, width: 36, height: BW, borderRadius: 4, overflow: 'hidden', background: '#2a2320', boxShadow: `0 0 0 1px ${C.line}`, opacity: a }}>

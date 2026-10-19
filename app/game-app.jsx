@@ -5,7 +5,15 @@ const STORE = 'chess-video.files.v1';
 const SAMPLE = { pgn: window.SAMPLE_PGN, analysis: window.SAMPLE_ANALYSIS, sampleNotes: window.SAMPLE_NOTES, sample: true };
 // the published claude.ai artifact, where the `sample` capability lets Claude write commentary
 const CLAUDE_URL = 'https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT';
-function readStored() { try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s && (s.pgn || s.analysis)) return s; } catch (e) {} return SAMPLE; }
+// a free board is stored as { board: BoardCore.save(…) } in the loaded game's place; one that no longer restores gives the sample
+function readStored() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (s && s.board) return window.BoardCore.restore(s.board) ? { board: s.board } : SAMPLE;
+    if (s && (s.pgn || s.analysis)) return s;
+  } catch (e) {}
+  return SAMPLE;
+}
 const PLAYBACK = '{"mode":"loop"}';
 
 // Full screen hides the browser's bars, and the phone layouts grow into the space. iPhone Safari has no element
@@ -125,6 +133,18 @@ function GameApp() {
   const onLayout = React.useCallback((phone, w) => { setTall(phone); setFrameW(w); }, []);
   const [menu, setMenu] = React.useState(false);
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
+  // the dock's New board menu (landscape); on a phone its items sit in the folded menu instead
+  const [newMenu, setNewMenu] = React.useState(false);
+  const newRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!newMenu) return;
+    const away = (e) => { if (newRef.current && !newRef.current.contains(e.target)) setNewMenu(false); };
+    const esc = (e) => { if (e.key === 'Escape') setNewMenu(false); };
+    document.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); window.removeEventListener('keydown', esc); };
+  }, [newMenu]);
+  React.useEffect(() => { if (tall) setNewMenu(false); }, [tall]);
   const dockRef = React.useRef(null);
   React.useEffect(() => {
     if (!menu) return;
@@ -144,8 +164,15 @@ function GameApp() {
     window.addEventListener('keydown', onF);
     return () => window.removeEventListener('keydown', onF);
   }, []);
-  const built = React.useMemo(() => { try { return { M: window.ChessCore.buildGame(files) }; } catch (e) { return { error: e.message }; } }, [files]);
   const lastGood = React.useRef(null);
+  // a free board keeps the last good game (the sample on a fresh page) for the hooks that want one
+  const built = React.useMemo(() => {
+    if (files.board) return { M: lastGood.current || window.ChessCore.buildGame(SAMPLE) };
+    try { return { M: window.ChessCore.buildGame(files) }; } catch (e) { return { error: e.message }; }
+  }, [files]);
+  // the board's state, restored from its stored form; a board this page just committed is used as it is
+  const boardSaved = React.useRef(null);
+  const board = React.useMemo(() => (!files.board ? null : boardSaved.current && boardSaved.current.saved === files.board ? boardSaved.current.board : window.BoardCore.restore(files.board)), [files.board]);
   if (built.M) lastGood.current = built.M;
   const M = built.M || lastGood.current || window.ChessCore.buildGame(SAMPLE);
   const hf = useHfAuth();
@@ -167,10 +194,12 @@ function GameApp() {
   React.useEffect(() => { setQueenArrow(null); }, [M]);
 
   const commit = (next) => {
-    try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return; }
+    if (!next.board) try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return; }
     setErr(''); setFiles(next);
     try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr('Loaded, but the files are too large to remember after reload.'); }
   };
+  const commitBoard = (b) => { const saved = window.BoardCore.save(b); boardSaved.current = { saved, board: b }; commit({ board: saved }); };
+  const newBoard = () => { setNewMenu(false); setMenu(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); };
   const loadFiles = async (list) => {
     const batch = {};
     try {
@@ -187,7 +216,7 @@ function GameApp() {
     if (batch.pgn) {
       next = { ...batch, gameIndex: 0 };
       if (!batch.analysis && files.analysis && !files.sample) { try { window.ChessCore.buildGame({ ...next, analysis: files.analysis }); next.analysis = files.analysis; next.analysisName = files.analysisName; } catch (e) {} }
-    } else next = { ...files, ...batch, sample: false };
+    } else next = { ...(board ? {} : files), ...batch, sample: false };
     commit(next);
   };
   // Drag-and-drop: dragover repeats every few ms while a file is over the page, so the overlay hides itself
@@ -307,14 +336,30 @@ function GameApp() {
   }, [queenOpen, tall]);
   const sf = { engine, own: ES.own, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
-  const status = `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
+  const boardStatus = board && `Free board · ${board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}`;
+  const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
+  const newItems = [{ label: 'Starting position', run: newBoard }];
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); inputRef.current.click(); }}>Load game…</button>
-      <button ref={queenBtn} type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>
+      {/* a list, so the later starting points (a pasted FEN, games) join it */}
+      {tall ? <React.Fragment>
+        <span className="dock-menu-label">New board</span>
+        {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
+      </React.Fragment> : (
+        <div ref={newRef} className="dock-new">
+          <button type="button" className="dock-btn" aria-haspopup="menu" aria-expanded={newMenu} onClick={() => setNewMenu((m) => !m)}>New board</button>
+          {newMenu && (
+            <div className="dock-pop" role="menu" aria-label="New board">
+              {newItems.map((it) => <button key={it.label} type="button" role="menuitem" className="dock-btn" onClick={it.run}>{it.label}</button>)}
+            </div>
+          )}
+        </div>
+      )}
+      {!board && <button ref={queenBtn} type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>}
       <button type="button" className="dock-btn" aria-expanded={panel} onClick={() => { setMenu(false); setPanel((p) => !p); setQueenOpen(false); }}>Settings</button>
       {fullscreen.ok && <button type="button" className="dock-btn" onClick={() => { setMenu(false); fullscreen.toggle(); }}>{fullscreen.on ? 'Exit full screen' : 'Full screen'}</button>}
     </div>
@@ -341,8 +386,10 @@ function GameApp() {
 
   return (
     <React.Fragment>
-      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg}>
-        <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} orient={t.flip ? 'b' : 'w'} />
+      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg} still={!!board}>
+        {board
+          ? <FreeBoard board={board} onChange={commitBoard} tw={t} sf={sf} nav={nav} orient={t.flip ? 'b' : 'w'} book={book ? window.Openings.book() : null} />
+          : <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} orient={t.flip ? 'b' : 'w'} />}
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
       {hf.note && (
@@ -354,7 +401,7 @@ function GameApp() {
         </div>
       )}
       <ExportOverlay x={video} />
-      {queenOpen && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
+      {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} wide>
         <TweakColumn>
           <TweakSection label="Appearance">
@@ -363,12 +410,12 @@ function GameApp() {
           <TweakSection label="Game">
             <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
             <TweakButton label="Load game…" onClick={() => inputRef.current.click()} />
-            <div className="twk-note">Uses the PGN’s own evals (Lichess [%eval] or cutechess +0.25/20). Without them, run “Analyse with Stockfish” from Analysis or Engine. Saved analysis, notes and Queen files load here too.</div>
+            {!board && <div className="twk-note">Uses the PGN’s own evals (Lichess [%eval] or cutechess +0.25/20). Without them, run “Analyse with Stockfish” from Analysis or Engine. Saved analysis, notes and Queen files load here too.</div>}
             {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
-            {M.canChooseSource && (
+            {!board && M.canChooseSource && (
               <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
             )}
-            {M.gameCount > 1 && (
+            {!board && M.gameCount > 1 && (
               <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
             )}
           </TweakSection>
@@ -388,18 +435,18 @@ function GameApp() {
             <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
             <TweakSelect id="tw-sf-hash" label="Hash table (helps long searches; a phone may run out of memory)" value={ES.game.hash_mb + ' MB'} options={window.AnalysisCore.HASH_MB.map((x) => x + ' MB')} onChange={(v) => setTweak('sfHash', parseInt(v, 10))} />
             {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
-            {analysis.state === 'running'
+            {!board && (analysis.state === 'running'
               ? <>
                 <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ` · about ${Math.max(1, Math.round(analysis.etaSec / 60))} min left` : ''}</div>
                 <TweakButton secondary label="Stop the analysis" onClick={analysis.stop} />
               </>
-              : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />}
-            {analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
-            {files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
-            <div className="twk-note">New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings. Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+              : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}
+            {!board && analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
+            {!board && files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
+            <div className="twk-note">{board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
           </TweakSection>
         </TweakColumn>
-        <TweakColumn>
+        {!board && <TweakColumn>
           <TweakSection label="Commentary">
             <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
             {sample && <>
@@ -427,9 +474,14 @@ function GameApp() {
             <TweakSlider id="tw-hold" label="Extra hold on !/? moves and uncommented mates" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
             <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
           </TweakSection>
-        </TweakColumn>
+        </TweakColumn>}
         <TweakColumn>
-          <TweakSection label="Video">
+          {board ? (
+            <TweakSection label="Board">
+              <div className="twk-note">Drag or tap a piece to play a move, for either side; Stockfish rates each one. Keys: ← → moves, Home the start, End the last move, F flips the board.</div>
+              <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />
+            </TweakSection>
+          ) : <TweakSection label="Video">
             <div className="twk-note">Drag or tap a piece to try your own moves; click a move in Moves to jump to it. Keys: ← → moves, Shift+← → 1 s, Space play/pause, Home or 0 start, End last move.</div>
             {(downloads || !IN_CLAUDE) && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
             {(downloads || !IN_CLAUDE) && webp && <>
@@ -451,7 +503,7 @@ function GameApp() {
             <TweakToggle id="tw-glow" label="Red glow on blunders and mates" value={t.blunderGlow !== false} onChange={(v) => setTweak('blunderGlow', v)} />
             <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
             <div className="twk-note">Shows Queen’s comments and lines on the moves it has analysed; those moves stay on screen longer.</div>
-          </TweakSection>
+          </TweakSection>}
           <TweakSection label="About">
             <div className="twk-note">This player is free software under the GPL-3.0-or-later; <a href="https://github.com/boneyland/chess-replay" target="_blank" rel="noopener">source on GitHub</a>.</div>
           </TweakSection>
