@@ -263,12 +263,14 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .q-via-box { display: flex; flex-direction: column; gap: 8px; }
 .q-via { color: var(--ink); }
 .signin-note { position: fixed; z-index: 80; top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 10px; background: var(--panel-glass); border: 1px solid var(--line); box-shadow: 0 10px 30px var(--shadow); font: 500 13px/1.4 var(--sans); color: var(--ink); }
-/* no connection: a chip in the transport bar while it lasts */
-.net-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--line); background: var(--raise); font: 600 11px var(--mono); color: var(--warn); white-space: nowrap; }
+/* no connection: a warning-tinted tag at the top of the page, above the frame, while it lasts */
+.net-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 16%, var(--bg)); font: 600 11px var(--mono); letter-spacing: 0.06em; color: var(--warn); white-space: nowrap; }
+/* the offline note tinted with the warning colour, Back online with the ok one, so each stands out from the page */
+.net-note-off { background: color-mix(in srgb, var(--warn) 18%, var(--panel-glass)); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.net-note-on { background: color-mix(in srgb, var(--ok) 16%, var(--panel-glass)); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+/* the offline note reads larger on a desktop's full-size page */
+body:has(.stage:not(.stage-tall):not(.stage-short)) .net-note { top: calc(64px + env(safe-area-inset-top, 0px)); width: max-content; gap: 14px; padding: 14px 12px 14px 20px; border-radius: 12px; font-size: 16px; }
 .net-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
-/* a phone's bar has no room for the word: just the dot (the folded menu says Offline) */
-.stage-tall .net-chip, .stage-short .net-chip { width: 22px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
-.dock-menu-offline { color: var(--warn); }
 .q-off { padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(224, 96, 159, 0.45); background: var(--raise); color: var(--ink); font: 12px/1.5 var(--sans); }
 .q-off b { color: var(--queen); }
 .q-off ol { margin: 6px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }

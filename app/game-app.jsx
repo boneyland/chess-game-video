@@ -41,7 +41,7 @@ function useFullscreen() {
 }
 
 // Whether the browser has a connection (navigator.onLine: false means none; true can still be a network that gets
-// nowhere). A change shows a note for a few seconds, and the transport bar says Offline for as long as it lasts.
+// nowhere). A change shows a note for a few seconds, and a tag above the frame says Offline for as long as it lasts.
 const OFFLINE_NOTE = 'You’re offline. Replays, Stockfish and exports keep working; Ask Queen needs a connection.';
 function useOnline() {
   const [online, setOnline] = React.useState(() => navigator.onLine !== false);
@@ -384,7 +384,7 @@ function GameApp() {
   const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }];
   const dockItems = (
     <div id="dock-items" className="dock-items">
-      {tall && <span className="dock-menu-status">{!net.online && <span className="dock-menu-offline">Offline · </span>}{shownErr || status}</span>}
+      {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); inputRef.current.click(); }}>Load game…</button>
       {/* a list, so the later starting points (Play vs human, Play vs Stockfish, My games) join it */}
       {tall ? <React.Fragment>
@@ -427,7 +427,7 @@ function GameApp() {
 
   return (
     <React.Fragment>
-      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} menu={<React.Fragment>{!net.online && <span className="net-chip" role="status" aria-label="Offline" title={OFFLINE_NOTE}>Offline</span>}<SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg} still={!!board}>
+      <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} top={!net.online && <span className="net-chip" role="status" title={OFFLINE_NOTE}>Offline</span>} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg} still={!!board}>
         {board
           ? <FreeBoard board={board} onChange={commitBoard} tw={t} sf={sf} nav={nav} orient={t.flip ? 'b' : 'w'} book={book ? window.Openings.book() : null} />
           : <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} orient={t.flip ? 'b' : 'w'} />}
@@ -437,7 +437,7 @@ function GameApp() {
         <div className="signin-note" role="status">{hf.note}<button type="button" className="twk-x" aria-label="Dismiss" onClick={hf.clearNote}>✕</button></div>
       )}
       {net.note && !hf.note && (
-        <div className="signin-note net-note" role="status">{net.note}<button type="button" className="twk-x" aria-label="Dismiss" onClick={net.clearNote}>✕</button></div>
+        <div className={'signin-note net-note ' + (net.online ? 'net-note-on' : 'net-note-off')} role="status">{net.note}<button type="button" className="twk-x" aria-label="Dismiss" onClick={net.clearNote}>✕</button></div>
       )}
       {drag && (
         <div className="drop">
