@@ -16,17 +16,23 @@ self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(LOCAL);
-    // the CDN files are kept if they can be fetched now, and otherwise when the page first uses them
+    // the CDN files are kept if they can be fetched now (three tries each: one font missed offline is one font in the
+    // wrong face), and otherwise when the page first uses them
+    const keep = async (url) => {
+      for (let i = 0; i < 3; i++) {
+        try {
+          const r = await fetch(url, { mode: 'cors' });
+          if (r.ok) { await cache.put(url, r.clone()); return r; }
+        } catch (err) {}
+      }
+      return null;
+    };
     await Promise.all(REMOTE.map(async (url) => {
-      try {
-        const r = await fetch(url, { mode: 'cors' });
-        if (!r.ok) return;
-        await cache.put(url, r.clone());
-        if (/^https:\/\/fonts\.googleapis\.com\//.test(url)) {
-          const css = await r.text();
-          await Promise.all([...css.matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/g)].map((m) => cache.add(new Request(m[1], { mode: 'cors' })).catch(() => {})));
-        }
-      } catch (err) {}
+      const r = await keep(url);
+      if (r && /^https:\/\/fonts\.googleapis\.com\//.test(url)) {
+        const fonts = [...new Set([...(await r.text()).matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/g)].map((m) => m[1]))];
+        await Promise.all(fonts.map(keep));
+      }
     }));
     await self.skipWaiting();
   })());

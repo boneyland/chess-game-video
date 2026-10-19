@@ -202,6 +202,8 @@ for (const name of BROWSERS) for (const site of SITES) {
       // a move short of the end, where the result card covers the stage
       await page.locator('[data-ply][tabindex="0"]').focus();
       await page.keyboard.press('End');
+      // focus follows on the next frame: an arrow pressed before it would step from the move before
+      await page.waitForFunction(() => document.activeElement && document.activeElement.dataset.ply === String(document.querySelectorAll('[data-ply]').length - 1), null, { timeout: 3000 });
       await page.keyboard.press('ArrowLeft');
       await page.waitForFunction(() => document.querySelector('.moves-list').scrollTop > 100, null, { timeout: 3000 });
       const at = await page.locator('.plabel').innerText(), end = await top();
@@ -692,6 +694,13 @@ for (const name of BROWSERS) for (const site of SITES) {
       await p.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 20000 });
       // the install has kept the engine (it activates, and so controls the page, only once everything is kept)
       assert.ok(await p.evaluate(async (sf) => !!(await caches.match(sf + '.wasm')), SF), 'the engine is kept');
+      // and every font file the fonts' stylesheet names (one missed shows as a font that can't load offline)
+      assert.deepEqual(await p.evaluate(async () => {
+        const css = await (await caches.match('https://fonts.googleapis.com/css2', { ignoreSearch: true })).text();
+        const out = [];
+        for (const m of css.matchAll(/url\((https:[^)]+)\)/g)) if (!(await caches.match(m[1]))) out.push(m[1]);
+        return out;
+      }), [], 'font files not kept');
       // a reload cuts off a font still downloading, which Firefox reports as an error
       await p.evaluate(() => document.fonts.ready);
       await off.ctx.setOffline(true);
