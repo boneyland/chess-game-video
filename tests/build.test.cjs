@@ -130,3 +130,10 @@ test('the service worker keeps the page, its files and every CDN file the page l
   assert.match(page, /navigator\.serviceWorker\.register\('sw\.js'/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8'), /serviceWorker\.register/);
 });
+
+// the self-hosted page doesn't zoom; a browser set to ignore that still can
+test('the self-hosted page asks the browser not to zoom', () => {
+  const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');
+  const vp = page.match(/<meta name="viewport" content="([^"]*)">/)[1].split(/,\s*/);
+  for (const v of ['width=device-width', 'initial-scale=1', 'maximum-scale=1', 'user-scalable=no']) assert.ok(vp.includes(v), v);
+});

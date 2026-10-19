@@ -730,6 +730,17 @@ for (const name of BROWSERS) for (const site of SITES) {
       await off.ctx.close();
     });
 
+    // a pinch doesn't zoom the page (Chromium only: the pinch is a DevTools gesture, and Firefox has no phone emulation)
+    if (name === 'chromium') await t.test('phone: a pinch doesn\'t zoom the page', async () => {
+      const ph = await open(browser, { width: 390, height: 844 }, { isMobile: true, hasTouch: true });
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await loadedOn(ph.page);
+      const cdp = await ph.ctx.newCDPSession(ph.page);
+      await cdp.send('Input.synthesizePinchGesture', { x: 200, y: 400, scaleFactor: 2.5 });
+      assert.equal(await ph.page.evaluate(() => visualViewport.scale), 1);
+      await ph.ctx.close();
+    });
+
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
       // Firefox has no mobile emulation in Playwright: there it is a narrow window with touch
       const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : { hasTouch: true });
