@@ -183,8 +183,10 @@ const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the
 // Evaluates the positions before and after the viewer's move (move lists from the start, or from fen); the score streams in.
 // own: the search settings (AnalysisCore.engineSettings().own); fen: the game's start FEN, omitted for the standard start.
 // deeper(): searches both positions again, deeper (null when the search can't go further or hasn't finished); it counts
-// for that position only, and a deeper search shows the last result until it passes that result's depth
-function useMoveEval(engine, before, after, own, fen) {
+// for that position only, and a deeper search shows the last result until it passes that result's depth.
+// stored: a loaded analysis's result for after (with before the same moves), standing in for the first search, which
+// then never runs: only a press of Go deeper searches. Results from it carry stored: true
+function useMoveEval(engine, before, after, own, fen, stored) {
   const A = window.AnalysisCore;
   const keyOf = (s, moves) => (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}:` + moves.join(' ');
   const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000 });
@@ -199,9 +201,10 @@ function useMoveEval(engine, before, after, own, fen) {
   React.useEffect(() => {
     if (!after) { setSt(empty); return; }
     let live = true;
-    const handles = [], cached = (m) => SF_EVAL_CACHE.get(sfKey(m)) || null;
+    const at = (lv, m) => (lv === 0 && stored ? stored : SF_EVAL_CACHE.get(keyOf(toSearch(A.deeperSearch(own, lv)), m)) || null);
+    const handles = [], cached = (m) => at(level, m);
     // the result a press of Go deeper started from, shown until the deeper search passes its depth
-    const prev = (m) => (level > 0 ? SF_EVAL_CACHE.get(keyOf(toSearch(A.deeperSearch(own, level - 1)), m)) : null) || null;
+    const prev = (m) => (level > 0 ? at(level - 1, m) : null);
     const shown = (m) => cached(m) || (prev(m) && { ...prev(m), partial: true });
     setSt({ key, before: shown(before), after: shown(after), pending: !cached(after) || !cached(before) });
     (async () => {
