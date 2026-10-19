@@ -85,15 +85,15 @@ function shortLayout(W) {
   };
 }
 // Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The board
-// with the header and Moves (two pairs a row) beside it; the eval graph the full width under the board, then Analysis and
+// with the header (players stacked) and Moves (two pairs a row) beside it; the eval graph the full width under the board, then Analysis and
 // Commentary side by side, taking the extra height.
 const SQUARE = { width: 1600, minHeight: 1440, maxHeight: 1760 };
 function squareLayout(H) {
-  const mh = 904 - 214, by = 1068, bh = H - by - 30;
+  const hh = 290, my = 40 + hh + 18, mh = 904 - my, by = 1068, bh = H - by - 30;
   return {
     eval: 44, bx: 100, by: 88, bar: { k: 1, gap: 10 }, title: 13,
-    header: { x: 916, y: 40, w: 644, h: 156, k: 1 },
-    moves: { x: 916, y: 214, w: 644, h: mh, k: 1, cols: 2, rows: Math.floor((mh - 61) / 38) },
+    header: { x: 916, y: 40, w: 644, h: hh, k: 1, stack: true },
+    moves: { x: 916, y: my, w: 644, h: mh, k: 1, cols: 2, rows: Math.floor((mh - 61) / 38) },
     plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
     analysis: { x: 44, y: by, w: 750, h: bh, k: 1, scroll: true, right: 1 },
     comment: { x: 810, y: by, w: 750, h: bh, k: 1, text: 1, gap: 18, right: 1 },
@@ -467,6 +467,21 @@ function Header({ M, a }) {
       </div>
       <span style={{ font: `500 15px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>{[[P.title, P.elo].filter(Boolean).join(' '), P.team].filter(Boolean).join(' · ')}</span>
     </div>
+  );
+  const line = { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
+  // stacked (the square frame's narrower header): the players one above the other, then event, place and date, opening
+  if (L.header.stack) return (
+    <Panel box={L.header} a={a}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{person(M.white, 'w', 'flex-start')}{person(M.black, 'b', 'flex-start')}</div>
+      <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column', gap: 8, font: `500 15px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>
+        <span style={{ ...line, color: C.ink }}>{[M.event, M.round && 'Round ' + M.round].filter(Boolean).join(' · ')}</span>
+        <span style={line}>{[M.site, M.date].filter(Boolean).join(' · ')}</span>
+        {(M.eco || M.opening) && <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {M.eco && <span style={{ flex: 'none', padding: '2px 8px', border: `1px solid ${C.line}`, borderRadius: 4, color: C.ink }}>{M.eco}</span>}
+          <span style={line}>{M.opening}</span>
+        </div>}
+      </div>
+    </Panel>
   );
   return (
     <Panel box={L.header} a={a}>
