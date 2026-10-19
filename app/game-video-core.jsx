@@ -84,11 +84,29 @@ function shortLayout(W) {
     card: { k: 1, w: 1700, stack: false },
   };
 }
-let L = LAYOUTS.wide, BX = L.bx, BY = L.by, tallH = 0, shortW = 0;
+// Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The top is
+// the wide frame (board on the left, the panels beside it); the eval graph runs the full width under the board, and
+// Analysis the full width under that, taking the extra height.
+const SQUARE = { width: 1600, minHeight: 1440, maxHeight: 1760 };
+function squareLayout(H) {
+  const x = 916, w = 644, top = 214, h = 904 - top, side = window.SQUARE_VARIANT === 'side';
+  return {
+    eval: 44, bx: 100, by: 88, bar: { k: 1, gap: 10 }, title: 13,
+    header: { x, y: 40, w, h: 156, k: 1 },
+    // stacked: Moves (two pairs a row) over Commentary; side: the two side by side, as on the wide frame
+    moves: side ? { x, y: top, w: 310, h, k: 1, rows: Math.floor((h - 61) / 38) } : { x, y: top, w, h: 322, k: 1, cols: 2, rows: 7 },
+    comment: side ? { x: x + 326, y: top, w: w - 326, h, k: 1, text: 0.8, gap: 18, right: 1 } : { x, y: top + 340, w, h: h - 340, k: 1, text: 1, gap: 18, right: 1 },
+    plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
+    analysis: { x: 44, y: 1068, w: 1516, h: H - 1068 - 30, k: 1, scroll: true, right: 1 },
+    card: { k: 1, w: 1500, stack: false },
+  };
+}
+let L = LAYOUTS.wide, BX = L.bx, BY = L.by, tallH = 0, shortW = 0, squareH = 0;
 const setLayout = (frame) => {
   if (frame.tall && frame.height !== tallH) { tallH = frame.height; LAYOUTS.tall = tallLayout(tallH); }
   if (frame.short && frame.width !== shortW) { shortW = frame.width; LAYOUTS.short = shortLayout(shortW); }
-  L = frame.tall ? LAYOUTS.tall : frame.short ? LAYOUTS.short : LAYOUTS.wide; BX = L.bx; BY = L.by;
+  if (frame.square && frame.height !== squareH) { squareH = frame.height; LAYOUTS.square = squareLayout(squareH); }
+  L = frame.tall ? LAYOUTS.tall : frame.square ? LAYOUTS.square : frame.short ? LAYOUTS.short : LAYOUTS.wide; BX = L.bx; BY = L.by;
 };
 
 // The side at the bottom ('b' turns the board round). view() maps a board column and row (0 = a, 0 = rank 8) to where it
