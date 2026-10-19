@@ -32,9 +32,7 @@
   --panel-glass: #1b1715; --scrim: rgba(19, 16, 15, 0.82); --shadow: rgba(0, 0, 0, 0.45);
   color-scheme: dark;
 }
-/* the dynamic viewport, not 100%: Firefox for Android sizes 100% to the viewport with its toolbar hidden, leaving a gap
-   below the page while the toolbar shows */
-html { height: 100%; height: 100dvh; box-sizing: border-box; }
+html { height: 100%; box-sizing: border-box; }
 /* a phone held upright in full screen: the status bar is gone but the camera's punch hole isn't. Browsers report only the
    whole cut-out strip (the self-hosted page's safe-area padding, more than the hole needs), and nothing in the artifact's
    frame, so both take this fixed gap instead, enough to clear the player row */
