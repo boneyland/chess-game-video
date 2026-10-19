@@ -2,7 +2,7 @@
 
 ![The sample chess game playing: move rating, best line, commentary and eval graph](media/preview.webp)
 
-A browser app for replaying chess games. Load a PGN (one with a `[FEN]` start position too; Chess960 not yet) to step through it on an animated board, with an evaluation graph, a rating for every move and the opening name. Stockfish runs in your browser to analyse games that don’t have evals, and any game can be exported as an MP4 video or animated WebP. New board opens an empty board (the starting position, or a pasted FEN) where Stockfish rates every move and the opening explorer lists the book moves from each position. Play vs human is a game for two at one screen, from the starting position or a pasted one: the board turns to the side to move, ← takes a move back, the game ends on mate or a draw by the rules, with optional clocks, and Stockfish stays off until it ends.
+A browser app for replaying chess games. Load a PGN (one with a `[FEN]` start position too; Chess960 not yet) to step through it on an animated board, with an evaluation graph, a rating for every move and the opening name. Stockfish runs in your browser to analyse games that don’t have evals, and any game can be exported as an MP4 video or animated WebP. Play/Explore opens an empty board (the starting position, or a pasted FEN) where Stockfish rates every move and the opening explorer lists the book moves from each position. Play vs human is a game for two at one screen, from the starting position or a pasted one: the board turns to the side to move, moves can be taken back, the game ends on mate, a draw by the rules or by agreement, or resignation, with optional clocks, and Stockfish stays off until it ends.
 
 ## Build
 

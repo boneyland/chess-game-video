@@ -162,7 +162,7 @@ function GameApp() {
   const onLayout = React.useCallback((phone, w) => { setTall(phone); setFrameW(w); }, []);
   const [menu, setMenu] = React.useState(false);
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
-  // the dock's New board menu (landscape); on a phone its items sit in the folded menu instead
+  // the dock's Play/Explore menu (landscape); on a phone its items sit in the folded menu instead
   const [newMenu, setNewMenu] = React.useState(false);
   const [fenOpen, setFenOpen] = React.useState(false);
   const [playOpen, setPlayOpen] = React.useState(false);
@@ -249,7 +249,7 @@ function GameApp() {
   const closeFen = React.useCallback(() => setFenOpen(false), []);
   // the board's moves as a loaded game (replay, Analyse with Stockfish, PGN and video export); the board is kept with it, to go back to
   const boardAsGame = () => { commit({ pgn: window.BoardCore.pgn(board), pgnName: 'free-board.pgn', gameIndex: 0, fromBoard: files.board }); };
-  // a dialog closed (Esc, Cancel, Set up, Start game): focus goes back to what opened it, New board or the phone's Menu
+  // a dialog closed (Esc, Cancel, Set up, Start game): focus goes back to what opened it, Play/Explore or the phone's Menu
   const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || playOpen;
   React.useEffect(() => {
     if (fenWasOpen.current && !dialogOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
@@ -406,11 +406,11 @@ function GameApp() {
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); loadGame(); }}>Load game…</button>
       {/* a list, so the later starting points (Play vs Stockfish, My games) join it */}
       {tall ? <React.Fragment>
-        <span className="dock-menu-label">New board</span>
+        <span className="dock-menu-label">Play/Explore</span>
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
       </React.Fragment> : (
         <div ref={newRef} className="dock-new">
-          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>New board</button>
+          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>Play/Explore</button>
           {newMenu && (
             <div id="dock-new-items" className="dock-pop">
               {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
@@ -555,7 +555,7 @@ function GameApp() {
         <TweakColumn>
           {board && board.game ? (
             <TweakSection label="Board">
-              <div className="twk-note">Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. ← takes back a move; after the game, ← → step through it.</div>
+              <div className="twk-note">Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Agree a draw and Resign are in the Game box; after the game, ← → step through it.</div>
             </TweakSection>
           ) : board ? (
             <TweakSection label="Board">
