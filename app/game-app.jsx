@@ -162,9 +162,12 @@ function GameApp() {
   const onLayout = React.useCallback((phone, w) => { setTall(phone); setFrameW(w); }, []);
   const [menu, setMenu] = React.useState(false);
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
-  // the dock's New board menu (landscape); on a phone its items sit in the folded menu instead
+  // the dock's Play/Explore menu (landscape); on a phone its items sit in the folded menu instead
   const [newMenu, setNewMenu] = React.useState(false);
   const [fenOpen, setFenOpen] = React.useState(false);
+  const [playOpen, setPlayOpen] = React.useState(false);
+  // leaving a game in progress asks first: { run } is what waits on the answer
+  const [leave, setLeave] = React.useState(null);
   const newRef = React.useRef(null);
   React.useEffect(() => {
     if (!newMenu) return;
@@ -184,11 +187,11 @@ function GameApp() {
     window.addEventListener('keydown', esc);
     return () => { document.removeEventListener('pointerdown', away); window.removeEventListener('keydown', esc); };
   }, [menu]);
-  // F turns the board round (not in a field, not with a modifier, which belongs to the browser)
+  // F turns the board round (not in a field, not in a game, whose board turns by itself, not with a modifier, which belongs to the browser)
   React.useEffect(() => {
     const onF = (e) => {
       const tag = e.target && e.target.tagName;
-      if (e.defaultPrevented || e.repeat || (e.key || '').toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable) || busyRef.current) return;
+      if (e.defaultPrevented || e.repeat || (e.key || '').toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable) || busyRef.current || gameRef.current) return;
       setTweak('flip', !flipRef.current);
     };
     window.addEventListener('keydown', onF);
@@ -204,6 +207,13 @@ function GameApp() {
   const boardSaved = React.useRef(null);
   const board = React.useMemo(() => (!files.board ? null : boardSaved.current && boardSaved.current.saved === files.board ? boardSaved.current.board : window.BoardCore.restore(files.board)), [files.board]);
   if (built.M) lastGood.current = built.M;
+  const gameRef = React.useRef(false);
+  gameRef.current = !!(board && board.game);
+  // a game with moves and no result yet is thrown away only after asking
+  const playing = !!(board && window.PlayCore.inProgress(board) && board.steps.length);
+  const guard = (run) => { if (playing) setLeave({ run }); else run(); };
+  const guardRef = React.useRef(guard);
+  guardRef.current = guard;
   const M = built.M || lastGood.current || window.ChessCore.buildGame(SAMPLE);
   const hf = useHfAuth();
   const Q = useQueen(M, mcp, hf);
@@ -229,18 +239,22 @@ function GameApp() {
     try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr('Loaded, but the files are too large to remember after reload.'); }
   };
   const commitBoard = (b) => { const saved = window.BoardCore.save(b); boardSaved.current = { saved, board: b }; commit({ board: saved }); };
-  const newBoard = () => { setNewMenu(false); setMenu(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); };
-  const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); setFenOpen(true); };
+  const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
+  const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
+  const playHuman = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(true)); };
+  const playStart = ({ fen, tc }) => { setPlayOpen(false); setQueenOpen(false); setTweak('playClock', tc || 'Off'); commitBoard(window.PlayCore.start(window.BoardCore.fromFen(fen), tc)); };
+  const closePlay = React.useCallback(() => setPlayOpen(false), []);
+  const loadGame = () => guard(() => inputRef.current.click());
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
   const closeFen = React.useCallback(() => setFenOpen(false), []);
   // the board's moves as a loaded game (replay, Analyse with Stockfish, PGN and video export); the board is kept with it, to go back to
   const boardAsGame = () => { commit({ pgn: window.BoardCore.pgn(board), pgnName: 'free-board.pgn', gameIndex: 0, fromBoard: files.board }); };
-  // the dialog closed (Esc, Cancel, Set up): focus goes back to what opened it, New board or the phone's Menu
-  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false);
+  // a dialog closed (Esc, Cancel, Set up, Start game): focus goes back to what opened it, Play/Explore or the phone's Menu
+  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || playOpen;
   React.useEffect(() => {
-    if (fenWasOpen.current && !fenOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
-    fenWasOpen.current = fenOpen;
-  }, [fenOpen]);
+    if (fenWasOpen.current && !dialogOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
+    fenWasOpen.current = dialogOpen;
+  }, [dialogOpen]);
   const loadFiles = async (list) => {
     const batch = {};
     try {
@@ -277,7 +291,7 @@ function GameApp() {
       e.preventDefault(); clearTimeout(dragTimer.current); setDrag(false);
       let list = Array.from(e.dataTransfer.files || []);
       if (!list.length) list = Array.from(e.dataTransfer.items || []).filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(Boolean);
-      if (list.length) loadRef.current(list); else setErr('The drop arrived without a file. Use “Load game…” to pick the files instead.');
+      if (list.length) guardRef.current(() => loadRef.current(list)); else setErr('The drop arrived without a file. Use “Load game…” to pick the files instead.');
     };
     const end = () => { clearTimeout(dragTimer.current); setDrag(false); };
     window.addEventListener('dragover', over); window.addEventListener('dragleave', leave); window.addEventListener('drop', drop); window.addEventListener('dragend', end);
@@ -379,23 +393,24 @@ function GameApp() {
   }, [queenOpen, tall]);
   const sf = { engine, own: ES.own, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
-  const boardStatus = board && `Free board · ${board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}`;
+  const boardStatus = board && board.game ? `Play vs human · ${board.game.tc || 'no clock'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}${board.game.result ? ' · ' + window.PlayCore.resultText(board.game.result).score : ''}`
+    : board && `Free board · ${board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}`;
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }];
+  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Play vs human…', run: playHuman }];
   const fsLabel = fullscreen.on ? 'Exit full screen' : 'Full screen';
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
-      <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); inputRef.current.click(); }}>Load game…</button>
-      {/* a list, so the later starting points (Play vs human, Play vs Stockfish, My games) join it */}
+      <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); loadGame(); }}>Load game…</button>
+      {/* a list, so the later starting points (Play vs Stockfish, My games) join it */}
       {tall ? <React.Fragment>
-        <span className="dock-menu-label">New board</span>
+        <span className="dock-menu-label">Play/Explore</span>
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
       </React.Fragment> : (
         <div ref={newRef} className="dock-new">
-          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>New board</button>
+          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>Play/Explore</button>
           {newMenu && (
             <div id="dock-new-items" className="dock-pop">
               {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
@@ -441,7 +456,7 @@ function GameApp() {
     <React.Fragment>
       <CompositionStage nav={nav} width={1920} height={1080} portrait={PORTRAIT} short={SHORT} top={!net.online && <span className="net-chip" role="status" title={OFFLINE_NOTE}>Offline</span>} menu={<React.Fragment><SoundButton on={t.sound !== false} onChange={(v) => setTweak('sound', v)} />{tall ? menuEl : deskDock}</React.Fragment>} onLayout={onLayout} scenes={scenes} playback={PLAYBACK} bg={C.bg} still={!!board}>
         {board
-          ? <FreeBoard board={board} onChange={commitBoard} tw={t} sf={sf} nav={nav} orient={t.flip ? 'b' : 'w'} book={book ? window.Openings.book() : null} />
+          ? <FreeBoard board={board} onChange={commitBoard} tw={t} sf={sf} nav={nav} orient={t.flip ? 'b' : 'w'} book={book && !board.game ? window.Openings.book() : null} />
           : <GameVideo M={MV} tw={video.busy ? { ...t, cameraPush: false, exporting: true } : t} d={TM.d} probe={probe} queen={queenArrow} nav={nav} scheme={scheme} sf={sf} orient={t.flip ? 'b' : 'w'} />}
       </CompositionStage>
       <input ref={inputRef} id="game-files" type="file" multiple accept=".pgn,.txt,.json,application/json,text/plain" hidden onChange={(e) => { loadFiles(e.target.files); e.target.value = ''; }} />
@@ -458,6 +473,8 @@ function GameApp() {
       )}
       <ExportOverlay x={video} />
       {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
+      {playOpen && <PlayDialog setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} onStart={playStart} onClose={closePlay} />}
+      {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); run(); }} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} wide>
         <TweakColumn>
@@ -466,12 +483,12 @@ function GameApp() {
           </TweakSection>
           <TweakSection label="Game">
             <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
-            <TweakButton label="Load game…" onClick={() => inputRef.current.click()} />
+            <TweakButton label="Load game…" onClick={loadGame} />
             {!board && <div className="twk-note">Uses the PGN’s own evals (Lichess [%eval] or cutechess +0.25/20). Without them, run “Analyse with Stockfish” from Analysis or Engine. Saved analysis, notes and Queen files load here too.</div>}
-            {board && <TweakButton label="Replay these moves as a game" disabled={!board.steps.length} onClick={boardAsGame} />}
-            {board && <div className="twk-note">{board.steps.length ? 'Opens every move on the board as a game: watch it, analyse it with Stockfish, and export it as a video or WebP. The board comes back with “Back to the free board”.' : 'Play some moves first; then they can be replayed and exported as a video.'}</div>}
+            {board && !window.PlayCore.inProgress(board) && <TweakButton label="Replay these moves as a game" disabled={!board.steps.length} onClick={boardAsGame} />}
+            {board && !window.PlayCore.inProgress(board) && <div className="twk-note">{board.steps.length ? 'Opens every move on the board as a game: watch it, analyse it with Stockfish, and export it as a video or WebP. The board comes back with “Back to the free board”.' : 'Play some moves first; then they can be replayed and exported as a video.'}</div>}
             {!board && files.fromBoard && <TweakButton secondary label="Back to the free board" onClick={() => { const b = window.BoardCore.restore(files.fromBoard); if (b) commitBoard(b); }} />}
-            {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
+            {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => guard(() => commit(SAMPLE))} />}
             {!board && M.canChooseSource && (
               <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
             )}
@@ -503,7 +520,7 @@ function GameApp() {
               : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}
             {!board && analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
             {!board && files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
-            <div className="twk-note">{board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+            <div className="twk-note">{board && board.game ? 'Stockfish is off during a game; Analyse on the free board brings it back once the game ends.' : board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
           </TweakSection>
         </TweakColumn>
         {!board && <TweakColumn>
@@ -536,7 +553,11 @@ function GameApp() {
           </TweakSection>
         </TweakColumn>}
         <TweakColumn>
-          {board ? (
+          {board && board.game ? (
+            <TweakSection label="Board">
+              <div className="twk-note">Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box; after the game, ← → step through it.</div>
+            </TweakSection>
+          ) : board ? (
             <TweakSection label="Board">
               <div className="twk-note">Drag or tap a piece to play a move, for either side; Stockfish rates each one. Keys: ← → moves, Home the start, End the last move, F flips the board.</div>
               <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />

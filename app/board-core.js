@@ -25,7 +25,8 @@
   const label = (b, j) => CC().moveNo(b.start.ply0 + j) + ' ' + b.steps[j].san;
   const play = (b, step) => ({ ...b, steps: [...b.steps.slice(0, b.upto + 1), step], upto: b.upto + 1 });
   const go = (b, upto) => ({ ...b, upto: clamp(b, upto) });
-  const save = (b) => ({ fen: b.fen, moves: b.steps.map((s) => s.uci), upto: b.upto });
+  // a game on the board (PlayCore) is kept with it
+  const save = (b) => ({ fen: b.fen, moves: b.steps.map((s) => s.uci), upto: b.upto, ...(b.game ? { game: b.game } : {}) });
 
   // The board's moves as a game for the replay: the whole line (not only up to the move shown), with the start's FEN
   // when it isn't the standard one. date: PGN's YYYY.MM.DD, today when omitted
@@ -40,7 +41,7 @@
     return tags.map(([k, v]) => `[${k} "${v}"]`).join('\n') + '\n\n' + moves.concat('*').join(' ') + '\n';
   }
 
-  // A stored board back: the legal prefix of its moves, upto clamped (a missing one shows the last move);
+  // A stored board back: the legal prefix of its moves, upto clamped (a missing one shows the last move), its game resumed;
   // null when the FEN doesn't parse. Never throws, whatever localStorage held.
   function restore(saved) {
     try {
@@ -52,7 +53,8 @@
         if (!step) break;
         b = play(b, step);
       }
-      return go(b, typeof saved.upto === 'number' ? saved.upto : b.steps.length - 1);
+      b = go(b, typeof saved.upto === 'number' ? saved.upto : b.steps.length - 1);
+      return saved.game && window.PlayCore ? window.PlayCore.resume(b, saved.game) : b;
     } catch (e) {
       return null;
     }

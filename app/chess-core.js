@@ -814,5 +814,5 @@
     for (let m = step; 2 * m - ply0 <= N; m += step) if (2 * (m - 1) - ply0 >= 0) ticks.push({ m, at: 2 * (m - 1) - ply0 });
     return ticks;
   }
-  window.ChessCore = { START_FEN, evalTicks, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  window.ChessCore = { START_FEN, hasLegal, inCheck, evalTicks, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();

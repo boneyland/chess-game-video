@@ -172,6 +172,8 @@ These are several projects. Proposed order, each usable on its own:
 - 2026-10-19 (after testing the PR preview): the free board shows Stockfish's eval and best line before the first move
   (clickable, as its replies are), and Settings' "Replay these moves as a game" opens the board's moves as a loaded game
   for replay, analysis and MP4/WebP export, with "Back to the free board" to return.
+- 2026-10-19 (after trying the Play vs human PR): the dock's New board button is renamed Play/Explore; in a game, Take back
+  is a button by Resign (not ← or the transport bar), Resign asks first, and a draw by agreement is added.
 
 ## Carried forward from plan 1 (custom starts and flip, 2026-10-19)
 
@@ -189,3 +191,13 @@ For the later plans; the per-task reviews deferred these:
 - Desktop board mode leaves empty space under the board where the eval graph was.
 - After Enter plays an explorer row, focus drops to the page; the next Tab lands on the new list's first row.
 - Playwright's Firefox drops mouse drags when `hasTouch` is on, so the phone parts of the free-board live tests tap or check layout only; drags are tested on desktop.
+
+## Carried forward from plan 3 (play vs human, 2026-10-19)
+
+For the later plans; deferred while building step 3:
+- Draws are automatic (threefold repetition and the fifty-move rule end the game without a claim).
+- A reload pauses the clocks; the time between the last move and the reload isn't charged, and the side to move can think for free until it moves (no Resume button).
+- Taking back a move doesn't give back the time spent on it; the move's increment is removed.
+- Mating material (for insufficient material and flag falls) is judged from the pieces alone: a lone king, a king and one minor piece against a lone king, or bishops all on one colour can't mate; anything else can. Dead positions that need a search (locked pawns) play on.
+- Played games aren't kept yet: leaving a game says it isn't kept (step 4 saves it; `PlayCore.pgn` is its PGN).
+- The Analysis box's Play again and Analyse on the free board are buttons in the frame, so on the phone they scale with it.
