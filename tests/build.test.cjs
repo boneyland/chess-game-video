@@ -114,3 +114,19 @@ test('the site carries the vendored wasm files as they are', () => {
   }
   assert.match(fs.readFileSync(path.join(ROOT, 'app', 'export.jsx'), 'utf8'), /WEBP_LIB = \{ js: 'webp_enc_simd\.js', wasm: 'webp_enc_simd\.wasm' \}/);
 });
+
+// sw.js keeps every file the self-hosted page needs, so it works offline; the artifact (in claude.ai) registers none
+test('the service worker keeps the page, its files and every CDN file the page loads', () => {
+  const site = path.join(ROOT, 'out', 'site'), page = fs.readFileSync(path.join(site, 'chess-game-video.html'), 'utf8');
+  const sw = fs.readFileSync(path.join(site, 'sw.js'), 'utf8');
+  const LOCAL = JSON.parse(sw.match(/^const LOCAL = (\[.*?\]);/m)[1]), REMOTE = JSON.parse(sw.match(/^const REMOTE = (\[[\s\S]*?\]);/m)[1]);
+  assert.match(sw, /^const VERSION = '[0-9a-f]{16}';/m);
+  assert.equal(LOCAL[0], 'chess-game-video.html');
+  for (const f of LOCAL) assert.ok(fs.existsSync(path.join(site, f)), f);
+  for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm', 'manifest.webmanifest']) assert.ok(LOCAL.includes(f), f);
+  const cdn = page.match(/https:\/\/(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/[^'"\s]+\.m?js/g);
+  for (const u of cdn) assert.ok(REMOTE.includes(u), u);
+  assert.ok(REMOTE.some((u) => u.startsWith('https://fonts.googleapis.com/css2?')), 'the fonts');
+  assert.match(page, /navigator\.serviceWorker\.register\('sw\.js'/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8'), /serviceWorker\.register/);
+});

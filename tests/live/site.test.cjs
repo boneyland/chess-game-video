@@ -682,6 +682,45 @@ for (const name of BROWSERS) for (const site of SITES) {
     });
     await ctx.close();
 
+    // sw.js keeps the page and its files: with the connection gone, a reload still opens the player, Stockfish still
+    // rates a move, and the page says it's offline until the connection is back
+    await t.test('desktop: offline, the page reloads from its kept copy, says so, and Stockfish still runs (Chromium)', async () => {
+      const off = await open(browser, { width: 1440, height: 900 });
+      const p = off.page;
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 20000 });
+      // the install has kept the engine (it activates, and so controls the page, only once everything is kept)
+      assert.ok(await p.evaluate(async (sf) => !!(await caches.match(sf + '.wasm')), SF), 'the engine is kept');
+      // a reload cuts off a font still downloading, which Firefox reports as an error
+      await p.evaluate(() => document.fonts.ready);
+      await off.ctx.setOffline(true);
+      await p.reload({ waitUntil: 'load' });
+      await loadedOn(p);
+      await assert.doesNotReject(p.locator('.net-chip').waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.locator('.net-note').filter({ hasText: /offline/ }).waitFor({ timeout: 5000 }));
+      // Firefox's offline emulation (WebDriver BiDi) fails the page's no-store requests even when the service worker
+      // answers them, and Stockfish checks its file with one; with the server really gone, Firefox runs it as Chromium does
+      if (name !== 'firefox') {
+        const b = await boardBox(p);
+        const from = square(b, 'd2'), to = square(b, 'd4');
+        await p.mouse.move(from.x, from.y);
+        await p.mouse.down();
+        await p.mouse.move(to.x, to.y, { steps: 8 });
+        await p.mouse.up();
+        await p.waitForFunction(() => /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i.test(document.body.innerText), null, { timeout: 45000 });
+        assert.doesNotMatch(await p.getByText(/your move ·/i).innerText(), /can’t run here|stopped/i);
+      }
+      await p.screenshot({ path: path.join(OUT, host + '-offline.png') });
+      await off.ctx.setOffline(false);
+      await assert.doesNotReject(p.locator('.net-note').filter({ hasText: 'Back online.' }).waitFor({ timeout: 5000 }));
+      assert.equal(await p.locator('.net-chip').count(), 0, 'no Offline chip once back online');
+      // Firefox's emulated offline sometimes cuts off a font download across the reload (the font is kept, and a
+      // real loss of the network, the server stopped, logs nothing); any other error still fails the test
+      assert.deepEqual(off.errors.filter((m) => !(name === 'firefox' && /^download failed \(font-family/.test(m))), []);
+      await off.ctx.close();
+    });
+
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
       // Firefox has no mobile emulation in Playwright: there it is a narrow window with touch
       const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : { hasTouch: true });

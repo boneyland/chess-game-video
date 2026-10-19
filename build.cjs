@@ -85,6 +85,10 @@ const site = `<!doctype html>
 </head>
 <body>
 ${out}
+<script>
+// sw.js keeps a copy of the page and its files, so it works offline
+if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}); });
+</script>
 </body>
 </html>
 `;
@@ -108,4 +112,15 @@ const manifest = {
   ],
 };
 fs.writeFileSync(path.join(dir, 'out', 'site', 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
+// The service worker (app/sw.js) and what it keeps: the files next to the page, and the CDN files the page names (React
+// and the fonts' stylesheet in shell.html, the export's libraries in export.jsx). Its VERSION changes with any of
+// them, so a deploy that changes one replaces the kept copies; the page itself is fetched afresh on every visit.
+const SW_LOCAL = ['chess-game-video.html', 'manifest.webmanifest', ...fs.readdirSync(ICONS), 'stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm'];
+const SW_REMOTE = [...new Set([read(path.join(app, 'shell.html')), read(path.join(app, 'export.jsx'))].join('\n')
+  .match(/https:\/\/(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com\/css2)[^'"\s]*/g))].filter((u) => !/\/$/.test(u));
+const swSrc = read(path.join(app, 'sw.js'));
+const swHash = require('crypto').createHash('sha256').update(swSrc).update(JSON.stringify(SW_REMOTE));
+for (const f of SW_LOCAL.slice(1)) swHash.update(fs.readFileSync(path.join(dir, 'out', 'site', f)));
+fs.writeFileSync(path.join(dir, 'out', 'site', 'sw.js'), swSrc.replace('__VERSION__', swHash.digest('hex').slice(0, 16))
+  .replace('__LOCAL__', JSON.stringify(SW_LOCAL)).replace('__REMOTE__', JSON.stringify(SW_REMOTE, null, 2)));
 console.log('wrote', artifactOut.length, 'bytes (artifact),', site.length, 'bytes (site)');

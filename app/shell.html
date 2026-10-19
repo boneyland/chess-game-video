@@ -263,6 +263,12 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .q-via-box { display: flex; flex-direction: column; gap: 8px; }
 .q-via { color: var(--ink); }
 .signin-note { position: fixed; z-index: 80; top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 10px; background: var(--panel-glass); border: 1px solid var(--line); box-shadow: 0 10px 30px var(--shadow); font: 500 13px/1.4 var(--sans); color: var(--ink); }
+/* no connection: a chip in the transport bar while it lasts */
+.net-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--line); background: var(--raise); font: 600 11px var(--mono); color: var(--warn); white-space: nowrap; }
+.net-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+/* a phone's bar has no room for the word: just the dot (the folded menu says Offline) */
+.stage-tall .net-chip, .stage-short .net-chip { width: 22px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+.dock-menu-offline { color: var(--warn); }
 .q-off { padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(224, 96, 159, 0.45); background: var(--raise); color: var(--ink); font: 12px/1.5 var(--sans); }
 .q-off b { color: var(--queen); }
 .q-off ol { margin: 6px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
