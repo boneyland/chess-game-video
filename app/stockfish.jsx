@@ -50,12 +50,19 @@ function writeSfPartial(ucis, settings, searched, fen) {
   try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis, settings, fen), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
 }
 
+// This device's pace against the model's (AnalysisCore.paceFactor), from the last run that timed enough positions
+const SF_PACE_STORE = 'chess-video.sf-pace.v1', SF_PACE_MIN_POSITIONS = 10;
+function readSfPace() { try { const f = +localStorage.getItem(SF_PACE_STORE); return f > 0 ? f : 1; } catch (e) { return 1; } }
+function writeSfPace(f) { try { localStorage.setItem(SF_PACE_STORE, String(f)); } catch (e) {} }
+
 // The full-game analysis. Loading other files (another game, the sample) abandons a run in progress; its searches
 // so far are kept, and starting it again resumes from them.
 // getFiles: the loaded files as they are now (notes or commentary may have changed during the run)
 // settings: the engine settings for a game (AnalysisCore.engineSettings().game); a run keeps those it started with
 function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
-  const setKey = JSON.stringify(settings), perPos = window.AnalysisCore.secondsPerPosition(settings);
+  const A = window.AnalysisCore, setKey = JSON.stringify(settings);
+  const [pace, setPace] = React.useState(readSfPace);
+  const perPos = A.secondsPerPosition(settings, pace);
   const idle = { state: 'idle', done: 0, total: 0, etaSec: null, err: '' };
   const [st, setSt] = React.useState(idle);
   const run = React.useRef(null);
@@ -70,21 +77,33 @@ function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
     if (run.current) return;
     const me = { signal: { aborted: false } };
     run.current = me;
-    const ucis = M.plies.map((p) => p.uci), sans = M.plies.map((p) => p.san), N = ucis.length, t0 = Date.now();
-    const S = settings, earlier = readSfPartial(ucis, S, M.start.fen), d0 = Math.max(0, earlier.length - 1);
-    setSt({ state: 'running', done: d0, total: N, etaSec: Math.round((N + 1 - earlier.length) * perPos), err: '' });
+    const ucis = M.plies.map((p) => p.uci), sans = M.plies.map((p) => p.san), N = ucis.length;
+    const S = settings, earlier = readSfPartial(ucis, S, M.start.fen), d0 = Math.max(0, earlier.length - 1), prior = perPos;
+    // the run's own pace: positions timed from when the engine is ready (its start-up isn't a position's cost)
+    const timed = { n: 0, sec: 0, last: 0, searched: earlier.length };
+    // { sec, at }: the latest estimate and when it was made; a timer counts it down in between
+    me.eta = { sec: (N + 1 - earlier.length) * prior, at: Date.now() };
+    setSt({ state: 'running', done: d0, total: N, etaSec: Math.round(me.eta.sec), err: '' });
     try {
       const eng = await engine.get();
+      timed.last = Date.now();
       const json = await window.AnalysisCore.runAnalysis({
         engine: eng, ucis, sans, headers: M.headers, signal: me.signal, earlier, settings: S, startFen: M.start.fen,
-        onSearched: (R) => { writeSfPartial(ucis, S, R, M.start.fen); if (JSON.stringify(S) === setKeyRef.current) setResumeAt(Math.max(0, R.length - 1)); },
-        onProgress: (d, n) => { if (run.current === me && d > d0) setSt((s) => ({ ...s, done: d, total: n, etaSec: Math.round(((Date.now() - t0) / 1000 / (d - d0 + (d0 ? 0 : 1))) * (n - d)) })); },
+        onSearched: (R) => {
+          writeSfPartial(ucis, S, R, M.start.fen);
+          if (JSON.stringify(S) === setKeyRef.current) setResumeAt(Math.max(0, R.length - 1));
+          const now = Date.now();
+          timed.sec += (now - timed.last) / 1000; timed.n += R.length - timed.searched; timed.searched = R.length; timed.last = now;
+          me.eta = { sec: A.blendPace(prior, timed.sec, timed.n) * (N + 1 - R.length), at: now };
+        },
+        onProgress: (d, n) => { if (run.current === me && d > d0 && me.eta) setSt((s) => ({ ...s, done: d, total: n, etaSec: Math.round(me.eta.sec) })); },
       });
       if (run.current !== me) return;
       run.current = null;
       if (!json) { setSt(idle); return; }
       writeSfPartial(ucis, S, null, M.start.fen);
       setResumeAt(0);
+      if (timed.n >= SF_PACE_MIN_POSITIONS) { const f = A.paceFactor(S, timed.sec / timed.n); writeSfPace(f); setPace(f); }
       const name = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_') + '_analysis.json';
       setSt(idle);
       commit({ ...getFiles(), analysis: json, analysisName: name, evalSource: null }); // shown, even over PGN evals
@@ -94,6 +113,15 @@ function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
       setSt({ ...idle, err: engine.status === 'unavailable' ? '' : 'Analysis stopped: ' + ((e && e.message) || e) });
     }
   };
+  // between positions the estimate counts down by the second
+  React.useEffect(() => {
+    if (st.state !== 'running') return;
+    const id = setInterval(() => {
+      const r = run.current;
+      if (r && r.eta) setSt((s) => ({ ...s, etaSec: Math.max(1, Math.round(r.eta.sec - (Date.now() - r.eta.at) / 1000)) }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [st.state]);
   const stop = () => { if (run.current) { run.current.signal.aborted = true; run.current = null; } setSt(idle); };
   const left = M.plies.length + 1 - (resumeAt ? resumeAt + 1 : 0);
   return { ...st, start, stop, resumeAt, plies: M.plies.length, estimateMin: Math.max(1, Math.ceil(left * perPos / 60)) };
@@ -150,12 +178,21 @@ function EngineEmptyState({ M, sf, paused, compact }) {
 
 // ---------- the viewer's own moves ----------
 const SF_EVAL_CACHE = new Map(); // finished searches by settings and move list, for the session
+const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the base settings), for the session
 
 // Evaluates the positions before and after the viewer's move (move lists from the start, or from fen); the score streams in.
-// own: the search settings (AnalysisCore.engineSettings().own); fen: the game's start FEN, omitted for the standard start
+// own: the search settings (AnalysisCore.engineSettings().own); fen: the game's start FEN, omitted for the standard start.
+// deeper(): searches both positions again, deeper (null when the search can't go further or hasn't finished); it counts
+// for that position only, and a deeper search shows the last result until it passes that result's depth
 function useMoveEval(engine, before, after, own, fen) {
-  const search = { depth: own.depth, movetimeMs: own.time_limit * 1000 };
-  const sfKey = (moves) => (sfStartFen(fen) ? fen + '|' : '') + `${search.depth}/${search.movetimeMs}:` + moves.join(' ');
+  const A = window.AnalysisCore;
+  const keyOf = (s, moves) => (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}:` + moves.join(' ');
+  const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000 });
+  const baseKey = after ? keyOf(toSearch(own), after) : '';
+  const [, bump] = React.useState(0);
+  const level = SF_DEEPER.get(baseKey) || 0;
+  const search = toSearch(A.deeperSearch(own, level));
+  const sfKey = (moves) => keyOf(search, moves);
   const key = after ? sfKey(after) : '';
   const empty = { key: '', before: null, after: null, pending: false };
   const [st, setSt] = React.useState(empty);
@@ -163,24 +200,43 @@ function useMoveEval(engine, before, after, own, fen) {
     if (!after) { setSt(empty); return; }
     let live = true;
     const handles = [], cached = (m) => SF_EVAL_CACHE.get(sfKey(m)) || null;
-    setSt({ key, before: cached(before), after: cached(after), pending: !cached(after) || !cached(before) });
+    // the result a press of Go deeper started from, shown until the deeper search passes its depth
+    const prev = (m) => (level > 0 ? SF_EVAL_CACHE.get(keyOf(toSearch(A.deeperSearch(own, level - 1)), m)) : null) || null;
+    const shown = (m) => cached(m) || (prev(m) && { ...prev(m), partial: true });
+    setSt({ key, before: shown(before), after: shown(after), pending: !cached(after) || !cached(before) });
     (async () => {
       let eng;
       try { eng = await engine.get(); } catch (e) { if (live) setSt((s) => ({ ...s, pending: false })); return; }
       for (const [which, moves] of [['after', after], ['before', before]]) {
         if (!live) return;
-        if (cached(moves)) continue;
-        const h = eng.search({ moves, fen, ...search, priority: 'own', onInfo: (sc) => { if (live) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
+        // the start position is both before and after: its second search is the first one's, cached
+        if (cached(moves)) { const c = cached(moves); setSt((s) => ({ ...s, [which]: c })); continue; }
+        const floor = prev(moves) ? prev(moves).depth : 0;
+        const h = eng.search({ moves, fen, ...search, priority: 'own', onInfo: (sc) => { if (live && sc.depth > floor) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
         handles.push(h);
         const r = await h.promise;
         if (!live) return;
-        if (r && r.cp != null) { const fin = { ...r, best: window.AnalysisCore.bestOf(r) }; SF_EVAL_CACHE.set(sfKey(moves), fin); setSt((s) => ({ ...s, [which]: fin })); }
+        if (r && r.cp != null) { const fin = { ...r, best: A.bestOf(r) }; SF_EVAL_CACHE.set(sfKey(moves), fin); setSt((s) => ({ ...s, [which]: fin })); }
       }
       if (live) setSt((s) => ({ ...s, pending: false }));
     })();
     return () => { live = false; handles.forEach((h) => h.cancel()); };
   }, [key]);
-  return st.key === key ? st : { ...empty, pending: !!after };
+  const out = st.key === key ? st : { ...empty, pending: !!after };
+  const done = out.after && !out.after.partial && out.before && !out.before.partial && !out.pending;
+  const next = A.deeperSearch(own, level + 1);
+  const deeper = done && A.canGoDeeper(own, level) ? () => { SF_DEEPER.set(baseKey, level + 1); bump((n) => n + 1); } : null;
+  return { ...out, deeper, deeperTo: deeper ? next : null };
+}
+
+// Go deeper: the small + by an eval that has finished
+function DeeperButton({ ev }) {
+  if (!ev || !ev.deeper) return null;
+  const t = ev.deeperTo, tip = `Go deeper: depth ${t.depth}, up to ${t.time_limit} s`;
+  return (
+    <button type="button" aria-label={tip} title={tip} onClick={(e) => { e.stopPropagation(); ev.deeper(); }} onPointerDown={(e) => e.stopPropagation()}
+      style={{ ...NO_SELECT, width: 30, height: 30, padding: 0, marginLeft: 10, verticalAlign: 'middle', borderRadius: 5, cursor: 'pointer', border: `1.5px solid ${C.best}`, background: 'transparent', color: C.best, font: `700 24px/1 ${MONO}` }}>+</button>
+  );
 }
 
 const fmtSf = (cp) => {
@@ -211,7 +267,7 @@ function OwnMoveAnalysis({ M, vline, own, status, onReply }) {
           <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{who} · {bad ? CLASS_LABEL[rated.classification] + ' · ' : ''}{verdict}</span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em' }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}</span>
+          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center' }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={own} /></span>
           <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{(status === 'unavailable' || status === 'stopped') && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
         </div>
       </div>

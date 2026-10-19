@@ -187,6 +187,31 @@ test('secondsPerPosition: 1.3 s at the defaults, faster when shallower, never pa
   assert.equal(A.secondsPerPosition({ depth: 30, time_limit: 4 }), 4);
 });
 
+test('secondsPerPosition scales by a device factor; paceFactor measures it, within 0.25–4', () => {
+  assert.equal(A.secondsPerPosition(A.ENGINE, 2), 2.6);
+  assert.equal(A.secondsPerPosition(A.ENGINE, 4), 3); // still capped by the time limit
+  assert.equal(A.paceFactor(A.ENGINE, 0.65), 0.5);
+  assert.equal(A.paceFactor(A.ENGINE, 100), 4);
+  assert.equal(A.paceFactor(A.ENGINE, 0.01), 0.25);
+});
+
+test('blendPace starts at the estimate and moves to the measured pace', () => {
+  assert.equal(A.blendPace(1.3, 0, 0), 1.3);
+  assert.equal(A.blendPace(1, 3 * 3, 3), 2); // half way after as many positions as the estimate's weight
+  assert.ok(Math.abs(A.blendPace(1, 300 * 3, 300) - 3) < 0.03);
+});
+
+test('deeperSearch: +4 depth and twice the time per press, up to the sliders\' caps', () => {
+  const own = { depth: 24, time_limit: 3 };
+  assert.deepEqual(A.deeperSearch(own, 0), own);
+  assert.deepEqual(A.deeperSearch(own, 1), { depth: 28, time_limit: 6 });
+  assert.deepEqual(A.deeperSearch(own, 2), { depth: 30, time_limit: 10 });
+  assert.equal(A.canGoDeeper(own, 1), true);
+  assert.equal(A.canGoDeeper(own, 2), false);
+  assert.equal(A.canGoDeeper({ depth: 30, time_limit: 3 }, 0), true); // the time can still grow
+  assert.equal(A.canGoDeeper({ depth: 30, time_limit: 10 }, 0), false);
+});
+
 test('runAnalysis searches and records the settings it is given', async () => {
   const reqs = [], settings = A.engineSettings({ sfDepth: 16, sfTime: 0.5, sfHash: 32 }).game;
   const out = await A.runAnalysis({ engine: fakeEngine((r) => reqs.push(r)), ...SCHOLAR, headers: {}, signal: { aborted: false }, onProgress: () => {}, settings });
