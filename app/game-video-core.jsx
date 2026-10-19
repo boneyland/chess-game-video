@@ -188,7 +188,8 @@ function FitOrHide({ style, children }) {
 }
 
 // ---------- board ----------
-// a press or drag across the board selects no piece or coordinate, nor drags a piece's image out
+// a press or drag selects no text here (the board's pieces and coordinates, the eval bar and graph, the panels' hints),
+// nor drags a piece's image out
 const NO_SELECT = { userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' };
 function Piece({ p, T, S }) {
   let [x, y] = sqXY(p.home), lift = 0;
@@ -389,7 +390,7 @@ function EvalBarView({ cp, txt, a }) {
   const f = (winChance(cp) + 1) / 2;
   const flip = ORIENT === 'b', inWhite = cp >= 0, top = inWhite === flip; // the number sits in the part of the bar it favours
   return (
-    <div style={{ position: 'absolute', left: L.eval, top: BY, width: 36, height: BW, borderRadius: 4, overflow: 'hidden', background: '#2a2320', boxShadow: `0 0 0 1px ${C.line}`, opacity: a }}>
+    <div style={{ ...NO_SELECT, position: 'absolute', left: L.eval, top: BY, width: 36, height: BW, borderRadius: 4, overflow: 'hidden', background: '#2a2320', boxShadow: `0 0 0 1px ${C.line}`, opacity: a }}>
       <div style={{ position: 'absolute', left: 0, right: 0, [flip ? 'top' : 'bottom']: 0, height: f * BW, background: '#ffffff' }} />
       <div style={{ position: 'absolute', left: 0, right: 0, top: BW / 2 - 1, height: 2, background: C.last, opacity: 0.5 }} />
       <div style={{ position: 'absolute', left: 0, right: 0, [top ? 'top' : 'bottom']: 8, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${MONO}`, color: inWhite ? '#2a2320' : '#f1ebe1' }}>
@@ -570,7 +571,7 @@ function Commentary({ M, T, S, a, book, line }) {
         </div>
       ) : (
         // a quiet line instead of an empty box: why there's nothing here
-        <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>
+        <span style={{ ...NO_SELECT, font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>
           {!M.intro && !M.plies.some((p) => p.comment) ? (M.hasNotes || M.hasAiNotes ? 'Commentary is off.' : 'This game has no commentary.')
             : c < 0 ? 'Comments appear here as the game plays.' : `No comment on ${label(M, c)}.`}
         </span>
@@ -598,7 +599,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
   }
   if (c < 0) return (
     <Panel box={L.analysis} a={a} title="Analysis" right={right}>
-      {paused && <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
+      {paused && <span style={{ ...NO_SELECT, font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
       {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
     </Panel>
   );
@@ -658,7 +659,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
           </span>
         )}
         {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <EngineEmptyState M={M} sf={sf} paused={paused} compact />}
-        {!vline && paused && M.hasEval && <FitOrHide style={{ font: `500 15px ${MONO}`, color: C.dim }}>Tip: drag a piece on the board to try your own move.</FitOrHide>}
+        {!vline && paused && M.hasEval && <FitOrHide style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>Tip: drag a piece on the board to try your own move.</FitOrHide>}
       </div>
     </Panel>
   );
@@ -685,7 +686,7 @@ function EvalPlot({ M, T, S, a, paused, onPick }) {
   const area = `${line} L${last[0].toFixed(1)},${mid} L0,${mid} Z`;
   const ticks = window.ChessCore.evalTicks(M.ply0, N);
   return (
-    <div style={{ position: 'absolute', left: PLOT.x, top: PLOT.y, width: PLOT.w / PLOT.k, height: PLOT.h / PLOT.k, transform: `scale(${PLOT.k})`, transformOrigin: '0 0', boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '10px 20px', opacity: a }}>
+    <div style={{ ...NO_SELECT, position: 'absolute', left: PLOT.x, top: PLOT.y, width: PLOT.w / PLOT.k, height: PLOT.h / PLOT.k, transform: `scale(${PLOT.k})`, transformOrigin: '0 0', boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '10px 20px', opacity: a }}>
       <svg width={W} height={H + 14} style={{ display: 'block', overflow: 'visible', cursor: 'pointer', touchAction: 'none' }}
         onPointerDown={(e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} down.current = true; clearTimeout(fade.current); setHover(plyAt(e)); }}
         onPointerMove={(e) => { if (down.current || e.pointerType === 'mouse') setHover(plyAt(e)); }}

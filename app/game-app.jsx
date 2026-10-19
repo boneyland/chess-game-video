@@ -410,7 +410,7 @@ function GameApp() {
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
       </React.Fragment> : (
         <div ref={newRef} className="dock-new">
-          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>Play/Explore</button>
+          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => { setNewMenu((m) => !m); setPanel(false); setQueenOpen(false); }}>Play/Explore</button>
           {newMenu && (
             <div id="dock-new-items" className="dock-pop">
               {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}

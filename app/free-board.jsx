@@ -109,7 +109,7 @@ function StartAnalysis({ board, ev, status, onLine }) {
         {line.length > 0
           ? <LineChips name="Stockfish’s best line" nameColor={C.ink} accent={C.best} moves={line.map((m) => m.san)} ply0={board.start.ply0} c={0} legal={line.length} sel={null} onPick={(j) => onLine(line.slice(0, j + 1))} />
           : <span> </span>}
-        <span style={{ font: `500 15px ${MONO}` }}>Drag a piece to play a move, for either side; Stockfish rates every move.</span>
+        <span style={{ ...NO_SELECT, font: `500 15px ${MONO}` }}>Drag a piece to play a move, for either side; Stockfish rates every move.</span>
       </div>
     </React.Fragment>
   );
@@ -297,7 +297,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
           ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />
           : <React.Fragment>
             <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
-            <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
+            <FitOrHide style={{ ...NO_SELECT, display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
           </React.Fragment>}
       </Panel>
     </div>
