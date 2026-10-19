@@ -140,6 +140,8 @@ test('insufficient material, and what still counts as mating material', () => {
 
 ### Task 4: Leaving a game asks first
 
+(Built and committed with Task 3: the guard and its dialog share `GameApp`'s code with the Play vs human dialog. The live test covers both.)
+
 **Files:**
 - Modify: `app/free-board.jsx` (`ConfirmDialog`), `app/game-app.jsx` (`guard(run)` around the actions listed in "Decisions")
 - Test: `tests/live/site.test.cjs`

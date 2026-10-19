@@ -2,7 +2,7 @@
 
 ![The sample chess game playing: move rating, best line, commentary and eval graph](media/preview.webp)
 
-A browser app for replaying chess games. Load a PGN (one with a `[FEN]` start position too; Chess960 not yet) to step through it on an animated board, with an evaluation graph, a rating for every move and the opening name. Stockfish runs in your browser to analyse games that don’t have evals, and any game can be exported as an MP4 video or animated WebP. New board opens an empty board (the starting position, or a pasted FEN) where Stockfish rates every move and the opening explorer lists the book moves from each position.
+A browser app for replaying chess games. Load a PGN (one with a `[FEN]` start position too; Chess960 not yet) to step through it on an animated board, with an evaluation graph, a rating for every move and the opening name. Stockfish runs in your browser to analyse games that don’t have evals, and any game can be exported as an MP4 video or animated WebP. New board opens an empty board (the starting position, or a pasted FEN) where Stockfish rates every move and the opening explorer lists the book moves from each position. Play vs human is a game for two at one screen, from the starting position or a pasted one: the board turns to the side to move, ← takes a move back, the game ends on mate or a draw by the rules, with optional clocks, and Stockfish stays off until it ends.
 
 ## Build
 
@@ -18,7 +18,7 @@ Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sig
 
 ## Layout
 
-- `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js` (opening names and book continuations), `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser; `queen-core.js` parses Ask Queen's answers; `board-core.js` and `free-board.jsx` are the free board; `sfx-core.js` and `sfx.jsx` play the move sounds)
+- `app/`: page sources (`shell.html`, JSX components, `chess-core.js`, trimmed `sample-analysis.js`; `analysis-core.js`, `openings-core.js` (opening names and book continuations), `sf-engine.js`, `stockfish.jsx` for Stockfish in the browser; `queen-core.js` parses Ask Queen's answers; `board-core.js` and `free-board.jsx` are the free board, `play-core.js` its games (clocks, takebacks, the end); `sfx-core.js` and `sfx.jsx` play the move sounds)
 - `src/`: files from the original Claude Design project (`pieces.js`, `sample-game.js`, and `game-data.js`, which writes the sample game's commentary, `window.SAMPLE_NOTES`, all built into the page); `pieces/cburnett/` are Colin M.L. Burnett's pieces (GPL-2.0-or-later, as in Lichess)
 - `babel/babel.min.js`: @babel/standalone 7.29.0, used only to precompile the JSX (sha256 `2623a9e22809915ce789b4461154e277ddce520d5a4320c14d44332a5d0dcea0`)
 - `vendor/`: stockfish.js v19.0.1 `lite-single` (GPL-3.0, https://github.com/nmrugg/stockfish.js), unchanged release files
