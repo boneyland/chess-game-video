@@ -155,3 +155,12 @@ test('insufficient material, and what still counts as mating material', () => {
 
 - [ ] CLAUDE.md Gotchas: a game is a free board with `board.game` (`PlayCore`); no Stockfish search in a game. README: Play vs human. The spec: "Carried forward from plan 3".
 - [ ] Commit — `Docs: play vs human`
+
+## Changes after review (2026-10-19)
+
+The user tried the PR and asked for these; they replace the decisions above where they differ:
+- The dock's **New board** button is now **Play/Explore** (the phone menu's group label too); its items are unchanged.
+- **Take back** is a button in the Game box, beside Agree a draw and Resign. ← and the transport bar no longer take moves back (in a game in progress they do nothing).
+- **Resign** asks first, in the Game box: "Resign as White?" with *Resign* and *Keep playing*.
+- **Draw by agreement**: *Agree a draw* in the Game box (once a move has been played) asks "Do both players agree to a draw?" (*Agree*, *Keep playing*); the result is "½–½ · Draw by agreement" (`PlayCore.agreeDraw`, kept through a reload, `Termination "normal"` in the PGN).
+- After the end, **Play again** sits to the right of the score and reason; **Analyse on the free board** stays on the row below.
