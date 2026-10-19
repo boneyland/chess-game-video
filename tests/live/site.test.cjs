@@ -701,9 +701,12 @@ for (const name of BROWSERS) for (const site of SITES) {
         for (const m of css.matchAll(/url\((https:[^)]+)\)/g)) if (!(await caches.match(m[1]))) out.push(m[1]);
         return out;
       }), [], 'font files not kept');
-      // a reload cuts off a font still downloading, which Firefox reports as an error
+      // a reload cuts off a font still downloading, which Firefox reports as an error; going offline shows the offline
+      // note, whose text is the first in a face not used yet (IBM Plex Sans 500), so its font starts loading only then
       await p.evaluate(() => document.fonts.ready);
       await off.ctx.setOffline(true);
+      await assert.doesNotReject(p.locator('.net-note').filter({ hasText: /offline/ }).waitFor({ timeout: 5000 }));
+      await p.evaluate(() => document.fonts.ready);
       await p.reload({ waitUntil: 'load' });
       await loadedOn(p);
       await assert.doesNotReject(p.locator('.net-chip').waitFor({ timeout: 5000 }));
@@ -724,9 +727,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await off.ctx.setOffline(false);
       await assert.doesNotReject(p.locator('.net-note').filter({ hasText: 'Back online.' }).waitFor({ timeout: 5000 }));
       assert.equal(await p.locator('.net-chip').count(), 0, 'no Offline chip once back online');
-      // Firefox's emulated offline sometimes cuts off a font download across the reload (the font is kept, and a
-      // real loss of the network, the server stopped, logs nothing); any other error still fails the test
-      assert.deepEqual(off.errors.filter((m) => !(name === 'firefox' && /^download failed \(font-family/.test(m))), []);
+      assert.deepEqual(off.errors, []);
       await off.ctx.close();
     });
 
