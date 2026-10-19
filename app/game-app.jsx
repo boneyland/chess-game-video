@@ -555,7 +555,7 @@ function GameApp() {
         <TweakColumn>
           {board && board.game ? (
             <TweakSection label="Board">
-              <div className="twk-note">Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Agree a draw and Resign are in the Game box; after the game, ← → step through it.</div>
+              <div className="twk-note">Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box; after the game, ← → step through it.</div>
             </TweakSection>
           ) : board ? (
             <TweakSection label="Board">

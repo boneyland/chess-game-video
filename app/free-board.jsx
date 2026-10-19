@@ -138,14 +138,15 @@ function GameInfo({ board }) {
   return (
     <Panel box={{ ...L.comment, scroll: true }} a={1} title="Play vs human" right={G.tc || 'No clock'}>
       <span style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: C.ink }}>{board.fen === window.ChessCore.START_FEN ? 'From the starting position' : 'From a set-up position'}</span>
-      {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Agree a draw and Resign are in the Game box.')}
+      {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box.')}
       {note(t ? `Each side has ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.')}
       {note('No engine and no hints: Stockfish is off until the game ends.')}
     </Panel>
   );
 }
 
-// The Analysis box in a game: whose move it is, with Take back, Agree a draw and Resign (the last two asked twice), or
+// The Analysis box in a game: whose move it is, with Take back, Offer a draw and Resign (the last two asked twice: a draw is
+// offered by the side to move and accepted by the other), or
 // the result with Play again beside it and Analyse on the free board below
 function GameStatus({ board, onChange }) {
   const P = window.PlayCore, G = board.game, last = board.steps.length ? board.steps[board.steps.length - 1] : null;
@@ -156,7 +157,8 @@ function GameStatus({ board, onChange }) {
   const big = (txt, col) => <span style={{ font: `700 38px ${MONO}`, color: col }}>{txt}</span>;
   const small = (txt, col) => <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{txt}</span>;
   const hint = (txt) => <FitOrHide style={{ display: 'block', marginTop: 14, font: `500 15px ${MONO}`, color: C.dim }}>{txt}</FitOrHide>;
-  const row = (children) => <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap', alignItems: 'center' }}>{children}</div>;
+  // the button rows can't be selected: quick clicks on the buttons would otherwise highlight their text and the question's
+  const row = (children) => <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap', alignItems: 'center', userSelect: 'none', WebkitUserSelect: 'none' }}>{children}</div>;
   if (G.result) {
     const r = P.resultText(G.result);
     const { game, ...free } = board;
@@ -181,12 +183,12 @@ function GameStatus({ board, onChange }) {
         {small(check ? 'Check' : G.clock && !board.steps.length ? 'The clocks start with the first move' : paused ? 'Clocks paused by the reload · they run again from the next move' : ' ', check ? C.blunder : C.dim)}
       </div>
       {ask ? row(<React.Fragment>
-        <span style={{ font: `600 18px ${SANS}`, color: C.ink }}>{ask === 'resign' ? `Resign as ${side}?` : 'Do both players agree to a draw?'}</span>
-        <FrameButton color={ask === 'resign' ? C.blunder : C.last} onClick={() => onChange(ask === 'resign' ? P.resign(board, now()) : P.agreeDraw(board, now()))}>{ask === 'resign' ? 'Resign' : 'Agree'}</FrameButton>
-        <FrameButton color={C.dim} onClick={() => setAsk(null)}>Keep playing</FrameButton>
+        <span style={{ font: `600 18px ${SANS}`, color: C.ink }}>{ask === 'resign' ? `Resign as ${side}?` : `${side} offers a draw. ${side === 'White' ? 'Black' : 'White'}, accept?`}</span>
+        <FrameButton color={ask === 'resign' ? C.blunder : C.last} onClick={() => onChange(ask === 'resign' ? P.resign(board, now()) : P.agreeDraw(board, now()))}>{ask === 'resign' ? 'Resign' : 'Accept'}</FrameButton>
+        <FrameButton color={C.dim} onClick={() => setAsk(null)}>{ask === 'resign' ? 'Keep playing' : 'Decline'}</FrameButton>
       </React.Fragment>) : row(<React.Fragment>
         {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => onChange(P.takeback(board, now()))}>Take back</FrameButton>}
-        {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => setAsk('draw')}>Agree a draw</FrameButton>}
+        {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => setAsk('draw')}>Offer a draw</FrameButton>}
         <FrameButton color={C.dim} onClick={() => setAsk('resign')}>Resign as {side}</FrameButton>
       </React.Fragment>)}
     </React.Fragment>

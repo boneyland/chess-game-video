@@ -769,15 +769,22 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(leave.waitFor({ state: 'detached', timeout: 3000 }));
       assert.match(await label.innerText(), /1\. e4/);
       assert.match(await panel('Game'), /Black to move/);
-      // Resign and Agree a draw ask first; Keep playing takes the question back
+      // Resign and Offer a draw ask first; Keep playing takes the question back
       await p.getByRole('button', { name: 'Resign as Black' }).click();
       assert.match(await panel('Game'), /Resign as Black\?/);
       await p.screenshot({ path: path.join(OUT, host + '-play-resign.png') });
       await p.getByRole('button', { name: 'Keep playing' }).click();
       assert.match(await panel('Game'), /Black to move/);
       assert.doesNotMatch(await panel('Game'), /resigned/i);
-      await p.getByRole('button', { name: 'Agree a draw' }).click();
-      await p.getByRole('button', { name: 'Agree', exact: true }).click();
+      // the buttons' text can't be selected (a double click would otherwise highlight it)
+      assert.equal(await p.getByRole('button', { name: 'Offer a draw' }).evaluate((e) => getComputedStyle(e).userSelect), 'none');
+      await p.getByRole('button', { name: 'Offer a draw' }).click();
+      assert.match(await panel('Game'), /Black offers a draw\. White, accept\?/);
+      await p.getByRole('button', { name: 'Decline' }).click();
+      assert.match(await panel('Game'), /Black to move/);
+      await p.getByRole('button', { name: 'Offer a draw' }).click();
+      await p.screenshot({ path: path.join(OUT, host + '-play-draw.png') });
+      await p.getByRole('button', { name: 'Accept', exact: true }).click();
       await assert.doesNotReject(p.getByText('Draw by agreement').waitFor({ timeout: 3000 }));
       assert.match(await panel('Game'), /½–½/);
       // Play again starts a new game with the same clock; this one gets a move and is resigned

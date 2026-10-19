@@ -160,7 +160,8 @@ test('insufficient material, and what still counts as mating material', () => {
 
 The user tried the PR and asked for these; they replace the decisions above where they differ:
 - The dock's **New board** button is now **Play/Explore** (the phone menu's group label too); its items are unchanged.
-- **Take back** is a button in the Game box, beside Agree a draw and Resign. ← and the transport bar no longer take moves back (in a game in progress they do nothing).
+- **Take back** is a button in the Game box, beside Offer a draw and Resign. ← and the transport bar no longer take moves back (in a game in progress they do nothing).
 - **Resign** asks first, in the Game box: "Resign as White?" with *Resign* and *Keep playing*.
 - **Draw by agreement**: *Agree a draw* in the Game box (once a move has been played) asks "Do both players agree to a draw?" (*Agree*, *Keep playing*); the result is "½–½ · Draw by agreement" (`PlayCore.agreeDraw`, kept through a reload, `Termination "normal"` in the PGN).
 - After the end, **Play again** sits to the right of the score and reason; **Analyse on the free board** stays on the row below.
+- Second round: *Agree a draw* is now **Offer a draw**: the side to move offers, and the box asks the other side "Black offers a draw. White, accept?" (*Accept*, *Decline*). The text of the Game box's buttons (all the frame's buttons) can't be selected, so clicking them never highlights it.
