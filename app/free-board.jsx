@@ -46,6 +46,9 @@ function OpeningExplorer({ board, book, onPlay }) {
   const heading = (txt, dim) => <span className="book-head" style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: dim ? C.dim : C.ink, textWrap: 'pretty' }}>{txt}</span>;
   const note = (txt) => <span style={{ display: 'block', marginTop: 8, font: `500 ${Math.round(15 * z)}px ${MONO}`, color: C.dim }}>{txt}</span>;
   const play = (e, uci) => { e.preventDefault(); e.stopPropagation(); onPlay(uci); };
+  // each position's list starts at its top, not where the last one was scrolled to (the panel's box stays the same node)
+  const top = React.useRef(null), posKey = board.fen + '|' + ucis.join(' ');
+  React.useLayoutEffect(() => { const box = top.current && top.current.parentElement; if (box) box.scrollTop = 0; }, [posKey]);
   let body;
   if (!book) body = <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>Loading the opening book…</span>;
   else if (inBook) {
@@ -71,7 +74,7 @@ function OpeningExplorer({ board, book, onPlay }) {
   } else body = <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>This position isn’t in the opening book.</span>;
   return (
     <Panel box={{ ...L.comment, scroll: true }} a={1} title="Opening explorer" right={named ? `${named.eco} ${named.name}` : null}>
-      {body}
+      <div ref={top}>{body}</div>
     </Panel>
   );
 }
@@ -195,7 +198,8 @@ function FenDialog({ onSet, onClose }) {
   };
   return (
     <div className="fen-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="fen-box" role="dialog" aria-modal="true" aria-label="Paste FEN" onKeyDown={onKey}>
+      {/* a press on the box's text keeps focus on its control: focus left on the page would escape the Tab loop */}
+      <div className="fen-box" role="dialog" aria-modal="true" aria-label="Paste FEN" onKeyDown={onKey} onMouseDown={(e) => { if (!e.target.closest('input, button')) e.preventDefault(); }}>
         <div className="fen-title">Paste FEN</div>
         <input ref={field} className="twk-field fen-field" type="text" aria-label="FEN" aria-describedby="fen-msg" spellCheck={false} autoComplete="off" autoCapitalize="off" autoCorrect="off"
           placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" value={text} onChange={(e) => { setText(e.target.value); setMsg(''); }} />

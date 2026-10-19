@@ -480,6 +480,10 @@ for (const name of BROWSERS) for (const site of SITES) {
       }
       await p.keyboard.press('Shift+Tab');
       assert.equal(await inDialog(), true, 'and after Shift+Tab');
+      // a press on the dialog's title keeps focus on a control, so Tab still goes round
+      await dialog.getByText('Paste FEN', { exact: true }).click();
+      await p.keyboard.press('Shift+Tab');
+      assert.equal(await inDialog(), true, 'after a click on the title and Shift+Tab');
       // Esc closes it and gives focus back to New board
       await p.keyboard.press('Escape');
       await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
@@ -553,10 +557,12 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(head.filter({ hasText: /Sicilian Defense/ }).waitFor({ timeout: 5000 }));
       assert.match(await panel('Opening explorer'), /B20/);
       await p.screenshot({ path: path.join(OUT, host + '-explorer.png') });
-      // back to the start: a book move there replaces the moves after it
+      // back to the start: a book move there replaces the moves after it. The list scrolled down for c5 starts at its top
+      await p.evaluate(() => { document.querySelector('.book-head').parentElement.parentElement.scrollTop = 400; });
       await p.keyboard.press('ArrowLeft');
       await p.keyboard.press('ArrowLeft');
       await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await p.evaluate(() => document.querySelector('.book-head').parentElement.parentElement.scrollTop), 0, 'the start\'s list is scrolled to its top');
       await row(p, 'd4').click();
       await assert.doesNotReject(label.filter({ hasText: /1\. d4/ }).waitFor({ timeout: 5000 }));
       assert.doesNotMatch(await panel('Moves'), /c5|e4/);
