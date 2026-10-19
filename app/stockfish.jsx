@@ -245,7 +245,8 @@ function useMoveEval(engine, before, after, own, fen, stored) {
   return { ...out, deeper, deeperTo: deeper ? next : null };
 }
 
-// Go deeper: the small + by an eval that has finished
+// Go deeper: the small + by an eval that has finished; the EVAL line above an eval keeps its height (minHeight: 30)
+// whether or not it shows, so the panel doesn't jump as moves change
 function DeeperButton({ ev }) {
   if (!ev || !ev.deeper) return null;
   const t = ev.deeperTo, tip = `Go deeper: depth ${t.depth}, up to ${t.time_limit} s`;
@@ -283,7 +284,7 @@ function OwnMoveAnalysis({ M, vline, own, status, onReply }) {
           <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{who} · {bad ? CLASS_LABEL[rated.classification] + ' · ' : ''}{verdict}</span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center' }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={own} /></span>
+          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', minHeight: 30 }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={own} /></span>
           <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{(status === 'unavailable' || status === 'stopped') && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
         </div>
       </div>

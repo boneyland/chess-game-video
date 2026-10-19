@@ -101,7 +101,7 @@ function StartAnalysis({ board, ev, status, onLine }) {
           </span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center' }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={ev} /></span>
+          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', minHeight: 30 }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={ev} /></span>
           <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{down && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
         </div>
       </div>
