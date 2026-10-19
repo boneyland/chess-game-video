@@ -908,7 +908,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
   const gameP = gameOn ? M.plies[cNow] : null, gameSettings = sf ? sf.game : window.AnalysisCore.ENGINE;
   const gameBase = { depth: gameP && gameP.search ? gameP.search.depth : gameSettings.depth, time_limit: gameSettings.time_limit };
   const gameMoves = gameOn ? M.plies.slice(0, cNow + 1).map((p) => p.uci) : null;
-  const gameEval = useMoveEval(sf ? sf.engine : null, gameMoves, gameMoves, gameBase, M.start.fen, gameOn ? { cp: cpOf(M, cNow), depth: gameBase.depth, pv: [], stored: true } : null);
+  const gameEval = useMoveEval(sf ? sf.engine : null, gameMoves, gameMoves, gameBase, M.start.fen, gameOn ? { cp: cpOf(M, cNow), depth: gameBase.depth, pv: [], stored: true, src: M.evalSource + '|' + M.engine } : null);
   let own = null;
   if (ownOn) {
     const posBefore = vline.upto > 0 ? vline.moves[vline.upto - 1].pos : vline.base || gamePos(vline.at - 1);

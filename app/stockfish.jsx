@@ -197,12 +197,13 @@ const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the
 // deeper(): searches both positions again, deeper (null when the search can't go further or hasn't finished); it counts
 // for that position only, and a deeper search shows the last result until it passes that result's depth.
 // stored: a loaded analysis's result for after (with before the same moves), standing in for the first search, which
-// then never runs: only a press of Go deeper searches. Results from it carry stored: true
+// then never runs: only a press of Go deeper searches. Results from it carry stored: true; its src names the evals it
+// comes from, so presses on one analysis's move don't carry over to another's (or the PGN's) once it is removed
 function useMoveEval(engine, before, after, own, fen, stored) {
   const A = window.AnalysisCore;
   const keyOf = (s, moves) => (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}:` + moves.join(' ');
   const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000 });
-  const baseKey = after ? keyOf(toSearch(own), after) : '';
+  const baseKey = after ? keyOf(toSearch(own), after) + (stored ? '|' + stored.src : '') : '';
   const [, bump] = React.useState(0);
   const level = SF_DEEPER.get(baseKey) || 0;
   const search = toSearch(A.deeperSearch(own, level));
