@@ -249,7 +249,8 @@ for (const name of BROWSERS) for (const site of SITES) {
       await pr.page.screenshot({ path: path.join(OUT, host + '-promotion.png') });
       await pr.page.keyboard.press('Escape');
       assert.equal(await picker.count(), 0, 'Esc closes the picker');
-      assert.match(await pr.page.locator('.plabel').innerText(), /Qd5/, 'and plays nothing');
+      // the label follows a render later, so it is waited for rather than read at once
+      await assert.doesNotReject(pr.page.locator('.plabel').filter({ hasText: /Qd5/ }).waitFor({ timeout: 5000 }), 'and plays nothing');
       await drag();
       const knight = square(b, 'a7'); // the column runs down from a8: queen, knight, rook, bishop
       await pr.page.mouse.click(knight.x, knight.y);
@@ -588,8 +589,11 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(head.filter({ hasText: /Queen.s Pawn/ }).waitFor({ timeout: 5000 }));
       // out of the book: it says so, naming the last book position
       // each move lands before the next drag starts: a drag begun before the board re-renders picks up the wrong side's piece
+      // the board measured again: clicking a row may have scrolled the frame (stock Firefox lost these drags in GitHub Actions)
+      const b2 = await boardBox(p);
+      if (Math.abs(b2.x0 - b.x0) > 1 || Math.abs(b2.y0 - b.y0) > 1) t.diagnostic(`the board moved after the explorer clicks: (${b.x0}, ${b.y0}) → (${b2.x0}, ${b2.y0})`);
       for (const [f, tt, l] of [['h7', 'h6', /1… h6/], ['a2', 'a3', /2\. a3/], ['h6', 'h5', /2… h5/], ['a3', 'a4', /3\. a4/]]) {
-        await drag(b, f, tt);
+        await drag(b2, f, tt);
         await assert.doesNotReject(label.filter({ hasText: l }).waitFor({ timeout: 5000 }));
       }
       await p.waitForFunction(() => /Out of book/.test(document.body.innerText), null, { timeout: 5000 });
