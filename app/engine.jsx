@@ -19,7 +19,8 @@ const useFrame = () => React.useContext(FrameContext);
 
 
 // still: a board without a timeline (the free board): no playing, no seeking keys, and a transport bar of moves only
-function Stage({ width, height, portrait, short, menu, onLayout, duration, background, playback, nav, still, children }) {
+// top: an optional line above the frame (the page's Offline tag); the frame scales to the room left
+function Stage({ width, height, portrait, short, menu, top, onLayout, duration, background, playback, nav, still, children }) {
   const playTimes = playback && playback.mode === 'times' ? playback.count : null;
   const loop = !playback || playback.mode === 'loop';
   // The page opens paused on the composition's start frame (setStart); the first Play from that untouched frame
@@ -136,6 +137,7 @@ function Stage({ width, height, portrait, short, menu, onLayout, duration, backg
 
   return (
     <div className={'stage' + (tall ? ' stage-tall' : frame.short ? ' stage-short' : '')}>
+      {top}
       <div ref={areaRef} className="stage-area">
         <div className="stage-frame" style={{ width: fw * scale, height: fh * scale }}>
           <div style={{ width: fw, height: fh, background, position: 'relative', overflow: 'hidden', transform: `scale(${scale})`, transformOrigin: '0 0' }}>
@@ -275,13 +277,13 @@ function CompositionClock({ derived, children }) {
   return <CompositionContext.Provider value={value}>{children}</CompositionContext.Provider>;
 }
 
-function CompositionStage({ width, height, portrait, short, menu, onLayout, scenes, playback, bg, nav, still, children }) {
+function CompositionStage({ width, height, portrait, short, menu, top, onLayout, scenes, playback, bg, nav, still, children }) {
   const parsed = React.useMemo(() => parseScenes(scenes), [scenes]);
   const derived = React.useMemo(() => (parsed ? deriveCues(parsed) : null), [parsed]);
   const pb = React.useMemo(() => { try { return JSON.parse(playback); } catch (e) { return null; } }, [playback]);
   if (!derived) return <div className="stage-error">This game produced an invalid scene list.</div>;
   return (
-    <Stage width={width} height={height} portrait={portrait} short={short} menu={menu} onLayout={onLayout} duration={derived.total} background={bg} playback={pb} nav={nav} still={still}>
+    <Stage width={width} height={height} portrait={portrait} short={short} menu={menu} top={top} onLayout={onLayout} duration={derived.total} background={bg} playback={pb} nav={nav} still={still}>
       <CompositionClock derived={derived}>{children}</CompositionClock>
     </Stage>
   );
