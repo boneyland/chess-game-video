@@ -85,18 +85,18 @@ function shortLayout(W) {
   };
 }
 // Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The board
-// with the header (players stacked) and Moves (two pairs a row) beside it; the eval graph the full width under the board, then Analysis and
-// Commentary side by side, taking the extra height.
+// with the header (players stacked) and Commentary beside it; the eval graph the full width under the board, then
+// Analysis and Moves (two pairs a row) side by side, taking the extra height.
 const SQUARE = { width: 1600, minHeight: 1440, maxHeight: 1760 };
 function squareLayout(H) {
-  const hh = 290, my = 40 + hh + 18, mh = 904 - my, by = 1068, bh = H - by - 30;
+  const hh = 290, cy = 40 + hh + 18, by = 1068, bh = H - by - 30;
   return {
     eval: 44, bx: 100, by: 88, bar: { k: 1, gap: 10 }, title: 13,
     header: { x: 916, y: 40, w: 644, h: hh, k: 1, stack: true },
-    moves: { x: 916, y: my, w: 644, h: mh, k: 1, cols: 2, rows: Math.floor((mh - 61) / 38) },
+    comment: { x: 916, y: cy, w: 644, h: 904 - cy, k: 1, text: 1, gap: 18, right: 1 },
     plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
     analysis: { x: 44, y: by, w: 750, h: bh, k: 1, scroll: true, right: 1 },
-    comment: { x: 810, y: by, w: 750, h: bh, k: 1, text: 1, gap: 18, right: 1 },
+    moves: { x: 810, y: by, w: 750, h: bh, k: 1, cols: 2, rows: Math.floor((bh - 61) / 38) },
     card: { k: 1, w: 1500, stack: false },
   };
 }
