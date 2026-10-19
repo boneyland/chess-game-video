@@ -124,7 +124,7 @@ function boardLayout(base) {
   if (!base.plot) return base;
   if (!BOARD_LAYOUTS.has(base)) {
     const p = base.plot, an = base.analysis, grow = p.y + p.h - (an.y + an.h);
-    BOARD_LAYOUTS.set(base, an.y > p.y ? { ...base, plot: null, analysis: { ...an, y: p.y, h: an.h + an.y - p.y }, moves: { ...base.moves, y: p.y, h: base.moves.h + base.moves.y - p.y, rows: base.moves.rows + Math.floor((base.moves.y - p.y) / 38) } } // square: Analysis and Moves grow up into it
+    BOARD_LAYOUTS.set(base, base.header && an.y > p.y ? { ...base, plot: null, analysis: { ...an, y: p.y, h: an.h + an.y - p.y }, moves: { ...base.moves, y: p.y, h: base.moves.h + base.moves.y - p.y, rows: base.moves.rows + Math.floor((base.moves.y - p.y) / 38) } } // square: Analysis and Moves grow up into it
       : base.header
       ? { ...base, plot: null, moves: { ...base.moves, h: base.moves.h + grow, rows: base.moves.rows + Math.floor(grow / base.moves.k / 38) }, comment: { ...base.comment, h: base.comment.h + grow }, analysis: { ...an, y: an.y + grow } }
       : { ...base, plot: null, comment: { ...base.comment, y: p.y, h: base.comment.h + base.comment.y - p.y } });
