@@ -547,6 +547,16 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
       await assert.doesNotReject(head.filter({ hasText: /^Starting position$/ }).waitFor({ timeout: 5000 }));
       const b = await boardBox(p);
+      // a mouse drag on the list scrolls it: no move played, no text selected
+      const listTop = () => p.evaluate(() => document.querySelector('.book-head').parentElement.parentElement.scrollTop);
+      const from = await row(p, 'Nc3').boundingBox();
+      await p.mouse.move(from.x + 40, from.y + from.height / 2);
+      await p.mouse.down();
+      await p.mouse.move(from.x + 40, from.y + from.height / 2 - 120, { steps: 8 });
+      await p.mouse.up();
+      assert.ok(await listTop() >= 100, `the list scrolled (${await listTop()} px)`);
+      assert.match(await label.innerText(), /^Start$/, 'the drag played no move');
+      assert.equal(await p.evaluate(() => String(window.getSelection())), '', 'and selected no text');
       await row(p, 'e4').click();
       await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
       await assert.doesNotReject(row(p, 'c5').filter({ hasText: /Sicilian/ }).waitFor({ timeout: 5000 }));
