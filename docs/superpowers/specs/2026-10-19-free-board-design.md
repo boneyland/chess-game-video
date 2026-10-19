@@ -169,6 +169,10 @@ These are several projects. Proposed order, each usable on its own:
 - 2026-10-19: the user approved this design, the calls marked "my call" included; clock presets under 5 minutes
   removed; Chess960 is the only variant.
 
+- 2026-10-19 (after testing the PR preview): the free board shows Stockfish's eval and best line before the first move
+  (clickable, as its replies are), and Settings' "Replay these moves as a game" opens the board's moves as a loaded game
+  for replay, analysis and MP4/WebP export, with "Back to the free board" to return.
+
 ## Carried forward from plan 1 (custom starts and flip, 2026-10-19)
 
 For the later plans; the per-task reviews deferred these:
@@ -176,3 +180,12 @@ For the later plans; the per-task reviews deferred these:
 - The player bars' "+N" counts captures during the game only, so a FEN start with a material edge shows none.
 - `LineChips` numbers moves itself rather than through `ChessCore.moveNo`.
 - Untested by the live suite: the sideways phone layout flipped, flipped arrows and line board, a flipped or FEN-start video export, and the F key's guards.
+
+## Carried forward from plan 2 (free board and explorer, 2026-10-19)
+
+For the later plans; the per-task reviews deferred these:
+- A Stockfish reply played from the reply chips is labelled "Your move" after a reload: the stored board keeps UCI moves only, not who played them.
+- On the free board Settings still shows the "Game analysis" depth and time sliders, which apply only to loaded games.
+- Desktop board mode leaves empty space under the board where the eval graph was.
+- After Enter plays an explorer row, focus drops to the page; the next Tab lands on the new list's first row.
+- Playwright's Firefox drops mouse drags when `hasTouch` is on, so the phone parts of the free-board live tests tap or check layout only; drags are tested on desktop.

@@ -6,7 +6,8 @@
 // LIVE_BROWSERS: chromium, firefox or both (the default), run one after the other.
 // CHROMIUM_PATH / CHROMIUM_CHANNEL pick the Chromium (default: the ungoogled-chromium flatpak where it is installed,
 // else Playwright's own); FIREFOX_PATH the Firefox (default: Firefox Developer Edition, else /usr/bin/firefox),
-// driven over WebDriver BiDi, so any stock Firefox works without a Playwright build of it.
+// driven over WebDriver BiDi, so any stock Firefox works without a Playwright build of it; FIREFOX_PATH=playwright
+// runs Playwright's own Firefox build instead (machines with no stock Firefox).
 // LIVE_CDN_DIR: for sandboxes that block cdnjs, a folder holding the react and react-dom 18.3.1 npm packages
 // (<dir>/react/package/umd/…); the page's React requests are answered from it.
 // Needs Playwright (global install is fine). Screenshots go to tests/out/live/.
@@ -26,7 +27,7 @@ const SF = 'stockfish-19-lite-single';
 const firstFile = (...files) => files.find((f) => f && fs.existsSync(f));
 const LAUNCH = {
   chromium: () => pw.chromium.launch({ channel: process.env.CHROMIUM_CHANNEL, executablePath: process.env.CHROMIUM_PATH || firstFile('/var/lib/flatpak/exports/bin/io.github.ungoogled_software.ungoogled_chromium') }),
-  firefox: () => pw.firefox.launch({ channel: 'moz-firefox', executablePath: process.env.FIREFOX_PATH || firstFile('/usr/bin/firefox-devedition', '/usr/bin/firefox') }),
+  firefox: () => process.env.FIREFOX_PATH === 'playwright' ? pw.firefox.launch() : pw.firefox.launch({ channel: 'moz-firefox', executablePath: process.env.FIREFOX_PATH || firstFile('/usr/bin/firefox-devedition', '/usr/bin/firefox') }),
 };
 
 let built, local = null;
@@ -51,6 +52,8 @@ async function open(browser, viewport, opts) {
   page.on('pageerror', (e) => errors.push(e.message));
   return { ctx, page, errors };
 }
+// the page has rendered and the board has its pieces
+const loadedOn = async (page) => { await page.locator('.dock-primary').waitFor({ state: 'attached' }); await page.waitForFunction(() => document.querySelectorAll('img').length >= 32); };
 
 // The board is where the 32 pieces stand at the start: the union of the piece images' boxes
 async function boardBox(page) {
@@ -66,6 +69,15 @@ async function boardBox(page) {
 const square = (b, name, flipped) => (flipped
   ? { x: b.x0 + (7 - (name.charCodeAt(0) - 97) + 0.5) * b.sq, y: b.y0 + (+name[1] - 1 + 0.5) * b.sq }
   : { x: b.x0 + (name.charCodeAt(0) - 97 + 0.5) * b.sq, y: b.y0 + (8 - +name[1] + 0.5) * b.sq });
+// A FEN typed into the Paste FEN field with the keyboard, as a person would: with locator.fill(), Set up left the dialog
+// open in GitHub Actions' stock Firefox (WebDriver BiDi), as if the page never saw the text
+async function typeFen(field, fen) {
+  await field.click();
+  await field.press('ControlOrMeta+a');
+  await field.press('Backspace');
+  await field.pressSequentially(fen);
+  assert.equal(await field.inputValue(), fen, 'the FEN is in the field');
+}
 
 for (const name of BROWSERS) for (const site of SITES) {
   test(`${name} · ${site === 'local' ? 'local build' : new URL(site).host}`, async (t) => {
@@ -237,7 +249,8 @@ for (const name of BROWSERS) for (const site of SITES) {
       await pr.page.screenshot({ path: path.join(OUT, host + '-promotion.png') });
       await pr.page.keyboard.press('Escape');
       assert.equal(await picker.count(), 0, 'Esc closes the picker');
-      assert.match(await pr.page.locator('.plabel').innerText(), /Qd5/, 'and plays nothing');
+      // the label follows a render later, so it is waited for rather than read at once
+      await assert.doesNotReject(pr.page.locator('.plabel').filter({ hasText: /Qd5/ }).waitFor({ timeout: 5000 }), 'and plays nothing');
       await drag();
       const knight = square(b, 'a7'); // the column runs down from a8: queen, knight, rook, bishop
       await pr.page.mouse.click(knight.x, knight.y);
@@ -354,6 +367,293 @@ for (const name of BROWSERS) for (const site of SITES) {
       await fp.page.screenshot({ path: path.join(OUT, host + '-fen-start.png') });
       assert.deepEqual(fp.errors, []);
       await fp.ctx.close();
+    });
+    // New board: the starting position with no game, every move (either side's) rated by Stockfish; it survives a reload
+    await t.test('desktop: New board sets up the starting position and rates both sides\' moves', async () => {
+      const nb = await open(browser, { width: 1440, height: 900 });
+      const p = nb.page, label = p.locator('.plabel');
+      // a panel's text, found by its title (the title span's own text, before CSS upper-cases it)
+      const panel = (title) => p.evaluate((tt) => { const d = [...document.querySelectorAll('div')].find((e) => e.firstElementChild && e.firstElementChild.firstElementChild && e.firstElementChild.firstElementChild.textContent === tt); return d ? d.innerText : ''; }, title);
+      // the Analysis headline: the move it rates
+      const headline = () => p.evaluate(() => { const s = [...document.querySelectorAll('span')].find((e) => getComputedStyle(e).fontSize === '38px' && /^\d+(\.|…) /.test(e.textContent)); return s ? s.textContent : null; });
+      const verdict = /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i;
+      const drag = async (b, from, to) => {
+        const f = square(b, from), tt = square(b, to);
+        await p.mouse.move(f.x, f.y);
+        await p.mouse.down();
+        await p.mouse.move(tt.x, tt.y, { steps: 8 });
+        await p.mouse.up();
+      };
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      // the sample's start reads "Start" too: the board is in once Play has gone
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      const b = await boardBox(p);
+      assert.equal(b.n, 32, 'pieces on the board');
+      assert.equal(await p.getByRole('button', { name: 'Ask Queen' }).count(), 0, 'no Ask Queen on the free board');
+      assert.equal(await p.getByRole('button', { name: 'Starting position' }).count(), 0, 'the menu closes on a pick');
+      await drag(b, 'e2', 'e4');
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await p.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), verdict.source, { timeout: 45000 });
+      assert.doesNotMatch(await panel('Analysis'), /can’t run here|stopped/i);
+      // Black's move, by the same viewer
+      await drag(b, 'e7', 'e5');
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      // a move taken back while Stockfish still searches it: the panel rates the move shown, never the late answer
+      await drag(b, 'g1', 'f3');
+      await assert.doesNotReject(label.filter({ hasText: /2\. Nf3/ }).waitFor({ timeout: 5000 }));
+      await p.keyboard.press('ArrowLeft');
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      await p.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), verdict.source, { timeout: 45000 });
+      await p.waitForTimeout(1500);
+      assert.equal(await headline(), '1… e5');
+      assert.match(await label.innerText(), /1… e5/);
+      assert.match(await panel('Moves'), /1\.\s*e4\s*e5\s*2\.\s*Nf3/);
+      await p.screenshot({ path: path.join(OUT, host + '-board.png') });
+      // the board comes back after a reload, on the move shown
+      await p.reload({ waitUntil: 'load' });
+      await loadedOn(p);
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Moves'), /1\.\s*e4\s*e5\s*2\.\s*Nf3/);
+      assert.equal(await p.getByRole('button', { name: 'Ask Queen' }).count(), 0);
+      // Back to sample game leaves the free board
+      await p.getByRole('button', { name: 'Settings' }).click();
+      await p.getByRole('button', { name: 'Back to sample game' }).click();
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: 'Ask Queen' }).waitFor({ timeout: 5000 }));
+      assert.equal((await boardBox(p)).n, 32);
+      assert.deepEqual(nb.errors, []);
+      await nb.ctx.close();
+      // the phone: New board's items sit in the folded menu under a label (Playwright's Firefox, given touch, drops
+      // the mouse's drags, the replay's too; there it is a narrow window)
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await ph.page.getByRole('button', { name: 'Menu' }).click();
+      const start = ph.page.getByRole('button', { name: 'Starting position' });
+      await start.waitFor({ state: 'visible', timeout: 3000 });
+      await ph.page.screenshot({ path: path.join(OUT, host + '-board-phone-menu.png') });
+      await start.click();
+      await assert.doesNotReject(ph.page.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      const pb = await boardBox(ph.page), pf = square(pb, 'e2'), pt = square(pb, 'e4');
+      assert.equal(pb.n, 32);
+      await ph.page.mouse.move(pf.x, pf.y);
+      await ph.page.mouse.down();
+      await ph.page.mouse.move(pt.x, pt.y, { steps: 8 });
+      await ph.page.mouse.up();
+      await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await ph.page.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), verdict.source, { timeout: 45000 });
+      await ph.page.screenshot({ path: path.join(OUT, host + '-board-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
+    // Paste FEN: a bad FEN gets a plain message and changes nothing; a good one sets up the board, Black to move here
+    await t.test('desktop: Paste FEN sets up a position, and says what\'s wrong with a bad one', async () => {
+      const pf = await open(browser, { width: 1440, height: 900 });
+      const p = pf.page, label = p.locator('.plabel');
+      // the piece at the board's top left: a flip would put another there
+      const corner = () => p.evaluate(() => { const i = [...document.querySelectorAll('img')].filter((e) => e.getBoundingClientRect().width > 40).sort((a, b) => (a.getBoundingClientRect().top - b.getBoundingClientRect().top) || (a.getBoundingClientRect().left - b.getBoundingClientRect().left))[0]; return i ? i.getAttribute('src').slice(0, 120) : null; });
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      // the sample's board gives the squares: the free board stands in the same place, and three pieces can't give it
+      const b = await boardBox(p), top = await corner();
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Paste FEN…' }).click();
+      const dialog = p.getByRole('dialog', { name: 'Paste FEN' }), field = dialog.getByRole('textbox', { name: 'FEN' });
+      await assert.doesNotReject(dialog.waitFor({ timeout: 5000 }));
+      assert.equal(await field.evaluate((el) => el === document.activeElement), true, 'the field is focused on open');
+      // keys typed in the field stay there: F doesn't flip, the arrows, Home and End don't step
+      await p.keyboard.type('f');
+      await p.keyboard.press('ArrowLeft');
+      await p.keyboard.press('Home');
+      await p.keyboard.press('End');
+      await p.keyboard.press('Backspace');
+      await p.keyboard.type('8/8/8/8/8/8/8/4K3 w - - 0 1');
+      await p.keyboard.press('Enter');
+      await assert.doesNotReject(dialog.getByRole('alert').filter({ hasText: /king/i }).waitFor({ timeout: 5000 }));
+      assert.equal(await dialog.isVisible(), true, 'a bad FEN keeps the dialog open');
+      assert.equal(await field.inputValue(), '8/8/8/8/8/8/8/4K3 w - - 0 1', 'and its text');
+      assert.match(await label.innerText(), /^Start$/);
+      assert.equal(await p.getByRole('button', { name: 'Play (space)' }).count(), 1, 'still the sample game');
+      assert.equal((await boardBox(p)).n, 32);
+      assert.equal(await corner(), top, 'F typed in the field left the board unflipped');
+      await p.screenshot({ path: path.join(OUT, host + '-fen-dialog.png') });
+      // Tab goes round the dialog (field, Cancel, Set up) and never reaches the page behind it
+      const inDialog = () => p.evaluate(() => !!document.activeElement.closest('[role="dialog"]'));
+      for (let i = 0; i < 3; i++) {
+        await p.keyboard.press('Tab');
+        assert.equal(await inDialog(), true, `focus stays in the dialog after ${i + 1} Tab${i ? 's' : ''}`);
+      }
+      await p.keyboard.press('Shift+Tab');
+      assert.equal(await inDialog(), true, 'and after Shift+Tab');
+      // a press on the dialog's title keeps focus on a control, so Tab still goes round
+      await dialog.getByText('Paste FEN', { exact: true }).click();
+      await p.keyboard.press('Shift+Tab');
+      assert.equal(await inDialog(), true, 'after a click on the title and Shift+Tab');
+      // Esc closes it and gives focus back to New board
+      await p.keyboard.press('Escape');
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
+      assert.equal(await p.evaluate(() => document.activeElement.textContent), 'New board', 'focus back on New board');
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Paste FEN…' }).click();
+      await assert.doesNotReject(dialog.waitFor({ timeout: 5000 }));
+      await typeFen(field, '4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
+      await dialog.getByRole('button', { name: 'Set up' }).click();
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      assert.match(await label.innerText(), /^Start$/);
+      assert.equal((await boardBox(p)).n, 3, 'pieces on the board');
+      const f = square(b, 'e8'), tt = square(b, 'd7');
+      await p.mouse.move(f.x, f.y);
+      await p.mouse.down();
+      await p.mouse.move(tt.x, tt.y, { steps: 8 });
+      await p.mouse.up();
+      await assert.doesNotReject(label.filter({ hasText: /40… Kd7/ }).waitFor({ timeout: 5000 }));
+      assert.deepEqual(pf.errors, []);
+      await pf.ctx.close();
+      // the phone: the item is in the folded menu, the dialog fits the width, Esc cancels
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await loadedOn(ph.page);
+      await ph.page.getByRole('button', { name: 'Menu' }).click();
+      await ph.page.getByRole('button', { name: 'Paste FEN…' }).click();
+      const pd = ph.page.getByRole('dialog', { name: 'Paste FEN' });
+      await assert.doesNotReject(pd.waitFor({ timeout: 5000 }));
+      await typeFen(pd.getByRole('textbox', { name: 'FEN' }), '4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
+      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      const box = await pd.boundingBox();
+      assert.ok(box.x >= 8 && box.x + box.width <= 390 - 8, 'the dialog fits the width');
+      await ph.page.screenshot({ path: path.join(OUT, host + '-fen-dialog-phone.png') });
+      await ph.page.keyboard.press('Escape');
+      await assert.doesNotReject(pd.waitFor({ state: 'detached', timeout: 5000 }));
+      assert.equal(await ph.page.getByRole('button', { name: 'Play (space)' }).count(), 1, 'Esc changes nothing');
+      assert.equal(await ph.page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Menu', 'focus back on Menu');
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
+    // the opening explorer: book moves from the position shown, played like a drag (and rated); a take-back branches
+    await t.test('desktop: the explorer names the opening and plays a book move', async () => {
+      const ex = await open(browser, { width: 1440, height: 900 });
+      const p = ex.page, label = p.locator('.plabel');
+      const panel = (title) => p.evaluate((tt) => { const d = [...document.querySelectorAll('div')].find((e) => e.firstElementChild && e.firstElementChild.firstElementChild && e.firstElementChild.firstElementChild.textContent === tt); return d ? d.innerText : ''; }, title);
+      // a book move's row: its SAN first, then the opening it reaches
+      const row = (pg, san) => pg.locator('.book-moves [role="button"]').filter({ hasText: new RegExp('^' + san + '(?![a-z0-9=+#])') });
+      const head = p.locator('.book-head');
+      const drag = async (b, from, to) => {
+        const f = square(b, from), tt = square(b, to);
+        await p.mouse.move(f.x, f.y);
+        await p.mouse.down();
+        await p.mouse.move(tt.x, tt.y, { steps: 8 });
+        await p.mouse.up();
+      };
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(head.filter({ hasText: /^Starting position$/ }).waitFor({ timeout: 5000 }));
+      const b = await boardBox(p);
+      // a mouse drag on the list scrolls it: no move played, no text selected
+      const listTop = () => p.evaluate(() => document.querySelector('.book-head').parentElement.parentElement.scrollTop);
+      const from = await row(p, 'Nc3').boundingBox();
+      await p.mouse.move(from.x + 40, from.y + from.height / 2);
+      await p.mouse.down();
+      await p.mouse.move(from.x + 40, from.y + from.height / 2 - 120, { steps: 8 });
+      await p.mouse.up();
+      assert.ok(await listTop() >= 100, `the list scrolled (${await listTop()} px)`);
+      assert.match(await label.innerText(), /^Start$/, 'the drag played no move');
+      assert.equal(await p.evaluate(() => String(window.getSelection())), '', 'and selected no text');
+      await row(p, 'e4').click();
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(row(p, 'c5').filter({ hasText: /Sicilian/ }).waitFor({ timeout: 5000 }));
+      // a book move is rated like any other
+      await p.waitForFunction(() => /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i.test(document.body.innerText), null, { timeout: 45000 });
+      await row(p, 'c5').click();
+      await assert.doesNotReject(label.filter({ hasText: /1… c5/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(head.filter({ hasText: /Sicilian Defense/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Opening explorer'), /B20/);
+      await p.screenshot({ path: path.join(OUT, host + '-explorer.png') });
+      // back to the start: a book move there replaces the moves after it. The list scrolled down for c5 starts at its top
+      await p.evaluate(() => { document.querySelector('.book-head').parentElement.parentElement.scrollTop = 400; });
+      await p.keyboard.press('ArrowLeft');
+      await p.keyboard.press('ArrowLeft');
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await p.evaluate(() => document.querySelector('.book-head').parentElement.parentElement.scrollTop), 0, 'the start\'s list is scrolled to its top');
+      await row(p, 'd4').click();
+      await assert.doesNotReject(label.filter({ hasText: /1\. d4/ }).waitFor({ timeout: 5000 }));
+      assert.doesNotMatch(await panel('Moves'), /c5|e4/);
+      await assert.doesNotReject(head.filter({ hasText: /Queen.s Pawn/ }).waitFor({ timeout: 5000 }));
+      // out of the book: it says so, naming the last book position
+      // each move lands before the next drag starts: a drag begun before the board re-renders picks up the wrong side's piece
+      // the rows clicked (each scrolled into view first) left the board where it was: the frame clips rather than scrolls
+      // (stock Firefox once slid it 447 px left, and the drags below missed the board)
+      const b2 = await boardBox(p);
+      assert.ok(Math.abs(b2.x0 - b.x0) < 1 && Math.abs(b2.y0 - b.y0) < 1, `the board stayed put: (${b.x0}, ${b.y0}) → (${b2.x0}, ${b2.y0})`);
+      for (const [f, tt, l] of [['h7', 'h6', /1… h6/], ['a2', 'a3', /2\. a3/], ['h6', 'h5', /2… h5/], ['a3', 'a4', /3\. a4/]]) {
+        await drag(b, f, tt);
+        await assert.doesNotReject(label.filter({ hasText: l }).waitFor({ timeout: 5000 }));
+      }
+      await p.waitForFunction(() => /Out of book/.test(document.body.innerText), null, { timeout: 5000 });
+      assert.match(await panel('Opening explorer'), /last book position: /);
+      // a pasted FEN that is a book position is named itself; its rows take Enter
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Paste FEN…' }).click();
+      const dialog = p.getByRole('dialog', { name: 'Paste FEN' });
+      await typeFen(dialog.getByRole('textbox', { name: 'FEN' }), 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+      await dialog.getByRole('button', { name: 'Set up' }).click();
+      await assert.doesNotReject(head.filter({ hasText: /King.s Pawn Game/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Opening explorer'), /B00/);
+      await row(p, 'e5').focus();
+      await p.keyboard.press('Enter');
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      assert.deepEqual(ex.errors, []);
+      await ex.ctx.close();
+      // the phone: the explorer under the board, its rows tapped (no drags: Playwright's Firefox drops them with touch)
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await loadedOn(ph.page);
+      await ph.page.getByRole('button', { name: 'Menu' }).click();
+      await ph.page.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(row(ph.page, 'e4').waitFor({ timeout: 5000 }));
+      await row(ph.page, 'e4').click();
+      await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await row(ph.page, 'c5').click();
+      await assert.doesNotReject(ph.page.locator('.book-head').filter({ hasText: /Sicilian Defense/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      await ph.page.screenshot({ path: path.join(OUT, host + '-explorer-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
+    await t.test('desktop: the start shows Stockfish\'s eval and best line, and the board\'s moves replay as a game', async () => {
+      const g = await open(browser, { width: 1440, height: 900 });
+      const p = g.page, label = p.locator('.plabel');
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      // before any move: the eval and Stockfish's best line, whose first move plays when picked
+      const chip = p.locator('.mv[role="button"][title^="Show stockfish’s best line"]').first();
+      await assert.doesNotReject(chip.waitFor({ timeout: 45000 }));
+      assert.match(await p.locator('body').innerText(), /white to move/i);
+      await p.screenshot({ path: path.join(OUT, host + '-board-start.png') });
+      const san = (await chip.innerText()).trim();
+      await chip.click();
+      await assert.doesNotReject(label.filter({ hasText: new RegExp('^1\\. ' + san.replace(/[+#]/g, '\\$&') + '$') }).waitFor({ timeout: 5000 }));
+      // Settings: the moves open as a game with the video export, and the board comes back
+      await p.getByRole('button', { name: 'Settings' }).click();
+      await p.getByRole('button', { name: 'Replay these moves as a game' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: /^Export (video|animated WebP)/ }).waitFor({ timeout: 5000 }));
+      await p.getByRole('button', { name: 'Back to the free board' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(label.filter({ hasText: new RegExp('^1\\. ' + san.replace(/[+#]/g, '\\$&') + '$') }).waitFor({ timeout: 5000 }));
+      assert.deepEqual(g.errors, []);
+      await g.ctx.close();
     });
     await ctx.close();
 

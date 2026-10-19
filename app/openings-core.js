@@ -25,19 +25,30 @@
       return CC().toFen(pos) + ' ' + (rights || '-') + ' ' + ep;
     };
     const lose = (s) => { if (HOME[s]) rights = rights.replace(new RegExp('[' + HOME[s] + ']', 'g'), ''); };
-    return {
-      key,
-      san(s) { const r = CC().applySan(pos, s); lose(r.uci.slice(0, 2)); lose(r.uci.slice(2, 4)); pos = r.pos; return key(); },
+    const t = {
+      key, lastUci: null,
+      san(s) { const r = CC().applySan(pos, s); lose(r.uci.slice(0, 2)); lose(r.uci.slice(2, 4)); pos = r.pos; t.lastUci = r.uci; return key(); },
       uci(u) { const r = CC().applyUci(pos, u); if (!r) return null; lose(u.slice(0, 2)); lose(u.slice(2, 4)); pos = r.pos; return key(); },
     };
+    return t;
   }
 
   function build() {
-    const lines = [], named = new Map();
+    // edges: position key → (uci → { uci, san, next, n }), n counting the book lines through the move
+    const lines = [], named = new Map(), edges = new Map(), startKey = tracker().key();
     for (const row of (window.OPENINGS_TSV || '').split('\n')) {
       if (!row) continue;
       const [eco, name, pgn] = row.split('\t'), t = tracker(), line = [];
-      for (const tok of pgn.split(/\s+/)) if (tok && !/^\d/.test(tok)) line.push(t.san(tok));
+      let prev = startKey;
+      for (const tok of pgn.split(/\s+/)) {
+        if (!tok || /^\d/.test(tok)) continue;
+        const next = t.san(tok);
+        let out = edges.get(prev);
+        if (!out) edges.set(prev, out = new Map());
+        const e = out.get(t.lastUci);
+        if (e) e.n++; else out.set(t.lastUci, { uci: t.lastUci, san: tok, next, n: 1 });
+        line.push(prev = next);
+      }
       lines.push(line);
       named.set(line[line.length - 1], { eco, name });
     }
@@ -60,7 +71,29 @@
       }
       return out;
     };
-    return { byPly, identify: (ucis, startFen) => byPly(ucis, startFen).filter(Boolean).pop() || null, size: table.size };
+    // The book moves from the position after ucis, most book lines first, each with the opening it reaches
+    const continuations = (ucis, startFen) => {
+      const t = tracker(startFen);
+      let k = t.key();
+      for (const u of ucis) if ((k = t.uci(u)) === null) return [];
+      return [...(edges.get(k) || new Map()).values()].sort((a, b) => b.n - a.n || (a.san < b.san ? -1 : a.san > b.san ? 1 : 0))
+        .map(({ uci, san, next }) => { const o = table.get(next); return { uci, san, eco: o ? o.eco : null, name: o ? o.name : null }; });
+    };
+    // The keys of the start position and of each position after it, up to an illegal move
+    const keysAlong = (ucis, startFen) => {
+      const t = tracker(startFen), keys = [t.key()];
+      for (const u of ucis) { const k = t.uci(u); if (k === null) break; keys.push(k); }
+      return keys;
+    };
+    // The name of the position after ucis, or the last named one on the way there; unlike identify, the start
+    // position counts, so a pasted FEN that is a book position is named before any move
+    const name = (ucis, startFen) => keysAlong(ucis, startFen).map((k) => table.get(k)).filter(Boolean).pop() || null;
+    // Whether the position after ucis is on a book line (named or with book moves from it)
+    const inBook = (ucis, startFen) => {
+      const keys = keysAlong(ucis, startFen), k = keys[keys.length - 1];
+      return keys.length === ucis.length + 1 && (table.has(k) || edges.has(k));
+    };
+    return { byPly, identify: (ucis, startFen) => byPly(ucis, startFen).filter(Boolean).pop() || null, name, inBook, continuations, size: table.size };
   }
 
   let cached = null;
