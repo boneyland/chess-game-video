@@ -52,17 +52,7 @@ function OpeningExplorer({ board, book, onPlay }) {
   // each position's list starts at its top, not where the last one was scrolled to (the panel's box stays the same node)
   const top = React.useRef(null), posKey = board.fen + '|' + ucis.join(' ');
   React.useLayoutEffect(() => { const box = top.current && top.current.parentElement; if (box) box.scrollTop = 0; }, [posKey]);
-  // a mouse drag scrolls the list, as a finger does: past a few pixels it takes the pointer, and the click that ends it plays nothing
-  const drag = React.useRef(null);
-  const dragDown = (e) => { top.current.dragged = false; if (e.pointerType === 'mouse' && e.button === 0) drag.current = { y: e.clientY, top: top.current.parentElement.scrollTop, moved: false }; };
-  const dragMove = (e) => {
-    const d = drag.current;
-    if (!d) return;
-    if (!d.moved && Math.abs(e.clientY - d.y) > 4) { d.moved = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }
-    if (d.moved) top.current.parentElement.scrollTop = d.top - (e.clientY - d.y);
-  };
-  const dragEnd = () => { const d = drag.current; drag.current = null; if (d && d.moved) top.current.dragged = true; };
-  const dragClick = (e) => { if (top.current.dragged) { top.current.dragged = false; e.preventDefault(); e.stopPropagation(); } };
+  const drag = useDragScroll(() => top.current && top.current.parentElement);
   let body;
   if (!book) body = <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>Loading the opening book…</span>;
   else if (inBook) {
@@ -88,8 +78,7 @@ function OpeningExplorer({ board, book, onPlay }) {
   } else body = <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>This position isn’t in the opening book.</span>;
   return (
     <Panel box={{ ...L.comment, scroll: true }} a={1} title="Opening explorer" right={named ? `${named.eco} ${named.name}` : null}>
-      <div ref={top} onPointerDown={dragDown} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} onClickCapture={dragClick} onDragStart={(e) => e.preventDefault()}
-        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>{body}</div>
+      <div ref={top} {...drag}>{body}</div>
     </Panel>
   );
 }

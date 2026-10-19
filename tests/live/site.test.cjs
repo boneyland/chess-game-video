@@ -196,6 +196,31 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(page.locator('.plabel').filter({ hasText: /^1…/ }).waitFor({ timeout: 3000 }));
     });
 
+    // the Moves panel scrolls like the opening explorer: a mouse drag scrolls it, selects nothing and picks no move
+    await t.test('desktop: the Moves panel scrolls with the wheel and a mouse drag', async () => {
+      const list = page.locator('.moves-list'), top = () => list.evaluate((el) => el.scrollTop);
+      // a move short of the end, where the result card covers the stage
+      await page.locator('[data-ply][tabindex="0"]').focus();
+      await page.keyboard.press('End');
+      await page.keyboard.press('ArrowLeft');
+      await page.waitForFunction(() => document.querySelector('.moves-list').scrollTop > 100, null, { timeout: 3000 });
+      const at = await page.locator('.plabel').innerText(), end = await top();
+      const r = await list.boundingBox();
+      await page.mouse.move(r.x + r.width * 0.3, r.y + r.height * 0.3);
+      await page.mouse.down();
+      await page.mouse.move(r.x + r.width * 0.3, r.y + r.height * 0.9, { steps: 8 });
+      await page.mouse.up();
+      assert.ok(await top() < end - 100, 'the drag scrolled the list up');
+      assert.equal(await page.evaluate(() => String(window.getSelection())), '', 'no text selected');
+      assert.equal(await page.locator('.plabel').innerText(), at, 'the drag picked no move');
+      const dragged = await top();
+      await page.mouse.wheel(0, 120);
+      await page.waitForFunction((d) => document.querySelector('.moves-list').scrollTop > d, dragged, { timeout: 3000 });
+      await page.locator('[data-ply="0"]').click();
+      await assert.doesNotReject(page.locator('.plabel').filter({ hasText: /^1\. / }).waitFor({ timeout: 3000 }));
+      assert.equal(await top(), 0, 'the first move scrolled the list to its top');
+    });
+
     // Playwright can't drag a file in with the mouse, so this one dispatches the drag event
     await t.test('desktop: a file dragged over the page gets the drop overlay over the whole page', async () => {
       const files = await page.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['1. e4 *'], 'game.pgn')); return d; });

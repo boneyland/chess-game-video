@@ -464,15 +464,39 @@ function Header({ M, a }) {
   );
 }
 
+// A mouse drag scrolls a list, as a finger does: past a few pixels it takes the pointer, and the click that ends it picks
+// nothing. Spread the result on the list's content; box() is the element that scrolls. The text isn't selectable.
+function useDragScroll(box) {
+  const r = React.useRef({ drag: null, dragged: false });
+  return {
+    onPointerDown: (e) => { r.current.dragged = false; if (e.pointerType === 'mouse' && e.button === 0 && box()) r.current.drag = { y: e.clientY, top: box().scrollTop, moved: false }; },
+    onPointerMove: (e) => {
+      const d = r.current.drag;
+      if (!d) return;
+      if (!d.moved && Math.abs(e.clientY - d.y) > 4) { d.moved = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }
+      if (d.moved) box().scrollTop = d.top - (e.clientY - d.y);
+    },
+    onPointerUp: (e) => { const d = r.current.drag; r.current.drag = null; if (d && d.moved) r.current.dragged = true; },
+    onPointerCancel: () => { r.current.drag = null; },
+    onClickCapture: (e) => { if (r.current.dragged) { r.current.dragged = false; e.preventDefault(); e.stopPropagation(); } },
+    onDragStart: (e) => e.preventDefault(),
+    style: { userSelect: 'none', WebkitUserSelect: 'none' },
+  };
+}
+
 function MoveList({ M, T, S, a, paused, onPick }) {
   const c = lastPly(T, S);
   // COLS move pairs to a row (the phone's full-width list), VIS rows in view
   const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1;
   const odd = M.ply0 % 2, scrollFor = (i) => Math.max(0, Math.floor((Math.max(i, 0) + odd) / (2 * COLS)) - (VIS - (COLS > 1 ? 2 : 3))) * ROW;
   const k = c >= 0 ? MOTION.move(cl01((T - S.tp[c]) / 0.35)) : 1;
-  const scroll = lerp(scrollFor(c - 1), scrollFor(c), k);
+  const scroll = lerp(scrollFor(c - 1), scrollFor(c), k), listRef = React.useRef(null);
+  // the list scrolls (wheel, finger, a mouse drag); a new move scrolls it to that move, and leaves it where the viewer put it until the next
+  const applied = React.useRef(null);
+  React.useLayoutEffect(() => { const el = listRef.current; if (el && applied.current !== scroll) { el.scrollTop = scroll; applied.current = scroll; } });
+  const drag = useDragScroll(() => listRef.current);
   // one Tab stop for the whole list (the current move); the arrows move between moves, and focus follows
-  const focusPly = Math.max(0, c), listRef = React.useRef(null);
+  const focusPly = Math.max(0, c);
   const moveKey = (e, i) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(i); return; }
     const j = { ArrowLeft: i - 1, ArrowRight: i + 1, ArrowUp: i - 2 * COLS, ArrowDown: i + 2 * COLS, Home: 0, End: S.N - 1 }[e.key];
@@ -506,8 +530,8 @@ function MoveList({ M, T, S, a, paused, onPick }) {
   }
   return (
     <Panel box={L.moves} a={a} title="Moves">
-      <div ref={listRef} style={{ position: 'relative', height: VIS * ROW, overflow: 'hidden', font: `500 ${L.moves.font || 19}px ${MONO}` }}>
-        <div style={{ transform: `translateY(${-scroll}px)` }}>{rows}</div>
+      <div ref={listRef} className="moves-list" style={{ position: 'relative', height: VIS * ROW, overflowY: 'auto', overscrollBehavior: 'contain', scrollbarWidth: 'thin', font: `500 ${L.moves.font || 19}px ${MONO}` }}>
+        <div {...drag}>{rows}</div>
       </div>
     </Panel>
   );
