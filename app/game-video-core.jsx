@@ -219,8 +219,9 @@ function Arrow({ from, to, color, a, grow }) {
   return <polygon points={pts} fill={color} opacity={0.85 * a} />;
 }
 
-function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
-  const c = lastPly(T, S);
+// the 64 squares with their rank and file coordinates, through view() (a flipped board turns them); the replay's
+// Board and the free board both draw these
+function boardSquares() {
   const sq = [];
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
     const light = (r + f) % 2 === 0, [sf, sr] = view(f, r); // the square drawn here
@@ -231,6 +232,12 @@ function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
       </div>
     );
   }
+  return sq;
+}
+
+function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
+  const c = lastPly(T, S);
+  const sq = boardSquares();
   if (vline) return <LineBoard a={a} sq={sq} v={vline} hide={hide} />;
   const over = [];
   let badge = null, best = null;

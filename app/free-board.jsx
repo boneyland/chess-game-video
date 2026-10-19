@@ -4,21 +4,6 @@
 // panels, board drawing and input. The board (BoardCore) lives in GameApp's files, so it is stored like a loaded game.
 const FULL_SET = { q: 1, r: 2, b: 2, n: 2, p: 8 };
 
-// the squares and their coordinates, as Board draws them (through view(), so a flipped board turns them)
-function freeSquares() {
-  const sq = [];
-  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
-    const light = (r + f) % 2 === 0, [sf, sr] = view(f, r);
-    sq.push(
-      <div key={r * 8 + f} style={{ position: 'absolute', left: f * SQ, top: r * SQ, width: SQ, height: SQ, background: light ? C.light : C.dark }}>
-        {f === 0 && <span style={{ position: 'absolute', left: 6, top: 4, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{8 - sr}</span>}
-        {r === 7 && <span style={{ position: 'absolute', right: 6, bottom: 3, font: `600 14px ${MONO}`, color: light ? C.dark : C.light }}>{String.fromCharCode(97 + sf)}</span>}
-      </div>
-    );
-  }
-  return sq;
-}
-
 // A player bar for "White" or "Black": the pieces taken and the material edge, counted from the pieces on the board
 // against a full set (so a position set up with an edge shows it)
 function FreeBar({ pos, side, a }) {
@@ -132,7 +117,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
     <div style={{ position: 'absolute', inset: 0, background: C.bg, overflow: 'hidden' }}>
       <EvalBarView cp={cp == null ? 0 : cp} txt={cp == null ? (down ? '' : '…') : fmtSf(cp)} a={1} />
       <FreeBar pos={pos} side="b" a={1} />
-      <LineBoard a={1} sq={freeSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} />
+      <LineBoard a={1} sq={boardSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} />
       <BoardTouch pos={pos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...input.handlers} />
       <FreeBar pos={pos} side="w" a={1} />
       {L.header && <Header M={HM} a={1} />}
@@ -146,6 +131,41 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
             <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · Home the start · End the last move</FitOrHide>
           </React.Fragment>}
       </Panel>
+    </div>
+  );
+}
+
+// Paste FEN: one field, Enter sets up, Esc cancels. A FEN that doesn't parse gets BoardCore's plain message and leaves
+// the board and the field as they were. Keys pressed in the dialog stop here, so the board's keys (F, the arrows, Home,
+// End) and the panels' Esc never see them; its scrim covers the board's touch layer.
+function FenDialog({ onSet, onClose }) {
+  const [text, setText] = React.useState(''), [msg, setMsg] = React.useState('');
+  const field = React.useRef(null);
+  React.useEffect(() => { if (field.current) field.current.focus(); }, []);
+  const setUp = () => {
+    let fen;
+    try { fen = window.BoardCore.fenFromInput(text); } catch (e) { setMsg((e && e.message) || 'That isn’t a FEN this board can set up.'); return; }
+    onSet(fen);
+  };
+  const onKey = (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); } else if (e.key === 'Enter' && e.target === field.current) { e.preventDefault(); setUp(); }
+  };
+  return (
+    <div className="fen-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="fen-box" role="dialog" aria-modal="true" aria-label="Paste FEN" onKeyDown={onKey}>
+        <div className="fen-title">Paste FEN</div>
+        <input ref={field} className="twk-field fen-field" type="text" aria-label="FEN" aria-describedby="fen-msg" spellCheck={false} autoComplete="off" autoCapitalize="off" autoCorrect="off"
+          placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" value={text} onChange={(e) => { setText(e.target.value); setMsg(''); }} />
+        <div className="fen-info">
+          <div id="fen-msg" className="fen-msg" role="alert">{msg}</div>
+          {!msg && <div className="fen-note">The pieces and the side to move are needed; castling, en passant and the move number are used when given. A PGN’s [FEN "…"] tag works too.</div>}
+        </div>
+        <div className="fen-btns">
+          <button type="button" className="twk-btn secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="twk-btn" onClick={setUp}>Set up</button>
+        </div>
+      </div>
     </div>
   );
 }

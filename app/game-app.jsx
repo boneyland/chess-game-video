@@ -135,6 +135,7 @@ function GameApp() {
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
   // the dock's New board menu (landscape); on a phone its items sit in the folded menu instead
   const [newMenu, setNewMenu] = React.useState(false);
+  const [fenOpen, setFenOpen] = React.useState(false);
   const newRef = React.useRef(null);
   React.useEffect(() => {
     if (!newMenu) return;
@@ -200,6 +201,9 @@ function GameApp() {
   };
   const commitBoard = (b) => { const saved = window.BoardCore.save(b); boardSaved.current = { saved, board: b }; commit({ board: saved }); };
   const newBoard = () => { setNewMenu(false); setMenu(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); };
+  const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); setFenOpen(true); };
+  const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
+  const closeFen = React.useCallback(() => setFenOpen(false), []);
   const loadFiles = async (list) => {
     const batch = {};
     try {
@@ -212,6 +216,8 @@ function GameApp() {
       if (!batch.pgn && !batch.analysis && !batch.notes) return;
     }
     if (!batch.pgn && !batch.analysis && !batch.notes) { setErr('That file isn’t a PGN, an analysis JSON or a notes file.'); return; }
+    // a free board has no game for notes or an analysis to go with
+    if (board && !batch.pgn) { setErr('Load a PGN first: notes and analysis files go with a game.'); return; }
     let next;
     if (batch.pgn) {
       next = { ...batch, gameIndex: 0 };
@@ -340,7 +346,7 @@ function GameApp() {
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newItems = [{ label: 'Starting position', run: newBoard }];
+  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }];
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
@@ -351,10 +357,10 @@ function GameApp() {
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
       </React.Fragment> : (
         <div ref={newRef} className="dock-new">
-          <button type="button" className="dock-btn" aria-haspopup="menu" aria-expanded={newMenu} onClick={() => setNewMenu((m) => !m)}>New board</button>
+          <button type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>New board</button>
           {newMenu && (
-            <div className="dock-pop" role="menu" aria-label="New board">
-              {newItems.map((it) => <button key={it.label} type="button" role="menuitem" className="dock-btn" onClick={it.run}>{it.label}</button>)}
+            <div id="dock-new-items" className="dock-pop">
+              {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
             </div>
           )}
         </div>
@@ -401,6 +407,7 @@ function GameApp() {
         </div>
       )}
       <ExportOverlay x={video} />
+      {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} wide>
         <TweakColumn>

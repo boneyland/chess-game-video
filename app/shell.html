@@ -121,6 +121,21 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 }
 .dock-pop .dock-btn { text-align: left; }
 .dock-menu-label { padding: 6px 4px 0; font: 600 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+/* Paste FEN: a centred box over a scrim, which also keeps taps off the board */
+.fen-scrim { position: fixed; inset: 0; z-index: 85; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
+.fen-box {
+  width: min(560px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; border-radius: 12px;
+  background: var(--panel-glass); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 16px 48px var(--shadow);
+}
+.fen-title { font: 600 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+.fen-box .fen-field { height: 38px; padding: 0 10px; font: 500 13px var(--mono); }
+.fen-box .fen-field::placeholder { color: var(--dim); opacity: 0.7; }
+/* 16px stops a phone's browser zooming in on the field */
+@media (pointer: coarse) { .fen-box .fen-field { font-size: 16px; } }
+.fen-msg { font: 500 12px/1.45 var(--mono); color: var(--danger); }
+.fen-note { font: 12px/1.45 var(--sans); color: var(--dim); }
+.fen-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.fen-btns .twk-btn { min-height: 34px; padding: 4px 16px; }
 
 .drop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .drop-box { padding: 40px 60px; margin: 0 16px; border: 2px dashed var(--accent); border-radius: 12px; text-align: center; font: 500 20px/1.6 var(--mono); color: var(--ink); }
