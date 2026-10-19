@@ -126,7 +126,7 @@ function EngineEmptyState({ M, sf, paused, compact }) {
       </div>
     );
   }
-  const text = compact ? null : <span style={{ font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis for this game.</span>;
+  const text = compact ? null : <span style={{ ...NO_SELECT, font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis for this game.</span>;
   if (!paused) return text;
   if (sf.status === 'unavailable') {
     return (

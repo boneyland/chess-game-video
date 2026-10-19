@@ -571,7 +571,7 @@ function Commentary({ M, T, S, a, book, line }) {
         </div>
       ) : (
         // a quiet line instead of an empty box: why there's nothing here
-        <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>
+        <span style={{ ...NO_SELECT, font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>
           {!M.intro && !M.plies.some((p) => p.comment) ? (M.hasNotes || M.hasAiNotes ? 'Commentary is off.' : 'This game has no commentary.')
             : c < 0 ? 'Comments appear here as the game plays.' : `No comment on ${label(M, c)}.`}
         </span>
@@ -599,7 +599,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
   }
   if (c < 0) return (
     <Panel box={L.analysis} a={a} title="Analysis" right={right}>
-      {paused && <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
+      {paused && <span style={{ ...NO_SELECT, font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
       {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
     </Panel>
   );
