@@ -13,6 +13,7 @@ const units = [
   ['analysis-core.js', read(path.join(app, 'analysis-core.js'))],
   ['openings-data.js', 'window.OPENINGS_TSV = ' + JSON.stringify(require('./openings-data.cjs').openingsTsv()).replace(/</g, '\\u003c') + ';'],
   ['openings-core.js', read(path.join(app, 'openings-core.js'))],
+  ['board-core.js', read(path.join(app, 'board-core.js'))],
   ['sf-engine.js', read(path.join(app, 'sf-engine.js'))],
   ['queen-core.js', read(path.join(app, 'queen-core.js'))],
   ['sounds-data.js', 'window.SFX_DATA = ' + JSON.stringify(soundsData()) + ';'],
