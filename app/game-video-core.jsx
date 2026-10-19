@@ -96,7 +96,7 @@ function squareLayout(H) {
     comment: { x: 916, y: cy, w: 644, h: 904 - cy, k: 1, text: 1, gap: 18, right: 1 },
     plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
     analysis: { x: 44, y: by, w: 1000, h: bh, k: 1, scroll: true, right: 1 },
-    moves: { x: 1060, y: by, w: 500, h: bh, k: 1, font: 24, num: 64, rows: Math.floor((bh - 61) / 38) },
+    moves: { x: 1060, y: by, w: 500, h: bh, k: 1, font: 26, num: 68, rows: Math.floor((bh - 61) / 38) },
     card: { k: 1, w: 1500, stack: false },
   };
 }
