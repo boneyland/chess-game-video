@@ -357,7 +357,7 @@ function GameApp() {
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); inputRef.current.click(); }}>Load game…</button>
-      {/* a list, so the later starting points (a pasted FEN, games) join it */}
+      {/* a list, so the later starting points (Play vs human, Play vs Stockfish, My games) join it */}
       {tall ? <React.Fragment>
         <span className="dock-menu-label">New board</span>
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
