@@ -48,27 +48,34 @@ function Stage({ width, height, portrait, short, menu, top, onLayout, duration, 
   React.useEffect(() => {
     const el = areaRef.current;
     if (!el) return;
-    // The portrait frame takes over when it would show noticeably larger than the landscape one;
-    // the 1.1–1.15 band keeps a window at the boundary from flipping back and forth.
-    // It is as tall as the area allows (between its min and max height), so it fills a phone screen.
+    // Each frame is judged by the room it would get: the stage less that frame's own transport bar and padding (the
+    // portrait and sideways ones are slimmer), as last measured while it showed. Judged by the room the current one
+    // leaves, a window at a boundary flips back and forth: the switch itself changes the room.
+    const chrome = { wide: [32, 82], tall: [16, 49], short: [32, 44] };
     const measure = () => {
-      const w = el.clientWidth, h = el.clientHeight;
+      const st = el.parentElement, cur = st.classList.contains('stage-tall') ? 'tall' : st.classList.contains('stage-short') ? 'short' : 'wide';
+      chrome[cur] = [st.clientWidth - el.clientWidth, st.clientHeight - el.clientHeight];
+      const room = (k) => [Math.max(1, st.clientWidth - chrome[k][0]), Math.max(1, st.clientHeight - chrome[k][1])];
+      const [w, h] = room('wide'), [tw, th] = room('tall'), [kw, kh] = room('short');
+      // The portrait frame takes over when it would show noticeably larger than the landscape one;
+      // the 1.1–1.15 band keeps a window at the boundary from flipping back and forth.
+      // It is as tall as the area allows (between its min and max height), so it fills a phone screen.
       const sl = Math.min(w / width, h / height);
-      const sp = portrait ? Math.min(w / portrait.width, h / portrait.minHeight) : 0;
+      const sp = portrait ? Math.min(tw / portrait.width, th / portrait.minHeight) : 0;
       const next = sp > sl * (tallRef.current ? 1.1 : 1.15);
       tallRef.current = next;
-      const ph = next ? clamp(Math.floor(h / sp), portrait.minHeight, portrait.maxHeight) : 0;
+      const ph = next ? clamp(Math.floor(th / sp), portrait.minHeight, portrait.maxHeight) : 0;
       // A short landscape area (a phone held sideways) gets a wider frame whose board fills the height, as wide as
       // the area allows (between its min and max width); a desktop window keeps the 16:9 video
-      const ss = short && !next && h < short.maxArea ? Math.min(w / short.minWidth, h / short.height) : 0;
+      const ss = short && !next && h < short.maxArea ? Math.min(kw / short.minWidth, kh / short.height) : 0;
       const nextShort = ss > sl * (shortRef.current ? 1.05 : 1.1);
       shortRef.current = nextShort;
-      const sw = nextShort ? clamp(Math.floor(w / ss), short.minWidth, short.maxWidth) : 0;
+      const sw = nextShort ? clamp(Math.floor(kw / ss), short.minWidth, short.maxWidth) : 0;
       // narrow: too little room beside the track for the page's buttons, which fold into a menu
-      const narrow = nextShort && w < 900;
+      const narrow = nextShort && kw < 900;
       setFrame((f) => (f.tall === next && !!f.short === nextShort && !!f.narrow === narrow && (f.height || 0) === ph && (f.width || 0) === sw ? f
         : next ? { tall: true, height: ph } : nextShort ? { tall: false, short: true, narrow, width: sw } : { tall: false }));
-      setScale(Math.max(0.05, next ? sp : nextShort ? Math.min(w / sw, h / short.height) : sl));
+      setScale(Math.max(0.05, next ? sp : nextShort ? Math.min(kw / sw, kh / short.height) : sl));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -197,7 +204,7 @@ function PlaybackBar({ time, duration, playing, nav, menu, still, onPlayPause, o
   const fmt = (t) => { const x = Math.max(0, t); return `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}.${String(Math.floor((x * 100) % 100)).padStart(2, '0')}`; };
   return (
     <div className="pbar">
-      <button type="button" className="pbtn pbtn-end" disabled={still && !(nav && nav.current && (nav.current.hasFirst != null ? nav.current.hasFirst : nav.current.hasPrev))} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
+      <button type="button" className="pbtn pbtn-end" disabled={nav && nav.current ? !(nav.current.hasFirst != null ? nav.current.hasFirst : nav.current.hasPrev) : still || time <= 0} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
       </button>
       {nav && nav.current && (

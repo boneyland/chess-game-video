@@ -188,6 +188,8 @@ function FitOrHide({ style, children }) {
 }
 
 // ---------- board ----------
+// a press or drag across the board selects no piece or coordinate, nor drags a piece's image out
+const NO_SELECT = { userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' };
 function Piece({ p, T, S }) {
   let [x, y] = sqXY(p.home), lift = 0;
   for (const mv of p.track) {
@@ -267,7 +269,7 @@ function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
     }
   }
   return (
-    <div style={{ position: 'absolute', left: BX, top: BY, width: BW, height: BW, borderRadius: 4, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.28)', opacity: a, transform: `scale(${lerp(0.96, 1, a)})` }}>
+    <div onDragStart={(e) => e.preventDefault()} style={{ ...NO_SELECT, position: 'absolute', left: BX, top: BY, width: BW, height: BW, borderRadius: 4, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.28)', opacity: a, transform: `scale(${lerp(0.96, 1, a)})` }}>
       {sq}{over}
       {pieces.map((p) => <Piece key={p.id} p={p} T={T} S={S} />)}
       <svg width={BW} height={BW} style={{ position: 'absolute', left: 0, top: 0, zIndex: 6, pointerEvents: 'none' }}>
@@ -317,7 +319,7 @@ function LineBoard({ a, sq, v, hide }) {
   ) : null));
   return (
     // drawing only: taps and drags go to BoardTouch (without this its pieces sit above it and swallow them)
-    <div style={{ position: 'absolute', left: BX, top: BY, width: BW, height: BW, borderRadius: 4, overflow: 'hidden', boxShadow: `0 0 0 4px ${accent}, 0 4px 12px rgba(0,0,0,0.28)`, opacity: a, pointerEvents: 'none' }}>
+    <div style={{ ...NO_SELECT, position: 'absolute', left: BX, top: BY, width: BW, height: BW, borderRadius: 4, overflow: 'hidden', boxShadow: `0 0 0 4px ${accent}, 0 4px 12px rgba(0,0,0,0.28)`, opacity: a, pointerEvents: 'none' }}>
       {sq}{over}{pieces}
     </div>
   );
@@ -330,8 +332,8 @@ function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCa
   const dragged = drag && drag.moved ? pos.b[drag.from] : null;
   return (
     <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onCancel}
-      title="Drag a piece to try your own move"
-      style={{ position: 'absolute', left: BX, top: BY, width: BW, height: BW, cursor: drag && drag.moved ? 'grabbing' : 'grab', touchAction: 'none' }}>
+      onDragStart={(e) => e.preventDefault()} title="Drag a piece to try your own move"
+      style={{ ...NO_SELECT, position: 'absolute', left: BX, top: BY, width: BW, height: BW, cursor: drag && drag.moved ? 'grabbing' : 'grab', touchAction: 'none' }}>
       {sel != null && <div style={{ position: 'absolute', left: idxXY(sel)[0] * SQ, top: idxXY(sel)[1] * SQ, width: SQ, height: SQ, boxSizing: 'border-box', border: `5px solid ${BOARD.last}`, background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />}
       {targets.map((t) => (
         <div key={t} style={{ position: 'absolute', left: idxXY(t)[0] * SQ, top: idxXY(t)[1] * SQ, width: SQ, height: SQ, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
