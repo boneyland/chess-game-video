@@ -69,6 +69,15 @@ async function boardBox(page) {
 const square = (b, name, flipped) => (flipped
   ? { x: b.x0 + (7 - (name.charCodeAt(0) - 97) + 0.5) * b.sq, y: b.y0 + (+name[1] - 1 + 0.5) * b.sq }
   : { x: b.x0 + (name.charCodeAt(0) - 97 + 0.5) * b.sq, y: b.y0 + (8 - +name[1] + 0.5) * b.sq });
+// A FEN typed into the Paste FEN field with the keyboard, as a person would: with locator.fill(), Set up left the dialog
+// open in GitHub Actions' stock Firefox (WebDriver BiDi), as if the page never saw the text
+async function typeFen(field, fen) {
+  await field.click();
+  await field.press('ControlOrMeta+a');
+  await field.press('Backspace');
+  await field.pressSequentially(fen);
+  assert.equal(await field.inputValue(), fen, 'the FEN is in the field');
+}
 
 for (const name of BROWSERS) for (const site of SITES) {
   test(`${name} · ${site === 'local' ? 'local build' : new URL(site).host}`, async (t) => {
@@ -491,7 +500,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await p.getByRole('button', { name: 'New board' }).click();
       await p.getByRole('button', { name: 'Paste FEN…' }).click();
       await assert.doesNotReject(dialog.waitFor({ timeout: 5000 }));
-      await field.fill('4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
+      await typeFen(field, '4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
       await dialog.getByRole('button', { name: 'Set up' }).click();
       await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
       await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
@@ -513,7 +522,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await ph.page.getByRole('button', { name: 'Paste FEN…' }).click();
       const pd = ph.page.getByRole('dialog', { name: 'Paste FEN' });
       await assert.doesNotReject(pd.waitFor({ timeout: 5000 }));
-      await pd.getByRole('textbox', { name: 'FEN' }).fill('4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
+      await typeFen(pd.getByRole('textbox', { name: 'FEN' }), '4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
       assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
       const box = await pd.boundingBox();
       assert.ok(box.x >= 8 && box.x + box.width <= 390 - 8, 'the dialog fits the width');
@@ -578,15 +587,18 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.doesNotMatch(await panel('Moves'), /c5|e4/);
       await assert.doesNotReject(head.filter({ hasText: /Queen.s Pawn/ }).waitFor({ timeout: 5000 }));
       // out of the book: it says so, naming the last book position
-      for (const [f, tt] of [['h7', 'h6'], ['a2', 'a3'], ['h6', 'h5'], ['a3', 'a4']]) await drag(b, f, tt);
-      await assert.doesNotReject(label.filter({ hasText: /3\. a4/ }).waitFor({ timeout: 5000 }));
+      // each move lands before the next drag starts: a drag begun before the board re-renders picks up the wrong side's piece
+      for (const [f, tt, l] of [['h7', 'h6', /1… h6/], ['a2', 'a3', /2\. a3/], ['h6', 'h5', /2… h5/], ['a3', 'a4', /3\. a4/]]) {
+        await drag(b, f, tt);
+        await assert.doesNotReject(label.filter({ hasText: l }).waitFor({ timeout: 5000 }));
+      }
       await p.waitForFunction(() => /Out of book/.test(document.body.innerText), null, { timeout: 5000 });
       assert.match(await panel('Opening explorer'), /last book position: /);
       // a pasted FEN that is a book position is named itself; its rows take Enter
       await p.getByRole('button', { name: 'New board' }).click();
       await p.getByRole('button', { name: 'Paste FEN…' }).click();
       const dialog = p.getByRole('dialog', { name: 'Paste FEN' });
-      await dialog.getByRole('textbox', { name: 'FEN' }).fill('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+      await typeFen(dialog.getByRole('textbox', { name: 'FEN' }), 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
       await dialog.getByRole('button', { name: 'Set up' }).click();
       await assert.doesNotReject(head.filter({ hasText: /King.s Pawn Game/ }).waitFor({ timeout: 5000 }));
       assert.match(await panel('Opening explorer'), /B00/);
