@@ -42,6 +42,8 @@ function useFullscreen() {
 
 // Whether the browser has a connection (navigator.onLine: false means none; true can still be a network that gets
 // nowhere). A change shows a note for a few seconds, and a tag above the frame says Offline for as long as it lasts.
+// the Settings button's icon: an eight-toothed cog with a hole (16 × 16)
+const GEAR = 'M13.33 6.27L15.24 6.46L15.24 9.54L13.33 9.73L12.99 10.54L14.21 12.03L12.03 14.21L10.54 12.99L9.73 13.33L9.54 15.24L6.46 15.24L6.27 13.33L5.46 12.99L3.97 14.21L1.79 12.03L3.01 10.54L2.67 9.73L0.76 9.54L0.76 6.46L2.67 6.27L3.01 5.46L1.79 3.97L3.97 1.79L5.46 3.01L6.27 2.67L6.46 0.76L9.54 0.76L9.73 2.67L10.54 3.01L12.03 1.79L14.21 3.97L12.99 5.46Z M10.4 8a2.4 2.4 0 1 0 -4.8 0a2.4 2.4 0 1 0 4.8 0Z';
 const OFFLINE_NOTE = 'You’re offline. Replays, Stockfish and exports keep working; Ask Queen needs a connection.';
 function useOnline() {
   const [online, setOnline] = React.useState(() => navigator.onLine !== false);
@@ -382,6 +384,7 @@ function GameApp() {
   const shownErr = err || built.error;
 
   const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }];
+  const fsLabel = fullscreen.on ? 'Exit full screen' : 'Full screen';
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
@@ -401,8 +404,17 @@ function GameApp() {
         </div>
       )}
       {!board && <button ref={queenBtn} type="button" className="dock-btn dock-queen" aria-expanded={queenOpen} onClick={() => { setMenu(false); askQueen(); }}>Ask Queen</button>}
-      <button type="button" className="dock-btn" aria-expanded={panel} onClick={() => { setMenu(false); setPanel((p) => !p); setQueenOpen(false); }}>Settings</button>
-      {fullscreen.ok && <button type="button" className="dock-btn" onClick={() => { setMenu(false); fullscreen.toggle(); }}>{fullscreen.on ? 'Exit full screen' : 'Full screen'}</button>}
+      {/* below 1100 px wide these two show only their icons (shell.html), so the seek bar keeps some width */}
+      <button type="button" className="dock-btn dock-iconic" aria-label="Settings" title="Settings" aria-expanded={panel} onClick={() => { setMenu(false); setPanel((p) => !p); setQueenOpen(false); }}>
+        <svg className="dock-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fillRule="evenodd" d={GEAR} /></svg>
+        <span className="dock-label">Settings</span>
+      </button>
+      {fullscreen.ok && <button type="button" className="dock-btn dock-iconic" aria-label={fsLabel} title={fsLabel} onClick={() => { setMenu(false); fullscreen.toggle(); }}>
+        <svg className="dock-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d={fullscreen.on ? 'M6 2v4H2M10 2v4h4M14 10h-4v4M2 10h4v4' : 'M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="dock-label">{fsLabel}</span>
+      </button>}
     </div>
   );
   const menuEl = (
