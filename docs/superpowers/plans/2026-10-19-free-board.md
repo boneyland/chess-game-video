@@ -19,14 +19,14 @@
 - Not in this plan: Play vs human/Stockfish, clocks, My games, Chess960 (steps 3–6). The New board menu is built so those items can join it later.
 - Long one-line statements: split only lines you change (CLAUDE.md).
 - Visual changes: screenshots of desktop (1440×900) and phone (390×844), Chromium and Firefox, shown before committing.
-- Run after JS changes: `node --test --test-concurrency=1 tests/*.test.cjs`; the live suite with `LIVE_URLS=local`. This cloud machine has no `../chess-animator` (so `tests/check_browser_json.py` can't run; nothing here touches the analysis JSON) and no Firefox Developer Edition: Chromium is Playwright's own, Firefox is tried as `FIREFOX_PATH=/opt/pw-browsers/firefox-1495/firefox/firefox`, and if that won't drive over BiDi, Firefox is left to GitHub Actions' `browsers` job and the user is told.
+- Run after JS changes: `node --test --test-concurrency=1 tests/*.test.cjs`; the live suite with `LIVE_URLS=local`. This cloud machine has no `../chess-animator` (so `tests/check_browser_json.py` can't run; nothing here touches the analysis JSON) and no stock Firefox: run the live suite as `LIVE_URLS=local FIREFOX_PATH=playwright LIVE_CDN_DIR=/tmp/claude-0/-home-user-chess-replay/66d2b936-ee1d-5efa-8a40-e38231f02592/scratchpad/cdn node --test tests/live/site.test.cjs` (Playwright's own Chromium and Firefox; Firefox here can't reach cdnjs, so React comes from local npm packages). Baseline 2026-10-19: all 19 pass in both.
 
 ## Decisions made here (the spec left them to the builder)
 
 - **Entering**: one dock button, **New board**, opens a small menu: *Starting position*, *Paste FEN…* (later plans add *Play vs human*, *Play vs Stockfish*, *My games*). On the phone the two items sit in the folded menu under a "New board" label, no nested menu.
 - **Board mode hides what needs a game**: Ask Queen, the eval graph strip, and in Settings the game analysis button, Commentary, Pace and the video export. Settings' Game section says "Free board · from the starting position · 5 moves" (or "from a FEN") and keeps Load game… and Back to sample game. Engine sliders stay ("Your moves" applies to the board), as do Flip board, theme and sound.
 - **The transport bar** keeps ← → and End, gains a Home that goes to the start position, and drops Play, the times and the track (a `still` mode of `CompositionStage`); Space does nothing there.
-- **Before the first move** the Analysis panel shows the position's eval and Stockfish's best line as clickable chips (as "Stockfish replies" are now); after a move, `OwnMoveAnalysis` as for own moves. Arrows are not added (own moves have none).
+- **Before the first move** the Analysis panel only says to drag a piece (or pick a book move); the eval bar shows the position's eval. After a move, `OwnMoveAnalysis` as for own moves. Arrows are not added (own moves have none). (The user dropped a best line before the first move, 2026-10-19.)
 - **Player bars** read "White" and "Black", with the captured pieces and "+N" worked out from the material on the board (so a FEN start with a material edge shows it, unlike the replay).
 - **The explorer** is board mode only. Its continuations are ordered by how many of the book's named lines go through each move (a popularity proxy; the count isn't shown, per the spec's "no game counts"). Each row: the move as a chip, then the opening it reaches.
 - **A pasted FEN** may be wrapped as a PGN tag (`[FEN "…"]`) or have extra spaces; both are accepted.
@@ -193,10 +193,10 @@ git commit -m "Board input: drag, tap-tap and the promotion picker as a hook"
 - Test: `tests/live/site.test.cjs`
 
 **Interfaces:**
-- Consumes: `BoardCore` (Task 2), `useBoardInput` (Task 3), `useMoveEval`, `OwnMoveAnalysis`, `MoveList`, `Header`, `LineBoard`, `BoardTouch`, `LineChips`, `fmtSf`.
+- Consumes: `BoardCore` (Task 2), `useBoardInput` (Task 3), `useMoveEval`, `OwnMoveAnalysis`, `MoveList`, `Header`, `LineBoard`, `BoardTouch`.
 - Produces:
   - stored files `{ board: { fen, moves, upto } }` under the existing `STORE` key (replacing the loaded game, so "Clear the game" is New board).
-  - `FreeBoard({ board, onChange(board), tw, sf, nav, orient, book })` — draws the frame from `L`: eval bar, player bars, board, Header (wide only: "White vs Black", "Free board · starting position" or "· from a FEN", the opening name), Moves (the board's moves through `MoveList`, given `{ ply0, plies }` and a still schedule `S = { N, tp: [0, 1, …] }` with `T = upto + 0.999`, so the move shown is highlighted and later ones dim), Commentary box (Task 6 fills it; here "Opening explorer" with nothing yet), Analysis (before a move: eval and best line; after: `OwnMoveAnalysis`).
+  - `FreeBoard({ board, onChange(board), tw, sf, nav, orient, book })` — draws the frame from `L`: eval bar, player bars, board, Header (wide only: "White vs Black", "Free board · starting position" or "· from a FEN", the opening name), Moves (the board's moves through `MoveList`, given `{ ply0, plies }` and a still schedule `S = { N, tp: [0, 1, …] }` with `T = upto + 0.999`, so the move shown is highlighted and later ones dim), Commentary box (Task 6 fills it; here "Opening explorer" with nothing yet), Analysis (before a move: a one-line hint; after: `OwnMoveAnalysis`).
   - Keys: ← → step, Home start, End last move; F (existing) flips.
   - `CompositionStage still` — no Play, no times or track, no Space or arrow seeking.
 

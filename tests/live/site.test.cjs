@@ -6,7 +6,8 @@
 // LIVE_BROWSERS: chromium, firefox or both (the default), run one after the other.
 // CHROMIUM_PATH / CHROMIUM_CHANNEL pick the Chromium (default: the ungoogled-chromium flatpak where it is installed,
 // else Playwright's own); FIREFOX_PATH the Firefox (default: Firefox Developer Edition, else /usr/bin/firefox),
-// driven over WebDriver BiDi, so any stock Firefox works without a Playwright build of it.
+// driven over WebDriver BiDi, so any stock Firefox works without a Playwright build of it; FIREFOX_PATH=playwright
+// runs Playwright's own Firefox build instead (machines with no stock Firefox).
 // LIVE_CDN_DIR: for sandboxes that block cdnjs, a folder holding the react and react-dom 18.3.1 npm packages
 // (<dir>/react/package/umd/…); the page's React requests are answered from it.
 // Needs Playwright (global install is fine). Screenshots go to tests/out/live/.
@@ -26,7 +27,7 @@ const SF = 'stockfish-19-lite-single';
 const firstFile = (...files) => files.find((f) => f && fs.existsSync(f));
 const LAUNCH = {
   chromium: () => pw.chromium.launch({ channel: process.env.CHROMIUM_CHANNEL, executablePath: process.env.CHROMIUM_PATH || firstFile('/var/lib/flatpak/exports/bin/io.github.ungoogled_software.ungoogled_chromium') }),
-  firefox: () => pw.firefox.launch({ channel: 'moz-firefox', executablePath: process.env.FIREFOX_PATH || firstFile('/usr/bin/firefox-devedition', '/usr/bin/firefox') }),
+  firefox: () => process.env.FIREFOX_PATH === 'playwright' ? pw.firefox.launch() : pw.firefox.launch({ channel: 'moz-firefox', executablePath: process.env.FIREFOX_PATH || firstFile('/usr/bin/firefox-devedition', '/usr/bin/firefox') }),
 };
 
 let built, local = null;
