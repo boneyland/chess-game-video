@@ -116,14 +116,15 @@ function StartAnalysis({ board, ev, status, onLine }) {
 }
 
 // The frame's layout without the eval graph, whose room goes to the panels: on the wide frame Moves and the explorer grow
-// down into it (more moves, and room for book moves) and Analysis moves down; on the phone the explorer grows up into it.
+// down into it (more moves, and room for book moves) and Analysis moves down; on the phone the explorer grows up into it,
+// on the square frame Analysis and the explorer do.
 // GameVideo sets the plain layout again on its next render.
 const BOARD_LAYOUTS = new WeakMap();
 function boardLayout(base) {
   if (!base.plot) return base;
   if (!BOARD_LAYOUTS.has(base)) {
     const p = base.plot, an = base.analysis, grow = p.y + p.h - (an.y + an.h);
-    BOARD_LAYOUTS.set(base, an.y > p.y ? { ...base, plot: null, analysis: { ...an, y: p.y, h: an.h + an.y - p.y } } // square: Analysis grows up into it
+    BOARD_LAYOUTS.set(base, an.y > p.y ? { ...base, plot: null, analysis: { ...an, y: p.y, h: an.h + an.y - p.y }, comment: { ...base.comment, y: p.y, h: base.comment.h + base.comment.y - p.y } } // square: Analysis and the explorer grow up into it
       : base.header
       ? { ...base, plot: null, moves: { ...base.moves, h: base.moves.h + grow, rows: base.moves.rows + Math.floor(grow / base.moves.k / 38) }, comment: { ...base.comment, h: base.comment.h + grow }, analysis: { ...an, y: an.y + grow } }
       : { ...base, plot: null, comment: { ...base.comment, y: p.y, h: base.comment.h + base.comment.y - p.y } });

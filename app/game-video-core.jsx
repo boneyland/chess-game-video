@@ -84,20 +84,19 @@ function shortLayout(W) {
     card: { k: 1, w: 1700, stack: false },
   };
 }
-// Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The top is
-// the wide frame (board on the left, the panels beside it); the eval graph runs the full width under the board, and
-// Analysis the full width under that, taking the extra height.
+// Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The board
+// with the header and Moves (two pairs a row) beside it; the eval graph the full width under the board, then Analysis and
+// Commentary side by side, taking the extra height.
 const SQUARE = { width: 1600, minHeight: 1440, maxHeight: 1760 };
 function squareLayout(H) {
-  const x = 916, w = 644, top = 214, h = 904 - top, side = window.SQUARE_VARIANT === 'side';
+  const mh = 904 - 214, by = 1068, bh = H - by - 30;
   return {
     eval: 44, bx: 100, by: 88, bar: { k: 1, gap: 10 }, title: 13,
-    header: { x, y: 40, w, h: 156, k: 1 },
-    // stacked: Moves (two pairs a row) over Commentary; side: the two side by side, as on the wide frame
-    moves: side ? { x, y: top, w: 310, h, k: 1, rows: Math.floor((h - 61) / 38) } : { x, y: top, w, h: 322, k: 1, cols: 2, rows: 7 },
-    comment: side ? { x: x + 326, y: top, w: w - 326, h, k: 1, text: 0.8, gap: 18, right: 1 } : { x, y: top + 340, w, h: h - 340, k: 1, text: 1, gap: 18, right: 1 },
+    header: { x: 916, y: 40, w: 644, h: 156, k: 1 },
+    moves: { x: 916, y: 214, w: 644, h: mh, k: 1, cols: 2, rows: Math.floor((mh - 61) / 38) },
     plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
-    analysis: { x: 44, y: 1068, w: 1516, h: H - 1068 - 30, k: 1, scroll: true, right: 1 },
+    analysis: { x: 44, y: by, w: 750, h: bh, k: 1, scroll: true, right: 1 },
+    comment: { x: 810, y: by, w: 750, h: bh, k: 1, text: 1, gap: 18, right: 1 },
     card: { k: 1, w: 1500, stack: false },
   };
 }
@@ -477,10 +476,11 @@ function Header({ M, a }) {
         {person(M.black, 'b', 'flex-end')}
       </div>
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line}`, display: 'flex', gap: 18, font: `500 15px ${MONO}`, color: C.dim, alignItems: 'center', whiteSpace: 'nowrap', minWidth: 0 }}>
-        <span style={{ color: C.ink }}>{[M.event, M.round && 'Round ' + M.round].filter(Boolean).join(' · ')}</span>
-        <span>{[M.site, M.date].filter(Boolean).join(' · ')}</span>
-        {M.eco && <span style={{ marginLeft: 'auto', padding: '2px 8px', border: `1px solid ${C.line}`, borderRadius: 4, color: C.ink }}>{M.eco}</span>}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{M.opening}</span>
+        <span style={{ color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 0.1 }}>{[M.event, M.round && 'Round ' + M.round].filter(Boolean).join(' · ')}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 0.2 }}>{[M.site, M.date].filter(Boolean).join(' · ')}</span>
+        {M.eco && <span style={{ marginLeft: 'auto', flexShrink: 0, padding: '2px 8px', border: `1px solid ${C.line}`, borderRadius: 4, color: C.ink }}>{M.eco}</span>}
+        {/* on a narrow header the opening gives way first, then the site, then the event */}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1000 }}>{M.opening}</span>
       </div>
     </Panel>
   );
