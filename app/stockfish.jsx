@@ -120,7 +120,7 @@ function EngineEmptyState({ M, sf, paused, compact }) {
     const k = run.total ? run.done / run.total : 0;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <span style={{ font: `500 22px ${MONO}`, color: C.ink }}>{sf.status !== 'ready' ? 'Starting Stockfish…' : `Analysing ${run.done} / ${run.total}${run.done > 0 ? ' · ' + fmtEta(run.etaSec) : ''}`}</span>
+        <span style={{ ...NO_SELECT, font: `500 22px ${MONO}`, color: C.ink }}>{sf.status !== 'ready' ? 'Starting Stockfish…' : `Analysing ${run.done} / ${run.total}${run.done > 0 ? ' · ' + fmtEta(run.etaSec) : ''}`}</span>
         <div style={{ height: 8, borderRadius: 4, background: C.off, overflow: 'hidden' }}><div style={{ width: `${(k * 100).toFixed(1)}%`, height: '100%', background: C.best }} /></div>
         {paused && <div><FrameButton onClick={sf.stop} label="Stop the analysis">Stop</FrameButton></div>}
       </div>
@@ -141,8 +141,8 @@ function EngineEmptyState({ M, sf, paused, compact }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
       {text}
       <FrameButton primary onClick={sf.start}>{run.resumeAt ? `Resume analysis from move ${Math.floor((M.ply0 + run.resumeAt) / 2) + 1} · about ${sf.estimateMin} min` : `Analyse with Stockfish · about ${sf.estimateMin} min`}</FrameButton>
-      {run.resumeAt > 0 && <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>{run.resumeAt} of {run.plies} moves analysed so far.</span>}
-      {!compact && <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>Stockfish 19 lite runs in your browser.</span>}
+      {run.resumeAt > 0 && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>{run.resumeAt} of {run.plies} moves analysed so far.</span>}
+      {!compact && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>Stockfish 19 lite runs in your browser.</span>}
       {run.err && <span style={{ font: `500 15px ${MONO}`, color: C.blunder }}>{run.err}</span>}
     </div>
   );

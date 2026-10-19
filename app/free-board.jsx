@@ -297,7 +297,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
           ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />
           : <React.Fragment>
             <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
-            <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
+            <FitOrHide style={{ ...NO_SELECT, display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
           </React.Fragment>}
       </Panel>
     </div>
