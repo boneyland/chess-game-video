@@ -59,6 +59,8 @@ const ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.
 // Self-hosted copy: claude.ai wraps artifacts in this document shell itself, so a standalone file needs its own.
 // The page doesn't zoom (maximum-scale, user-scalable): a browser set to ignore that (iPhone Safari, Chrome's Force
 // enable zoom) still lets the viewer pinch
+// Firefox for Android reports the gesture bar as a bottom safe-area inset though it never draws the page under it, so
+// in a browser tab (not full screen, which reports 0 anyway) the bottom padding would leave that strip empty
 const site = `<!doctype html>
 <html lang="en">
 <head>
@@ -83,7 +85,7 @@ const site = `<!doctype html>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Chess Replay">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}@media (display-mode:browser){@supports (-moz-appearance:none){:root:not(:fullscreen){padding-bottom:0}}}</style>
 </head>
 <body>
 ${out}
