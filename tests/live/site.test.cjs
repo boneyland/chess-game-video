@@ -129,12 +129,17 @@ for (const name of BROWSERS) for (const site of SITES) {
     });
 
     await t.test('desktop: Next and Previous step through the moves', async () => {
-      const label = page.locator('.plabel');
-      await page.getByRole('button', { name: 'Back to start (Home)' }).click();
+      const label = page.locator('.plabel'), home = page.getByRole('button', { name: 'Back to start (Home)' });
+      // Home is disabled at the start position, so it is clicked only if a step left the board elsewhere
+      if (await home.isEnabled()) await home.click();
+      await assert.doesNotReject(label.filter({ hasText: 'Start' }).waitFor({ timeout: 5000 }));
+      assert.ok(await home.isDisabled(), 'Home is disabled at the start');
       await page.getByRole('button', { name: 'Next move (→)' }).click();
       await assert.doesNotReject(label.filter({ hasText: /^1\.\s*\S/ }).waitFor({ timeout: 5000 }));
+      assert.ok(await home.isEnabled(), 'Home is enabled after a move');
       await page.getByRole('button', { name: 'Previous move (←)' }).click();
       await assert.doesNotReject(label.filter({ hasText: 'Start' }).waitFor({ timeout: 5000 }));
+      assert.ok(await home.isDisabled(), 'Home is disabled back at the start');
     });
 
     await t.test('desktop: an own move gets a Stockfish verdict', async () => {

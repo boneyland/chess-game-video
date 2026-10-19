@@ -67,12 +67,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
   flex: none; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; cursor: pointer;
   border-radius: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink);
 }
-.pbtn:hover { border-color: var(--line-strong); }
+.pbtn:hover:not(:disabled) { border-color: var(--line-strong); }
+.pbtn:disabled { opacity: 0.35; cursor: default; }
 /* no double-tap zoom anywhere (pinch is the viewport's to allow); the board and the seek bar set their own */
 * { touch-action: manipulation; }
 .pnav { touch-action: manipulation; -webkit-touch-callout: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
 .pnav:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); }
-.pnav:disabled { opacity: 0.35; cursor: default; }
 /* the move name is announced to screen readers only: the board and Moves panel already show it, and the track gets the room */
 .plabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ptime { flex: none; width: 64px; text-align: right; font: 500 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
