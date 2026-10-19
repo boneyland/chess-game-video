@@ -204,6 +204,12 @@ function GameApp() {
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); setFenOpen(true); };
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
   const closeFen = React.useCallback(() => setFenOpen(false), []);
+  // the dialog closed (Esc, Cancel, Set up): focus goes back to what opened it, New board or the phone's Menu
+  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false);
+  React.useEffect(() => {
+    if (fenWasOpen.current && !fenOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
+    fenWasOpen.current = fenOpen;
+  }, [fenOpen]);
   const loadFiles = async (list) => {
     const batch = {};
     try {
@@ -357,7 +363,7 @@ function GameApp() {
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
       </React.Fragment> : (
         <div ref={newRef} className="dock-new">
-          <button type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>New board</button>
+          <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => setNewMenu((m) => !m)}>New board</button>
           {newMenu && (
             <div id="dock-new-items" className="dock-pop">
               {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
@@ -372,7 +378,7 @@ function GameApp() {
   );
   const menuEl = (
     <div ref={dockRef} className={'pmenu' + (shownErr ? ' pmenu-err' : '') + (menu ? ' pmenu-open' : '')}>
-      <button type="button" className="pbtn dock-menu" aria-label="Menu" aria-expanded={menu} aria-controls="dock-items" onClick={() => setMenu((m) => !m)}>
+      <button ref={menuBtn} type="button" className="pbtn dock-menu" aria-label="Menu" aria-expanded={menu} aria-controls="dock-items" onClick={() => setMenu((m) => !m)}>
         <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
           {menu
             ? <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

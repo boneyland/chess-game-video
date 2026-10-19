@@ -147,9 +147,15 @@ function FenDialog({ onSet, onClose }) {
     try { fen = window.BoardCore.fenFromInput(text); } catch (e) { setMsg((e && e.message) || 'That isn’t a FEN this board can set up.'); return; }
     onSet(fen);
   };
+  // Tab and Shift+Tab go round the field and the two buttons, so focus never reaches the page behind the scrim
   const onKey = (e) => {
     e.stopPropagation();
     if (e.key === 'Escape') { e.preventDefault(); onClose(); } else if (e.key === 'Enter' && e.target === field.current) { e.preventDefault(); setUp(); }
+    else if (e.key === 'Tab') {
+      const stops = [...e.currentTarget.querySelectorAll('input, button')], i = stops.indexOf(document.activeElement);
+      e.preventDefault();
+      stops[(i + (e.shiftKey ? -1 : 1) + stops.length) % stops.length].focus();
+    }
   };
   return (
     <div className="fen-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>

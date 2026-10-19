@@ -472,6 +472,21 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.equal((await boardBox(p)).n, 32);
       assert.equal(await corner(), top, 'F typed in the field left the board unflipped');
       await p.screenshot({ path: path.join(OUT, host + '-fen-dialog.png') });
+      // Tab goes round the dialog (field, Cancel, Set up) and never reaches the page behind it
+      const inDialog = () => p.evaluate(() => !!document.activeElement.closest('[role="dialog"]'));
+      for (let i = 0; i < 3; i++) {
+        await p.keyboard.press('Tab');
+        assert.equal(await inDialog(), true, `focus stays in the dialog after ${i + 1} Tab${i ? 's' : ''}`);
+      }
+      await p.keyboard.press('Shift+Tab');
+      assert.equal(await inDialog(), true, 'and after Shift+Tab');
+      // Esc closes it and gives focus back to New board
+      await p.keyboard.press('Escape');
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
+      assert.equal(await p.evaluate(() => document.activeElement.textContent), 'New board', 'focus back on New board');
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Paste FEN…' }).click();
+      await assert.doesNotReject(dialog.waitFor({ timeout: 5000 }));
       await field.fill('4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
       await dialog.getByRole('button', { name: 'Set up' }).click();
       await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
@@ -502,6 +517,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await ph.page.keyboard.press('Escape');
       await assert.doesNotReject(pd.waitFor({ state: 'detached', timeout: 5000 }));
       assert.equal(await ph.page.getByRole('button', { name: 'Play (space)' }).count(), 1, 'Esc changes nothing');
+      assert.equal(await ph.page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Menu', 'focus back on Menu');
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });
