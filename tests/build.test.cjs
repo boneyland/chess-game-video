@@ -21,7 +21,7 @@ test('the sample commentary has an intro and comments on moves', () => {
 // String.replace would expand $' or $& in a script; both pages must carry each plain unit's code as written
 test('the built pages inline the plain units verbatim', () => {
   const pages = [['out', 'site', 'chess-game-video.html'], ['out', 'chess-game-video.html']].map((f) => fs.readFileSync(path.join(ROOT, ...f), 'utf8'));
-  const units = ['src/pieces.js', 'app/chess-core.js', 'app/analysis-core.js', 'app/openings-core.js', 'app/board-core.js', 'app/sf-engine.js', 'app/queen-core.js', 'app/sfx-core.js', 'app/webp-core.js', 'src/sample-game.js', 'src/game-data.js', 'app/sample-analysis.js'];
+  const units = ['src/pieces.js', 'app/chess-core.js', 'app/analysis-core.js', 'app/openings-core.js', 'app/board-core.js', 'app/play-core.js', 'app/sf-engine.js', 'app/queen-core.js', 'app/sfx-core.js', 'app/webp-core.js', 'src/sample-game.js', 'src/game-data.js', 'app/sample-analysis.js'];
   for (const u of units) {
     const code = fs.readFileSync(path.join(ROOT, u), 'utf8');
     pages.forEach((page, k) => assert.ok(page.includes(code), u + (k ? ' (artifact)' : ' (site)')));
