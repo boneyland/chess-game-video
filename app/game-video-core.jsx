@@ -86,7 +86,7 @@ function shortLayout(W) {
 }
 // Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The board
 // with the header (players stacked) and Commentary beside it; the eval graph the full width under the board, then
-// Analysis and Moves (two pairs a row) side by side, taking the extra height.
+// Analysis and Moves side by side, taking the extra height.
 const SQUARE = { width: 1600, minHeight: 1440, maxHeight: 1760 };
 function squareLayout(H) {
   const hh = 290, cy = 40 + hh + 18, by = 1068, bh = H - by - 30;
@@ -96,7 +96,7 @@ function squareLayout(H) {
     comment: { x: 916, y: cy, w: 644, h: 904 - cy, k: 1, text: 1, gap: 18, right: 1 },
     plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
     analysis: { x: 44, y: by, w: 1000, h: bh, k: 1, scroll: true, right: 1 },
-    moves: { x: 1060, y: by, w: 500, h: bh, k: 1, cols: 2, rows: Math.floor((bh - 61) / 38) },
+    moves: { x: 1060, y: by, w: 500, h: bh, k: 1, font: 24, num: 64, rows: Math.floor((bh - 61) / 38) },
     card: { k: 1, w: 1500, stack: false },
   };
 }
@@ -524,7 +524,7 @@ function useDragScroll(box) {
 function MoveList({ M, T, S, a, paused, onPick }) {
   const c = lastPly(T, S);
   // COLS move pairs to a row (the phone's full-width list), VIS rows in view
-  const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1;
+  const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1, NUM = L.moves.num || 50; // NUM: the move number's column
   const odd = M.ply0 % 2, scrollFor = (i) => Math.max(0, Math.floor((Math.max(i, 0) + odd) / (2 * COLS)) - (VIS - (COLS > 1 ? 2 : 3))) * ROW;
   const k = c >= 0 ? MOTION.move(cl01((T - S.tp[c]) / 0.35)) : 1;
   const scroll = lerp(scrollFor(c - 1), scrollFor(c), k), listRef = React.useRef(null);
@@ -562,7 +562,7 @@ function MoveList({ M, T, S, a, paused, onPick }) {
       cells.push(<span key={'n' + q} style={{ color: C.dim, opacity: T >= S.tp[Math.max(0, 2 * q - odd)] || paused ? 1 : 0 }}>{first + q + 1}.</span>, cell(2 * q - odd), cell(2 * q + 1 - odd));
     }
     rows.push(
-      <div key={r} style={{ display: 'grid', gridTemplateColumns: COLS > 1 ? `repeat(${COLS}, 50px 1fr 1fr)` : '50px 1fr 1fr', height: ROW, alignItems: 'center' }}>{cells}</div>
+      <div key={r} style={{ display: 'grid', gridTemplateColumns: COLS > 1 ? `repeat(${COLS}, ${NUM}px 1fr 1fr)` : `${NUM}px 1fr 1fr`, height: ROW, alignItems: 'center' }}>{cells}</div>
     );
   }
   return (
