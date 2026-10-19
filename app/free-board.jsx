@@ -156,7 +156,7 @@ function GameStatus({ board, onChange }) {
   React.useEffect(() => { setAsk(null); }, [board.steps.length, !!G.result]);
   const big = (txt, col) => <span style={{ font: `700 38px ${MONO}`, color: col }}>{txt}</span>;
   const small = (txt, col) => <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{txt}</span>;
-  const hint = (txt) => <FitOrHide style={{ display: 'block', marginTop: 14, font: `500 15px ${MONO}`, color: C.dim }}>{txt}</FitOrHide>;
+  const hint = (txt) => <FitOrHide style={{ ...NO_SELECT, display: 'block', marginTop: 14, font: `500 15px ${MONO}`, color: C.dim }}>{txt}</FitOrHide>;
   // the button rows can't be selected: quick clicks on the buttons would otherwise highlight their text and the question's
   const row = (children) => <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap', alignItems: 'center', userSelect: 'none', WebkitUserSelect: 'none' }}>{children}</div>;
   if (G.result) {
