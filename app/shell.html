@@ -157,6 +157,10 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .fen-note { font: 12px/1.45 var(--sans); color: var(--dim); }
 .fen-btns { display: flex; justify-content: flex-end; gap: 8px; }
 .fen-btns .twk-btn { min-height: 34px; padding: 4px 16px; }
+/* Play vs human's choices: a label over a segmented row */
+.play-row { display: flex; flex-direction: column; gap: 6px; }
+.play-label { font: 500 12px var(--sans); color: var(--dim); }
+.play-row .twk-seg button { min-height: 30px; color: var(--ink); font: 500 13px var(--sans); }
 
 .drop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .drop-box { padding: 40px 60px; margin: 0 16px; border: 2px dashed var(--accent); border-radius: 12px; text-align: center; font: 500 20px/1.6 var(--mono); color: var(--ink); }
@@ -308,6 +312,6 @@ body:has(.stage:not(.stage-tall):not(.stage-short)) .net-note { top: calc(64px +
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script>
-window.TWEAK_DEFAULTS = { flip: false, bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 1.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8, exportFormat: 'MP4', webpWidth: 'Half', webpQuality: 75, blunderGlow: true, commentary: true, sound: true, soundSet: 'Lichess sfx', soundVolume: 70, sfDepth: 22, sfTime: 3, sfOwnDepth: 24, sfOwnTime: 3, sfHash: 64 };
+window.TWEAK_DEFAULTS = { flip: false, bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 1.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8, exportFormat: 'MP4', webpWidth: 'Half', webpQuality: 75, blunderGlow: true, commentary: true, sound: true, soundSet: 'Lichess sfx', soundVolume: 70, sfDepth: 22, sfTime: 3, sfOwnDepth: 24, sfOwnTime: 3, sfHash: 64, playClock: 'Off' };
 </script>
 <!--SCRIPTS-->

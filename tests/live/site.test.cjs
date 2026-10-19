@@ -682,6 +682,121 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(g.errors, []);
       await g.ctx.close();
     });
+    // Play vs human: the board turns to the side to move, ← takes a move back, the game ends in mate, nothing hints
+    await t.test('desktop: Play vs human turns the board, takes back, ends in mate, and asks before leaving a game', async () => {
+      const g = await open(browser, { width: 1440, height: 900 });
+      const p = g.page, label = p.locator('.plabel');
+      const panel = (title) => p.evaluate((tt) => { const d = [...document.querySelectorAll('div')].find((e) => e.firstElementChild && e.firstElementChild.firstElementChild && e.firstElementChild.firstElementChild.textContent === tt); return d ? d.innerText : ''; }, title);
+      const drag = async (b, from, to, flipped) => {
+        const f = square(b, from, flipped), tt = square(b, to, flipped);
+        await p.mouse.move(f.x, f.y);
+        await p.mouse.down();
+        await p.mouse.move(tt.x, tt.y, { steps: 8 });
+        await p.mouse.up();
+      };
+      // nothing Stockfish or the book would say: no eval figures, no depth, no verdicts, no explorer
+      const noHints = async () => {
+        const text = await p.locator('body').innerText();
+        assert.doesNotMatch(text, /[+−]\d+\.\d\d|depth|cp vs|best line|stockfish replies|stockfish’s choice|opening explorer|book/i);
+      };
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Play vs human…' }).click();
+      const dialog = p.getByRole('dialog', { name: 'Play vs human' });
+      await assert.doesNotReject(dialog.waitFor({ timeout: 3000 }));
+      await p.screenshot({ path: path.join(OUT, host + '-play-dialog.png') });
+      await dialog.getByRole('radio', { name: '5+0' }).click();
+      await dialog.getByRole('button', { name: 'Start game' }).click();
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 3000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      const b = await boardBox(p);
+      assert.equal(b.n, 32);
+      assert.match(await panel('Game'), /White to move/);
+      assert.match(await panel('Play vs human'), /From the starting position/);
+      assert.deepEqual(await p.locator('.game-clock').allInnerTexts(), ['5:00', '5:00']);
+      // White at the bottom, then Black: each move turns the board
+      await drag(b, 'f2', 'f3', false);
+      await assert.doesNotReject(label.filter({ hasText: /1\. f3/ }).waitFor({ timeout: 5000 }));
+      await drag(b, 'e7', 'e5', true);
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      await p.waitForTimeout(2500);
+      // Black's clock ran while Black thought; White's runs now
+      const clocks = await p.locator('.game-clock').allInnerTexts();
+      assert.ok(clocks.every((c) => /^4:5\d$|^5:00$/.test(c)) && clocks.some((c) => c !== '5:00'), clocks.join(' '));
+      await noHints();
+      await p.screenshot({ path: path.join(OUT, host + '-play.png') });
+      // ← takes Black's move back: Black to move again, still at the bottom
+      await p.keyboard.press('ArrowLeft');
+      await assert.doesNotReject(label.filter({ hasText: /^1\. f3$/ }).waitFor({ timeout: 5000 }));
+      assert.doesNotMatch(await panel('Moves'), /e5/);
+      await drag(b, 'e7', 'e5', true);
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      await drag(b, 'g2', 'g4', false);
+      await assert.doesNotReject(label.filter({ hasText: /2\. g4/ }).waitFor({ timeout: 5000 }));
+      await drag(b, 'd8', 'h4', true);
+      await assert.doesNotReject(label.filter({ hasText: /2… Qh4#/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Game'), /0–1[\s\S]*checkmate/i);
+      await noHints();
+      await p.screenshot({ path: path.join(OUT, host + '-play-mate.png') });
+      // the finished game comes back after a reload, and takes no more moves
+      await p.reload({ waitUntil: 'load' });
+      await loadedOn(p);
+      await assert.doesNotReject(label.filter({ hasText: /2… Qh4#/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Game'), /0–1[\s\S]*checkmate/i);
+      // leaving a finished game doesn't ask
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      assert.notEqual(await panel('Opening explorer'), '', 'the free board again');
+      assert.equal(await p.getByRole('dialog').count(), 0);
+      // a game in progress asks first: Keep playing keeps it, Leave the game leaves
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Play vs human…' }).click();
+      await p.getByRole('button', { name: 'Start game' }).click();
+      await drag(b, 'e2', 'e4', false);
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      const leave = p.getByRole('dialog', { name: 'Leave this game?' });
+      await assert.doesNotReject(leave.waitFor({ timeout: 3000 }));
+      await p.screenshot({ path: path.join(OUT, host + '-play-leave.png') });
+      await leave.getByRole('button', { name: 'Keep playing' }).click();
+      await assert.doesNotReject(leave.waitFor({ state: 'detached', timeout: 3000 }));
+      assert.match(await label.innerText(), /1\. e4/);
+      assert.match(await panel('Game'), /Black to move/);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await leave.getByRole('button', { name: 'Leave the game' }).click();
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await panel('Game'), '');
+      assert.deepEqual(g.errors, []);
+      await g.ctx.close();
+      // the phone: Play vs human from the folded menu, the clocks in the bars (Playwright's Firefox, given touch, drops
+      // the mouse's drags; there it is a narrow window)
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const pp = ph.page;
+      await pp.goto(base, { waitUntil: 'load' });
+      await loadedOn(pp);
+      await pp.getByRole('button', { name: 'Menu' }).click();
+      await pp.getByRole('button', { name: 'Play vs human…' }).click();
+      await pp.getByRole('radio', { name: '10+0' }).click();
+      await pp.screenshot({ path: path.join(OUT, host + '-play-dialog-phone.png') });
+      await pp.getByRole('button', { name: 'Start game' }).click();
+      await assert.doesNotReject(pp.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      const pb = await boardBox(pp), pf = square(pb, 'e2'), pt = square(pb, 'e4');
+      await pp.mouse.move(pf.x, pf.y);
+      await pp.mouse.down();
+      await pp.mouse.move(pt.x, pt.y, { steps: 8 });
+      await pp.mouse.up();
+      await assert.doesNotReject(pp.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await pp.waitForTimeout(1500);
+      assert.equal(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.equal(await pp.locator('.game-clock').count(), 2);
+      await pp.screenshot({ path: path.join(OUT, host + '-play-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
     await ctx.close();
 
     // sw.js keeps the page and its files: with the connection gone, a reload still opens the player, Stockfish still

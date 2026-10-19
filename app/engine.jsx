@@ -197,11 +197,11 @@ function PlaybackBar({ time, duration, playing, nav, menu, still, onPlayPause, o
   const fmt = (t) => { const x = Math.max(0, t); return `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}.${String(Math.floor((x * 100) % 100)).padStart(2, '0')}`; };
   return (
     <div className="pbar">
-      <button type="button" className="pbtn pbtn-end" disabled={still && !(nav && nav.current && nav.current.hasPrev)} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
+      <button type="button" className="pbtn pbtn-end" disabled={still && !(nav && nav.current && (nav.current.hasFirst != null ? nav.current.hasFirst : nav.current.hasPrev))} onClick={still ? () => nav.current.first() : onReset} aria-label="Back to start (Home)" title="Back to start (Home)">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
       </button>
       {nav && nav.current && (
-        <NavButton nav={nav} dir="prev" label="Previous move (←)">
+        <NavButton nav={nav} dir="prev" label={nav.current.prevLabel || 'Previous move (←)'}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </NavButton>
       )}
