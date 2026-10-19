@@ -65,7 +65,7 @@ function Stage({ width, height, portrait, square, short, menu, top, onLayout, du
       // A square-ish area big enough not to be a phone gets the square frame when it shows noticeably larger than the
       // landscape one and at least as large as the portrait one (judged by the room the landscape frame leaves: same bar)
       const sq = square && Math.min(w, h) >= 600 ? Math.min(w / square.width, h / square.minHeight) : 0;
-      const nextSq = sq > sl * (squareRef.current ? 1.05 : 1.1) && sq > sp * (squareRef.current ? 0.97 : 1.02);
+      const nextSq = sq > sl * (squareRef.current ? 1.05 : 1.1) && sq > sp * (squareRef.current ? 1 : 1.02);
       squareRef.current = nextSq;
       const qh = nextSq ? clamp(Math.floor(h / sq), square.minHeight, square.maxHeight) : 0;
       const next = !nextSq && sp > sl * (tallRef.current ? 1.1 : 1.15);
