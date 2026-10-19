@@ -1,8 +1,8 @@
-// A game on the free board (Play vs human): its clocks, takebacks, resignation and end. A game is a BoardCore board
+// A game on the free board (Play vs human): its clocks, takebacks, resignation, agreed draws and end. A game is a BoardCore board
 // with a game record, board.game = { mode: 'human', tc, date, clock, result }: tc a time control ('10+0') or null,
 // clock { left: { w, b } ms at `since`, since: when the side to move's clock started (null: stopped), clk: the mover's
 // time left after each move }, result null while the game goes on, else { result, reason, side } (side: who resigned
-// or whose flag fell). Like boards, games are never mutated; `now` is a time in ms.
+// or whose flag fell; none for a draw by agreement). Like boards, games are never mutated; `now` is a time in ms.
 (function () {
   const CC = () => window.ChessCore;
   const sqColor = (i) => ((i % 8) + Math.floor(i / 8)) % 2; // a8 (0) is light: 0 light, 1 dark
@@ -122,13 +122,19 @@
     return withGame(b, { clock: b.game.clock && charged(b, now), result: { result: side === 'w' ? '0-1' : '1-0', reason: 'resign', side } });
   }
 
+  // A draw both players agree to
+  function agreeDraw(b, now) {
+    if (!inProgress(b)) return b;
+    return withGame(b, { clock: b.game.clock && charged(b, now), result: { result: '1/2-1/2', reason: 'agreement' } });
+  }
+
   // The result for people: the score and why
   const NAME = { w: 'White', b: 'Black' };
   function resultText(r) {
     const score = { '1-0': '1–0', '0-1': '0–1', '1/2-1/2': '½–½' }[r.result];
     const why = {
       checkmate: 'Checkmate', stalemate: 'Stalemate', repetition: 'Draw by threefold repetition', fifty: 'Draw by the fifty-move rule',
-      material: 'Draw: neither side can mate', resign: `${NAME[r.side]} resigned`,
+      material: 'Draw: neither side can mate', agreement: 'Draw by agreement', resign: `${NAME[r.side]} resigned`,
       time: r.result === '1/2-1/2' ? `${NAME[r.side]}’s flag fell, but ${NAME[other(r.side)]} can’t mate` : `${NAME[r.side]}’s flag fell`,
     }[r.reason];
     return { score, why };
@@ -136,7 +142,7 @@
 
   // A stored game back on its board (BoardCore.restore): whatever localStorage held, a game that plays on. The clocks
   // are paused (the time away isn't charged; they run again from the next move), clk fits the moves, and the result
-  // comes from the moves unless it was a resignation or a flag fall
+  // comes from the moves unless it was a resignation, a flag fall or an agreed draw
   function resume(board, g) {
     if (!g || typeof g !== 'object' || g.mode !== 'human') return board;
     const tc = TIME_CONTROLS.includes(g.tc) ? g.tc : null, t = parseTc(tc), n = board.steps.length;
@@ -145,7 +151,8 @@
       const c = g.clock || {}, ms = (x) => (Number.isFinite(x) ? Math.max(0, x) : t.base);
       clock = { left: { w: ms(c.left && c.left.w), b: ms(c.left && c.left.b) }, since: null, clk: (Array.isArray(c.clk) ? c.clk : []).filter(Number.isFinite).slice(0, n) };
     }
-    const r = g.result, kept = r && ['resign', 'time'].includes(r.reason) && ['1-0', '0-1', '1/2-1/2'].includes(r.result) && (r.side === 'w' || r.side === 'b') ? { result: r.result, reason: r.reason, side: r.side } : null;
+    const r = g.result, kept = !r ? null : r.reason === 'agreement' && r.result === '1/2-1/2' ? { result: r.result, reason: r.reason }
+      : ['resign', 'time'].includes(r.reason) && ['1-0', '0-1', '1/2-1/2'].includes(r.result) && (r.side === 'w' || r.side === 'b') ? { result: r.result, reason: r.reason, side: r.side } : null;
     const result = kept || outcome(board);
     const b = result ? board : B().go(board, n - 1);
     return { ...b, game: { mode: 'human', tc, date: typeof g.date === 'string' && /^\d{4}\.\d\d\.\d\d$/.test(g.date) ? g.date : today(), clock, result } };
@@ -168,5 +175,5 @@
     return tags.map(([k, v]) => `[${k} "${v}"]`).join('\n') + '\n\n' + moves.concat(res).join(' ') + '\n';
   }
 
-  window.PlayCore = { canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, takeback, resign, flag, timeLeft, resultText, resume, pgn };
+  window.PlayCore = { canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, takeback, resign, agreeDraw, flag, timeLeft, resultText, resume, pgn };
 })();

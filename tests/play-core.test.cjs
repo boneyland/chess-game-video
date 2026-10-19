@@ -130,3 +130,13 @@ test('the PGN has the result, the time control and the clocks', () => {
   assert.match(f, /\[SetUp "1"\]\n\[FEN "4k3\/8\/8\/8\/8\/8\/4P3\/4K3 b - - 0 40"\]/); assert.match(f, /\n\n\*\n$/);
   assert.doesNotMatch(f, /TimeControl|Termination/);
 });
+test('a draw by agreement ends the game and survives a reload', () => {
+  const g = game('5+0', [['e2e4', 0], ['e7e5', 3000]]);
+  const d = P.agreeDraw(g, 5000);
+  assert.deepEqual(d.game.result, { result: '1/2-1/2', reason: 'agreement' });
+  assert.equal(d.game.clock.left.w, 298000); assert.equal(d.game.clock.since, null);
+  assert.equal(P.agreeDraw(d, 6000), d, 'only in a game in progress');
+  assert.deepEqual(P.resultText(d.game.result), { score: '½–½', why: 'Draw by agreement' });
+  assert.deepEqual(B.restore(JSON.parse(JSON.stringify(B.save(d)))).game.result, d.game.result);
+  assert.match(P.pgn(d), /\[Result "1\/2-1\/2"\][\s\S]*\[Termination "normal"\][\s\S]* 1\/2-1\/2\n$/);
+});
