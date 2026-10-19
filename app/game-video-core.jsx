@@ -633,7 +633,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
         </div>
         {M.hasEval && (
           <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center' }}>EVAL{deeper && deeper.partial ? ` · DEPTH ${deeper.depth}` : ''}{paused && <DeeperButton ev={deep} />}</span>
+            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', minHeight: 30 }}>EVAL{deeper && deeper.partial ? ` · DEPTH ${deeper.depth}` : ''}{paused && <DeeperButton ev={deep} />}</span>
             <span style={{ font: `700 ${big}px ${MONO}`, color: C.ink }}>{deeper ? fmtSf(deeper.cp) : P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
           </div>
         )}
