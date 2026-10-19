@@ -169,6 +169,10 @@ These are several projects. Proposed order, each usable on its own:
 - 2026-10-19: the user approved this design, the calls marked "my call" included; clock presets under 5 minutes
   removed; Chess960 is the only variant.
 
+- 2026-10-19 (after testing the PR preview): the free board shows Stockfish's eval and best line before the first move
+  (clickable, as its replies are), and Settings' "Replay these moves as a game" opens the board's moves as a loaded game
+  for replay, analysis and MP4/WebP export, with "Back to the free board" to return.
+
 ## Carried forward from plan 1 (custom starts and flip, 2026-10-19)
 
 For the later plans; the per-task reviews deferred these:

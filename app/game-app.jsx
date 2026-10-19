@@ -204,6 +204,8 @@ function GameApp() {
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); setFenOpen(true); };
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
   const closeFen = React.useCallback(() => setFenOpen(false), []);
+  // the board's moves as a loaded game (replay, Analyse with Stockfish, PGN and video export); the board is kept with it, to go back to
+  const boardAsGame = () => { commit({ pgn: window.BoardCore.pgn(board), pgnName: 'free-board.pgn', gameIndex: 0, fromBoard: files.board }); };
   // the dialog closed (Esc, Cancel, Set up): focus goes back to what opened it, New board or the phone's Menu
   const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false);
   React.useEffect(() => {
@@ -424,6 +426,9 @@ function GameApp() {
             <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
             <TweakButton label="Load game…" onClick={() => inputRef.current.click()} />
             {!board && <div className="twk-note">Uses the PGN’s own evals (Lichess [%eval] or cutechess +0.25/20). Without them, run “Analyse with Stockfish” from Analysis or Engine. Saved analysis, notes and Queen files load here too.</div>}
+            {board && <TweakButton label="Replay these moves as a game" disabled={!board.steps.length} onClick={boardAsGame} />}
+            {board && <div className="twk-note">{board.steps.length ? 'Opens every move on the board as a game: watch it, analyse it with Stockfish, and export it as a video or WebP. The board comes back with “Back to the free board”.' : 'Play some moves first; then they can be replayed and exported as a video.'}</div>}
+            {!board && files.fromBoard && <TweakButton secondary label="Back to the free board" onClick={() => { const b = window.BoardCore.restore(files.fromBoard); if (b) commitBoard(b); }} />}
             {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => commit(SAMPLE)} />}
             {!board && M.canChooseSource && (
               <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />

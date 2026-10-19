@@ -27,6 +27,19 @@
   const go = (b, upto) => ({ ...b, upto: clamp(b, upto) });
   const save = (b) => ({ fen: b.fen, moves: b.steps.map((s) => s.uci), upto: b.upto });
 
+  // The board's moves as a game for the replay: the whole line (not only up to the move shown), with the start's FEN
+  // when it isn't the standard one. date: PGN's YYYY.MM.DD, today when omitted
+  function pgn(b, date) {
+    const d = new Date(), today = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    const tags = [['Event', 'Free board'], ['Site', 'chess-replay'], ['Date', date || today], ['White', 'White'], ['Black', 'Black'], ['Result', '*']];
+    if (b.fen !== CC().START_FEN) tags.push(['SetUp', '1'], ['FEN', b.fen]);
+    const moves = b.steps.map((s, j) => {
+      const ply = b.start.ply0 + j, n = Math.floor(ply / 2) + 1;
+      return ply % 2 === 0 ? `${n}. ${s.san}` : j === 0 ? `${n}... ${s.san}` : s.san;
+    });
+    return tags.map(([k, v]) => `[${k} "${v}"]`).join('\n') + '\n\n' + moves.concat('*').join(' ') + '\n';
+  }
+
   // A stored board back: the legal prefix of its moves, upto clamped (a missing one shows the last move);
   // null when the FEN doesn't parse. Never throws, whatever localStorage held.
   function restore(saved) {
@@ -45,5 +58,5 @@
     }
   }
 
-  window.BoardCore = { fenFromInput, fromFen, restore, save, play, go, pos, ucis, label };
+  window.BoardCore = { fenFromInput, fromFen, restore, save, play, go, pos, ucis, label, pgn };
 })();

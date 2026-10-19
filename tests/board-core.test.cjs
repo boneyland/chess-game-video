@@ -51,3 +51,23 @@ test('restore never throws on a damaged stored board', () => {
   assert.deepEqual(B.ucis(r), ['e2e4']);
   assert.equal(B.restore({ fen: CC.START_FEN, moves: ['e2e4', 'e7e5'] }).upto, 1, 'a missing upto shows the last move');
 });
+test('pgn writes every move of the board as a game that buildGame replays', () => {
+  let b = B.fromFen();
+  for (const u of ['e2e4', 'e7e5', 'g1f3']) b = B.play(b, step(b, u));
+  b = B.go(b, 0); // the whole line goes in, not just up to the move shown
+  const pgn = B.pgn(b, '2026.10.19');
+  assert.match(pgn, /\[Date "2026\.10\.19"\]/);
+  assert.doesNotMatch(pgn, /\[FEN /);
+  assert.match(pgn, /\n\n1\. e4 e5 2\. Nf3 \*\n$/);
+  const M = CC.buildGame({ pgn });
+  assert.deepEqual(M.plies.map((p) => p.uci), ['e2e4', 'e7e5', 'g1f3']);
+});
+test('pgn from a FEN with Black to move carries the FEN and starts on Black\'s move', () => {
+  let b = B.fromFen('4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
+  for (const u of ['e8d7', 'e2e4']) b = B.play(b, step(b, u));
+  const pgn = B.pgn(b, '2026.10.19');
+  assert.match(pgn, /\[SetUp "1"\]\n\[FEN "4k3\/8\/8\/8\/8\/8\/4P3\/4K3 b - - 0 40"\]/);
+  assert.match(pgn, /\n\n40\.\.\. Kd7 41\. e4 \*\n$/);
+  const M = CC.buildGame({ pgn });
+  assert.equal(M.ply0, 79); assert.deepEqual(M.plies.map((p) => p.san), ['Kd7', 'e4']);
+});

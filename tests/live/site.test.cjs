@@ -601,6 +601,33 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });
+    await t.test('desktop: the start shows Stockfish\'s eval and best line, and the board\'s moves replay as a game', async () => {
+      const g = await open(browser, { width: 1440, height: 900 });
+      const p = g.page, label = p.locator('.plabel');
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      // before any move: the eval and Stockfish's best line, whose first move plays when picked
+      const chip = p.locator('.mv[role="button"][title^="Show stockfish’s best line"]').first();
+      await assert.doesNotReject(chip.waitFor({ timeout: 45000 }));
+      assert.match(await p.locator('body').innerText(), /white to move/i);
+      await p.screenshot({ path: path.join(OUT, host + '-board-start.png') });
+      const san = (await chip.innerText()).trim();
+      await chip.click();
+      await assert.doesNotReject(label.filter({ hasText: new RegExp('^1\\. ' + san.replace(/[+#]/g, '\\$&') + '$') }).waitFor({ timeout: 5000 }));
+      // Settings: the moves open as a game with the video export, and the board comes back
+      await p.getByRole('button', { name: 'Settings' }).click();
+      await p.getByRole('button', { name: 'Replay these moves as a game' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: /^Export (video|animated WebP)/ }).waitFor({ timeout: 5000 }));
+      await p.getByRole('button', { name: 'Back to the free board' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(label.filter({ hasText: new RegExp('^1\\. ' + san.replace(/[+#]/g, '\\$&') + '$') }).waitFor({ timeout: 5000 }));
+      assert.deepEqual(g.errors, []);
+      await g.ctx.close();
+    });
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {

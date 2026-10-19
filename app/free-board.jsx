@@ -82,6 +82,37 @@ function OpeningExplorer({ board, book, onPlay }) {
   );
 }
 
+// The Analysis panel before the first move: the start position's eval and Stockfish's best line, whose moves play
+// on the board when picked (as its replies do after a move)
+function StartAnalysis({ board, ev, status, onLine }) {
+  const after = ev.after, down = status === 'unavailable' || status === 'stopped';
+  const line = [];
+  if (after && after.pv) { let p = board.start.pos; for (const u of after.pv.slice(0, 8)) { const st = window.ChessCore.stepFromUci(p, u); if (!st) break; line.push({ ...st, byEngine: true }); p = st.pos; } }
+  const turn = board.start.pos.turn === 'w' ? 'White' : 'Black';
+  return (
+    <React.Fragment>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ font: `700 38px ${MONO}`, color: C.last }}>Start</span>
+          <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.last }}>
+            {turn} to move · {down ? (status === 'unavailable' ? 'Stockfish can’t run here' : 'Stockfish stopped · play a move to restart it') : !after || after.partial ? 'Stockfish is thinking…' : 'Stockfish’s eval'}
+          </span>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em' }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}</span>
+          <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{down && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
+        </div>
+      </div>
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {line.length > 0
+          ? <LineChips name="Stockfish’s best line" nameColor={C.ink} accent={C.best} moves={line.map((m) => m.san)} ply0={board.start.ply0} c={0} legal={line.length} sel={null} onPick={(j) => onLine(line.slice(0, j + 1))} />
+          : <span> </span>}
+        <span style={{ font: `500 15px ${MONO}` }}>Drag a piece to play a move, for either side; Stockfish rates every move.</span>
+      </div>
+    </React.Fragment>
+  );
+}
+
 // The frame's layout without the eval graph, whose room goes to the panels: on the wide frame Moves and the explorer grow
 // down into it (more moves, and room for book moves) and Analysis moves down; on the phone the explorer grows up into it.
 // GameVideo sets the plain layout again on its next render.
@@ -167,7 +198,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
       <OpeningExplorer board={board} book={book} onPlay={onBook} />
       <Panel box={L.analysis} a={1} title="Analysis" right={down ? null : searchStats(window.AnalysisCore.ENGINE.name, ev.after)}>
         {upto < 0
-          ? <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>{bookMoves(board, book).length ? 'Drag a piece to play a move, or pick a book move in the explorer.' : 'Drag a piece to play a move.'} Stockfish rates every move, for either side.</span>
+          ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />
           : <React.Fragment>
             <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
             <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
