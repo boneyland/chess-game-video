@@ -135,12 +135,16 @@ function boardLayout(base) {
 function GameInfo({ board }) {
   const G = board.game, t = window.PlayCore.parseTc(G.tc), z = L.comment.label || 1;
   const note = (txt) => <span style={{ display: 'block', marginTop: 10 * z, font: `400 ${Math.round(19 * z)}px/1.4 ${SANS}`, color: C.dim }}>{txt}</span>;
+  // scrolls with a mouse drag as the explorer does, and its text can't be selected
+  const top = React.useRef(null), drag = useDragScroll(() => top.current && top.current.parentElement);
   return (
     <Panel box={{ ...L.comment, scroll: true }} a={1} title="Play vs human" right={G.tc || 'No clock'}>
-      <span style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: C.ink }}>{board.fen === window.ChessCore.START_FEN ? 'From the starting position' : 'From a set-up position'}</span>
-      {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box.')}
-      {note(t ? `Each side has ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.')}
-      {note('No engine and no hints: Stockfish is off until the game ends.')}
+      <div ref={top} {...drag}>
+        <span style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: C.ink }}>{board.fen === window.ChessCore.START_FEN ? 'From the starting position' : 'From a set-up position'}</span>
+        {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box.')}
+        {note(t ? `Each side has ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.')}
+        {note('No engine and no hints: Stockfish is off until the game ends.')}
+      </div>
     </Panel>
   );
 }
@@ -156,7 +160,7 @@ function GameStatus({ board, onChange }) {
   React.useEffect(() => { setAsk(null); }, [board.steps.length, !!G.result]);
   const big = (txt, col) => <span style={{ font: `700 38px ${MONO}`, color: col }}>{txt}</span>;
   const small = (txt, col) => <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{txt}</span>;
-  const hint = (txt) => <FitOrHide style={{ display: 'block', marginTop: 14, font: `500 15px ${MONO}`, color: C.dim }}>{txt}</FitOrHide>;
+  const hint = (txt) => <FitOrHide style={{ ...NO_SELECT, display: 'block', marginTop: 14, font: `500 15px ${MONO}`, color: C.dim }}>{txt}</FitOrHide>;
   // the button rows can't be selected: quick clicks on the buttons would otherwise highlight their text and the question's
   const row = (children) => <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap', alignItems: 'center', userSelect: 'none', WebkitUserSelect: 'none' }}>{children}</div>;
   if (G.result) {
