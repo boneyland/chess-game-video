@@ -78,3 +78,25 @@ test('continuations out of the book, or after an illegal move, are empty', () =>
   assert.deepEqual(book.continuations(['e2e5']), []);
   assert.deepEqual(book.continuations([], '4k3/8/8/8/8/8/8/4K2R w - - 0 1'), []);
 });
+test('name gives the position after the moves its name, the start position included', () => {
+  const book = window.Openings.book();
+  // a pasted FEN that is itself a book position: named with no moves played, and its moves fall back to it
+  const e4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1';
+  assert.deepEqual(book.name([], e4), { eco: 'B00', name: 'King\'s Pawn Game' });
+  assert.deepEqual(book.name(['e7e5'], e4), book.identify(['e2e4', 'e7e5']));
+  assert.deepEqual(book.name(['a7a6', 'h2h3', 'h7h6'], e4), book.identify(['e2e4', 'a7a6', 'h2h3', 'h7h6']));
+  // the standard start isn't named; outside the book there is no name
+  assert.equal(book.name([]), null);
+  assert.equal(book.name([], '4k3/8/8/8/8/8/8/4K2R w - - 0 1'), null);
+  // with moves from the standard start it agrees with identify
+  for (const c of fixture('openings-expected.json')) assert.deepEqual(book.name(c.ucis), c.identify, c.name);
+});
+test('inBook tells a book position from one out of the book', () => {
+  const book = window.Openings.book();
+  assert.equal(book.inBook([]), true);
+  assert.equal(book.inBook(['e2e4', 'c7c5']), true);
+  assert.equal(book.inBook(['e2e4', 'e7e5', 'e1e2', 'e8e7', 'e2e1', 'e7e8']), false);
+  assert.equal(book.inBook([], 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'), true);
+  assert.equal(book.inBook([], '4k3/8/8/8/8/8/8/4K2R w - - 0 1'), false);
+  assert.equal(book.inBook(['e2e5']), false);
+});

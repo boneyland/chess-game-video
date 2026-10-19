@@ -24,20 +24,54 @@ function FreeBar({ pos, side, a }) {
   );
 }
 
-// the book's name for the position on the board (the last named one on the way there), or null
+// the book's name for the position on the board (the last named one on the way there, the start included), or null
 function boardOpening(board, book) {
   if (!book) return null;
-  try { return book.identify(window.BoardCore.ucis(board), board.fen); } catch (e) { return null; }
+  try { return book.name(window.BoardCore.ucis(board), board.fen); } catch (e) { return null; }
+}
+// the book moves from the position on the board, most book lines first
+function bookMoves(board, book) {
+  if (!book) return [];
+  try { return book.continuations(window.BoardCore.ucis(board), board.fen); } catch (e) { return []; }
 }
 
-// The Commentary box on the free board. For now it names the position; the book's continuations come next.
-function OpeningExplorer({ board, book }) {
-  const named = boardOpening(board, book), start = board.upto < 0 && board.fen === window.ChessCore.START_FEN;
+// The Commentary box on the free board: the position's name and the book moves from it, each a button that plays the
+// move as a drag would (so Stockfish rates it). Out of the book it says so, with the last book position on the way.
+function OpeningExplorer({ board, book, onPlay }) {
+  const B = window.BoardCore, ucis = B.ucis(board), white = B.pos(board).turn === 'w', z = L.comment.label || 1;
+  const named = boardOpening(board, book), next = bookMoves(board, book);
+  let inBook = false;
+  try { inBook = !!book && book.inBook(ucis, board.fen); } catch (e) {}
+  const fromStart = board.fen === window.ChessCore.START_FEN;
+  const heading = (txt, dim) => <span className="book-head" style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: dim ? C.dim : C.ink, textWrap: 'pretty' }}>{txt}</span>;
+  const note = (txt) => <span style={{ display: 'block', marginTop: 8, font: `500 ${Math.round(15 * z)}px ${MONO}`, color: C.dim }}>{txt}</span>;
+  const play = (e, uci) => { e.preventDefault(); e.stopPropagation(); onPlay(uci); };
+  let body;
+  if (!book) body = <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>Loading the opening book…</span>;
+  else if (inBook) {
+    body = (
+      <React.Fragment>
+        {heading(named ? named.name : ucis.length === 0 && fromStart ? 'Starting position' : 'In the book')}
+        {next.length ? (
+          <div className="book-moves" style={{ display: 'flex', flexDirection: 'column', gap: 2 * z, marginTop: 12 * z }}>
+            {next.map((m) => (
+              <div key={m.uci} className="mv" role="button" tabIndex={0} title={`Play ${m.san}`} onClick={(e) => play(e, m.uci)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') play(e, m.uci); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 14 * z, minWidth: 0, padding: `${3 * z}px 6px`, borderRadius: 4, cursor: 'pointer' }}>
+                <span style={{ flex: 'none', minWidth: 58 * z, boxSizing: 'border-box', textAlign: 'center', padding: `${2 * z}px ${8 * z}px`, borderRadius: 4, font: `600 ${Math.round(17 * z)}px ${MONO}`, background: white ? '#f1ebe1' : '#2a2320', color: white ? '#15100d' : '#efe8de', border: `1px solid ${white ? 'rgba(60,40,20,0.22)' : 'rgba(255,236,214,0.22)'}` }}>{m.san}</span>
+                <span style={{ minWidth: 0, font: `400 ${Math.round(17 * z)}px ${SANS}`, color: C.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name || ''}</span>
+              </div>
+            ))}
+          </div>
+        ) : note('No book moves from here.')}
+      </React.Fragment>
+    );
+  } else if (named || (fromStart && ucis.length)) {
+    body = <React.Fragment>{heading('Out of book', true)}{named && note(`last book position: ${named.eco} ${named.name}`)}</React.Fragment>;
+  } else body = <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>This position isn’t in the opening book.</span>;
   return (
-    <Panel box={L.comment} a={1} title="Opening explorer" right={named ? `${named.eco} ${named.name}` : null}>
-      {named || start
-        ? <span style={{ font: `400 ${Math.round(40 * L.comment.text)}px/1.14 ${SERIF}`, color: C.ink, textWrap: 'pretty' }}>{named ? named.name : 'Starting position'}</span>
-        : <span style={{ font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>{book ? 'This position isn’t in the opening book.' : 'Loading the opening book…'}</span>}
+    <Panel box={{ ...L.comment, scroll: true }} a={1} title="Opening explorer" right={named ? `${named.eco} ${named.name}` : null}>
+      {body}
     </Panel>
   );
 }
@@ -72,6 +106,8 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   const posBefore = upto > 0 ? steps[upto - 1].pos : board.start.pos;
   const bm = upto >= 0 && ev.before && ev.before.best ? window.ChessCore.applyUci(posBefore, ev.before.best) : null;
   const own = { ...ev, bestSan: bm ? bm.san : null };
+  // a book move from the explorer goes the way of a drag
+  const onBook = (uci) => { const step = window.ChessCore.stepFromUci(pos, uci); if (step) onChange(B.play(board, step)); };
   const onReply = (replies) => { let b = board; for (const s of replies) b = B.play(b, s); onChange(b); };
   const down = sf.status === 'unavailable' || sf.status === 'stopped';
   const cp = ev.after && ev.after.cp != null ? ev.after.cp : null;
@@ -122,10 +158,10 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
       <FreeBar pos={pos} side="w" a={1} />
       {L.header && <Header M={HM} a={1} />}
       <MoveList M={MV} T={upto + 0.999} S={S} a={1} paused onPick={go} />
-      <OpeningExplorer board={board} book={book} />
+      <OpeningExplorer board={board} book={book} onPlay={onBook} />
       <Panel box={L.analysis} a={1} title="Analysis" right={down ? null : searchStats(window.AnalysisCore.ENGINE.name, ev.after)}>
         {upto < 0
-          ? <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Drag a piece to play a move. Stockfish rates every move, for either side.</span>
+          ? <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>{bookMoves(board, book).length ? 'Drag a piece to play a move, or pick a book move in the explorer.' : 'Drag a piece to play a move.'} Stockfish rates every move, for either side.</span>
           : <React.Fragment>
             <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
             <FitOrHide style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · Home the start · End the last move</FitOrHide>

@@ -521,6 +521,80 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });
+    // the opening explorer: book moves from the position shown, played like a drag (and rated); a take-back branches
+    await t.test('desktop: the explorer names the opening and plays a book move', async () => {
+      const ex = await open(browser, { width: 1440, height: 900 });
+      const p = ex.page, label = p.locator('.plabel');
+      const panel = (title) => p.evaluate((tt) => { const d = [...document.querySelectorAll('div')].find((e) => e.firstElementChild && e.firstElementChild.firstElementChild && e.firstElementChild.firstElementChild.textContent === tt); return d ? d.innerText : ''; }, title);
+      // a book move's row: its SAN first, then the opening it reaches
+      const row = (pg, san) => pg.locator('.book-moves [role="button"]').filter({ hasText: new RegExp('^' + san + '(?![a-z0-9=+#])') });
+      const head = p.locator('.book-head');
+      const drag = async (b, from, to) => {
+        const f = square(b, from), tt = square(b, to);
+        await p.mouse.move(f.x, f.y);
+        await p.mouse.down();
+        await p.mouse.move(tt.x, tt.y, { steps: 8 });
+        await p.mouse.up();
+      };
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(head.filter({ hasText: /^Starting position$/ }).waitFor({ timeout: 5000 }));
+      const b = await boardBox(p);
+      await row(p, 'e4').click();
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(row(p, 'c5').filter({ hasText: /Sicilian/ }).waitFor({ timeout: 5000 }));
+      // a book move is rated like any other
+      await p.waitForFunction(() => /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i.test(document.body.innerText), null, { timeout: 45000 });
+      await row(p, 'c5').click();
+      await assert.doesNotReject(label.filter({ hasText: /1… c5/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(head.filter({ hasText: /Sicilian Defense/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Opening explorer'), /B20/);
+      await p.screenshot({ path: path.join(OUT, host + '-explorer.png') });
+      // back to the start: a book move there replaces the moves after it
+      await p.keyboard.press('ArrowLeft');
+      await p.keyboard.press('ArrowLeft');
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      await row(p, 'd4').click();
+      await assert.doesNotReject(label.filter({ hasText: /1\. d4/ }).waitFor({ timeout: 5000 }));
+      assert.doesNotMatch(await panel('Moves'), /c5|e4/);
+      await assert.doesNotReject(head.filter({ hasText: /Queen.s Pawn/ }).waitFor({ timeout: 5000 }));
+      // out of the book: it says so, naming the last book position
+      for (const [f, tt] of [['h7', 'h6'], ['a2', 'a3'], ['h6', 'h5'], ['a3', 'a4']]) await drag(b, f, tt);
+      await assert.doesNotReject(label.filter({ hasText: /3\. a4/ }).waitFor({ timeout: 5000 }));
+      await p.waitForFunction(() => /Out of book/.test(document.body.innerText), null, { timeout: 5000 });
+      assert.match(await panel('Opening explorer'), /last book position: /);
+      // a pasted FEN that is a book position is named itself; its rows take Enter
+      await p.getByRole('button', { name: 'New board' }).click();
+      await p.getByRole('button', { name: 'Paste FEN…' }).click();
+      const dialog = p.getByRole('dialog', { name: 'Paste FEN' });
+      await dialog.getByRole('textbox', { name: 'FEN' }).fill('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+      await dialog.getByRole('button', { name: 'Set up' }).click();
+      await assert.doesNotReject(head.filter({ hasText: /King.s Pawn Game/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Opening explorer'), /B00/);
+      await row(p, 'e5').focus();
+      await p.keyboard.press('Enter');
+      await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
+      assert.deepEqual(ex.errors, []);
+      await ex.ctx.close();
+      // the phone: the explorer under the board, its rows tapped (no drags: Playwright's Firefox drops them with touch)
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await loadedOn(ph.page);
+      await ph.page.getByRole('button', { name: 'Menu' }).click();
+      await ph.page.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(row(ph.page, 'e4').waitFor({ timeout: 5000 }));
+      await row(ph.page, 'e4').click();
+      await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await row(ph.page, 'c5').click();
+      await assert.doesNotReject(ph.page.locator('.book-head').filter({ hasText: /Sicilian Defense/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      await ph.page.screenshot({ path: path.join(OUT, host + '-explorer-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
     await ctx.close();
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {

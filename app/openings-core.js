@@ -79,7 +79,21 @@
       return [...(edges.get(k) || new Map()).values()].sort((a, b) => b.n - a.n || (a.san < b.san ? -1 : a.san > b.san ? 1 : 0))
         .map(({ uci, san, next }) => { const o = table.get(next); return { uci, san, eco: o ? o.eco : null, name: o ? o.name : null }; });
     };
-    return { byPly, identify: (ucis, startFen) => byPly(ucis, startFen).filter(Boolean).pop() || null, continuations, size: table.size };
+    // The keys of the start position and of each position after it, up to an illegal move
+    const keysAlong = (ucis, startFen) => {
+      const t = tracker(startFen), keys = [t.key()];
+      for (const u of ucis) { const k = t.uci(u); if (k === null) break; keys.push(k); }
+      return keys;
+    };
+    // The name of the position after ucis, or the last named one on the way there; unlike identify, the start
+    // position counts, so a pasted FEN that is a book position is named before any move
+    const name = (ucis, startFen) => keysAlong(ucis, startFen).map((k) => table.get(k)).filter(Boolean).pop() || null;
+    // Whether the position after ucis is on a book line (named or with book moves from it)
+    const inBook = (ucis, startFen) => {
+      const keys = keysAlong(ucis, startFen), k = keys[keys.length - 1];
+      return keys.length === ucis.length + 1 && (table.has(k) || edges.has(k));
+    };
+    return { byPly, identify: (ucis, startFen) => byPly(ucis, startFen).filter(Boolean).pop() || null, name, inBook, continuations, size: table.size };
   }
 
   let cached = null;
