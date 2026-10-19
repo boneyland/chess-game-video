@@ -903,12 +903,13 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
   const ownAfter = ownOn ? ownBefore.concat([vline.moves[vline.upto].uci]) : null;
   const ownEval = useMoveEval(sf ? sf.engine : null, ownBefore, ownAfter, sf ? sf.own : window.AnalysisCore.engineSettings().own, M.start.fen);
   // Go deeper on a move of the loaded analysis, while paused on it: from its own search (else the game settings), the
-  // eval it shows only (the ratings, graph and accuracy stay the analysis's)
-  const gameOn = !!(sf && M.hasEval && !playing && cNow >= 0 && !(vline && vline.src === 'you'));
+  // eval it shows only (the ratings, graph and accuracy stay the analysis's). Not on a PGN's own evals, which have no
+  // best lines for it to go with: those come from analysing the game
+  const gameOn = !!(sf && M.evalSource === 'analysis' && !playing && cNow >= 0 && !(vline && vline.src === 'you'));
   const gameP = gameOn ? M.plies[cNow] : null, gameSettings = sf ? sf.game : window.AnalysisCore.ENGINE;
   const gameBase = { depth: gameP && gameP.search ? gameP.search.depth : gameSettings.depth, time_limit: gameSettings.time_limit };
   const gameMoves = gameOn ? M.plies.slice(0, cNow + 1).map((p) => p.uci) : null;
-  const gameEval = useMoveEval(sf ? sf.engine : null, gameMoves, gameMoves, gameBase, M.start.fen, gameOn ? { cp: cpOf(M, cNow), depth: gameBase.depth, pv: [], stored: true, src: M.evalSource + '|' + M.engine } : null);
+  const gameEval = useMoveEval(sf ? sf.engine : null, gameMoves, gameMoves, gameBase, M.start.fen, gameOn ? { cp: cpOf(M, cNow), depth: gameBase.depth, pv: [], stored: true, src: M.engine } : null);
   let own = null;
   if (ownOn) {
     const posBefore = vline.upto > 0 ? vline.moves[vline.upto - 1].pos : vline.base || gamePos(vline.at - 1);
