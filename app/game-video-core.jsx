@@ -68,17 +68,18 @@ function tallLayout(H) {
     card: { k: 1.3, w: 600, stack: true },
   };
 }
-// Phone held sideways: 900 high, as wide as the screen's shape (1900–2400). The board fills the height; Moves and
-// Commentary sit beside it with Analysis under them, all magnified; the eval graph is left out (the eval bar stays).
-const SHORT = { height: 900, minWidth: 1900, maxWidth: 2400, maxArea: 560 };
+// Phone held sideways: 880 high (the board and its player bars, 2 px from the edges), as wide as the screen's shape
+// (1900–2400). The board fills the height; Moves and Commentary sit beside it with Analysis under them, all magnified;
+// the eval graph is left out (the eval bar stays).
+const SHORT = { height: 880, minWidth: 1900, maxWidth: 2400, maxArea: 560 };
 function shortLayout(W) {
-  const x = 60 + BW + 24, w = W - x - 12, top = 430, k = 1.25;
+  const x = 60 + BW + 24, w = W - x - 12, top = 420, k = 1.22;
   return {
-    eval: 12, bx: 60, by: 4 + 48 + 6, bar: { k: 1.2, gap: 6 }, title: 16,
+    eval: 12, bx: 60, by: 2 + 48 + 6, bar: { k: 1.2, gap: 6 }, title: 16,
     header: null,
     moves: { x, y: 10, w: 330, h: top, k, rows: Math.floor((top / k - 61) / 38) },
     comment: { x: x + 342, y: 10, w: w - 342, h: top, k, text: 1, gap: 14, right: 1 },
-    analysis: { x, y: top + 22, w, h: 900 - top - 32, k, scroll: true, right: 1 },
+    analysis: { x, y: top + 22, w, h: SHORT.height - top - 32, k, scroll: true, right: 1 },
     plot: null,
     card: { k: 1, w: 1700, stack: false },
   };
