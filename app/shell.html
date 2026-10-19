@@ -68,6 +68,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, [role="slider"]
   border-radius: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink);
 }
 .pbtn:hover { border-color: var(--line-strong); }
+/* no double-tap zoom anywhere (pinch is the viewport's to allow); the board and the seek bar set their own */
+* { touch-action: manipulation; }
 .pnav { touch-action: manipulation; -webkit-touch-callout: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
 .pnav:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); }
 .pnav:disabled { opacity: 0.35; cursor: default; }
