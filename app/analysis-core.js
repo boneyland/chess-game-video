@@ -130,8 +130,21 @@
     };
   }
   // Rough seconds a game position takes: 1.3 s measured on a laptop at depth 22 / 3 s, each depth about 1.45 times
-  // the one before, never more than the time limit. Only the first estimate; a run measures its own pace
-  const secondsPerPosition = (g) => Math.min(g.time_limit, 1.3 * Math.pow(1.45, g.depth - 22));
+  // the one before, never more than the time limit. factor: this device's pace against that laptop's (paceFactor)
+  const secondsPerPosition = (g, factor = 1) => Math.min(g.time_limit, factor * 1.3 * Math.pow(1.45, g.depth - 22));
+  // A finished run's seconds per position → its device's factor for secondsPerPosition, within reason
+  const paceFactor = (g, sec) => Math.min(4, Math.max(0.25, sec / secondsPerPosition(g)));
+  // A running analysis's seconds per position: the estimate before it started, giving way to the run's own pace as it
+  // times more positions (sumSec over n of them); a run's first few searches alone are a poor guide to the rest
+  const PACE_PRIOR_WEIGHT = 3;
+  const blendPace = (priorSec, sumSec, n) => (priorSec * PACE_PRIOR_WEIGHT + sumSec) / (PACE_PRIOR_WEIGHT + n);
+
+  // Go deeper on one position (the + by the eval): each press adds 4 to the depth and doubles the time, up to the
+  // sliders' caps. own: engineSettings().own; level: presses so far
+  function deeperSearch(own, level) {
+    return { depth: Math.min(SEARCH_LIMITS.depth[1], own.depth + 4 * level), time_limit: Math.min(SEARCH_LIMITS.seconds[1], own.time_limit * Math.pow(2, level)) };
+  }
+  const canGoDeeper = (own, level) => { const a = deeperSearch(own, level), b = deeperSearch(own, level + 1); return a.depth !== b.depth || a.time_limit !== b.time_limit; };
 
   // A line of uci moves from pos → its SANs, stopping at the first illegal move
   function sansOf(pos, ucis, max) {
@@ -185,5 +198,5 @@
     return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis, startFen) : null, engine: { ...settings }, startFen });
   }
 
-  window.AnalysisCore = { C, ENGINE, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
+  window.AnalysisCore = { C, ENGINE, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
 })();

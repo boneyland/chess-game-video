@@ -391,7 +391,7 @@ function GameApp() {
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
   }, [queenOpen, tall]);
-  const sf = { engine, own: ES.own, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
+  const sf = { engine, own: ES.own, game: ES.game, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
   const boardStatus = board && board.game ? `Play vs human · ${board.game.tc || 'no clock'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}${board.game.result ? ' · ' + window.PlayCore.resultText(board.game.result).score : ''}`
     : board && `Free board · ${board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}`;
@@ -514,7 +514,7 @@ function GameApp() {
             {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
             {!board && (analysis.state === 'running'
               ? <>
-                <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ` · about ${Math.max(1, Math.round(analysis.etaSec / 60))} min left` : ''}</div>
+                <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ' · ' + fmtEta(analysis.etaSec) : ''}</div>
                 <TweakButton secondary label="Stop the analysis" onClick={analysis.stop} />
               </>
               : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}

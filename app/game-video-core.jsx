@@ -580,10 +580,12 @@ function Commentary({ M, T, S, a, book, line }) {
   );
 }
 
-function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
+function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep }) {
   const c = lastPly(T, S);
+  // Go deeper's search of this move, once it has passed the analysis's (deep: useMoveEval's)
+  const deeper = paused && deep && deep.after && !deep.after.stored ? deep.after : null;
   // this move's own search when the analysis recorded it, else the engine settings
-  const right = c >= 0 && M.plies[c].search ? searchStats(M.engineName, M.plies[c].search) : M.engine;
+  const right = deeper ? searchStats(window.AnalysisCore.ENGINE.name, deeper) : c >= 0 && M.plies[c].search ? searchStats(M.engineName, M.plies[c].search) : M.engine;
   if (own && vline && vline.src === 'you' && vline.upto >= 0) {
     return (
       <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(window.AnalysisCore.ENGINE.name, own.after)}>
@@ -600,7 +602,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
   if (c < 0) return (
     <Panel box={L.analysis} a={a} title="Analysis" right={right}>
       {paused && <span style={{ ...NO_SELECT, font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
-      {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
+      {sf && !M.hasAnalysis && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
     </Panel>
   );
   const P = M.plies[c], cls = P.cls;
@@ -631,8 +633,8 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
         </div>
         {M.hasEval && (
           <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em' }}>EVAL</span>
-            <span style={{ font: `700 ${big}px ${MONO}`, color: C.ink }}>{P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
+            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center' }}>EVAL{deeper && deeper.partial ? ` · DEPTH ${deeper.depth}` : ''}{paused && <DeeperButton ev={deep} />}</span>
+            <span style={{ font: `700 ${big}px ${MONO}`, color: C.ink }}>{deeper ? fmtSf(deeper.cp) : P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
           </div>
         )}
       </div>
@@ -658,7 +660,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply }) {
             </span> · ← → step · Esc returns to the game
           </span>
         )}
-        {sf && !M.hasEval && (sf.run.state === 'running' || paused) && <EngineEmptyState M={M} sf={sf} paused={paused} compact />}
+        {sf && !M.hasAnalysis && (sf.run.state === 'running' || paused) && <EngineEmptyState M={M} sf={sf} paused={paused} compact />}
         {!vline && paused && M.hasEval && <FitOrHide style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>Tip: drag a piece on the board to try your own move.</FitOrHide>}
       </div>
     </Panel>
@@ -900,6 +902,14 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
   const ownBefore = ownOn ? M.plies.slice(0, vline.at).map((p) => p.uci).concat(vline.moves.slice(0, vline.upto).map((m) => m.uci)) : null;
   const ownAfter = ownOn ? ownBefore.concat([vline.moves[vline.upto].uci]) : null;
   const ownEval = useMoveEval(sf ? sf.engine : null, ownBefore, ownAfter, sf ? sf.own : window.AnalysisCore.engineSettings().own, M.start.fen);
+  // Go deeper on a move of the loaded analysis, while paused on it: from its own search (else the game settings), the
+  // eval it shows only (the ratings, graph and accuracy stay the analysis's). Not on a PGN's own evals, which have no
+  // best lines for it to go with: those come from analysing the game
+  const gameOn = !!(sf && M.evalSource === 'analysis' && !playing && cNow >= 0 && !(vline && vline.src === 'you'));
+  const gameP = gameOn ? M.plies[cNow] : null, gameSettings = sf ? sf.game : window.AnalysisCore.ENGINE;
+  const gameBase = { depth: gameP && gameP.search ? gameP.search.depth : gameSettings.depth, time_limit: gameSettings.time_limit };
+  const gameMoves = gameOn ? M.plies.slice(0, cNow + 1).map((p) => p.uci) : null;
+  const gameEval = useMoveEval(sf ? sf.engine : null, gameMoves, gameMoves, gameBase, M.start.fen, gameOn ? { cp: cpOf(M, cNow), depth: gameBase.depth, pv: [], stored: true, src: M.engine } : null);
   let own = null;
   if (ownOn) {
     const posBefore = vline.upto > 0 ? vline.moves[vline.upto - 1].pos : vline.base || gamePos(vline.at - 1);
@@ -974,7 +984,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
           {L.header && <Header M={M} a={enter(2)} />}
           <MoveList M={M} T={T} S={S} a={enter(3)} paused={!playing} onPick={goTo} />
           <Commentary M={M} T={T} S={S} a={enter(4)} book={sf ? sf.book : null} line={lineKey ? { book: lineBook } : null} />
-          <Analysis M={M} T={T} S={S} a={enter(5)} vline={vline} onLine={onLine} paused={!playing} sf={sf} own={own} onReply={onReply} />
+          <Analysis M={M} T={T} S={S} a={enter(5)} vline={vline} onLine={onLine} paused={!playing} sf={sf} own={own} onReply={onReply} deep={gameEval} />
           {L.plot && <EvalPlot M={M} T={T} S={S} a={enter(6)} paused={!playing} onPick={goTo} />}
         </div>
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 220px rgba(228,85,63,${0.55 * flash})` }} />
