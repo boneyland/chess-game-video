@@ -47,6 +47,6 @@ What each part of the repo is, with the pinned SHA-256 of every vendored file. B
 - `openings-data.cjs`: embeds `openings/*.tsv` (Lichess chess-openings, CC0; a copy of chess-animator's) into the page
 - `render.yaml`: the Render static site's settings (a Blueprint: Render syncs them from this file)
 - `docs/`: design and plan for browser Stockfish (2026-10-16, written when this was `artifact/` in chess-animator; their paths are now repo-root paths)
-- `media/preview.webp`: the README preview, the sample game playing moves 25–29 (1440×900 page at 2× pixel density, scaled to 1676 wide to fill GitHub's 838 px README column on 2× screens; 12 fps, WebP quality 90)
+- `media/preview.webp`: the README preview from the sample game (scaled to 1676 wide to fill GitHub's 838 px README column on 2× screens; 8 fps, WebP quality 80)
 - `games/`: local PGNs (not committed)
 - `tests/`: JS tests (`*.test.cjs`), the Python cross-check `check_browser_json.py` with its fixture generators (`make_rating_expected.py`, `make_openings_expected.py`), and `live/`, Playwright smoke tests of the site; see [Tests](README.md#tests)
