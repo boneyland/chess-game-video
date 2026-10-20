@@ -10,7 +10,8 @@ const EXPORT_LIBS = {
   html2canvasHash: 'sha384-IT/7L8+t0nqitKnKyUD1rh3hC/qPQehh1Et4A2dTqUuxKbomoRs73yhSQoALaYeI',
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
 };
-const EXPORT_FORMATS = ['MP4', 'WebP'];
+// the WebP encoder is served next to the page, which a claude.ai artifact has nothing beside: there it's MP4 only
+const EXPORT_FORMATS = IN_CLAUDE ? ['MP4'] : ['MP4', 'WebP'];
 // WebP widths offered besides the frame's own (1920, or the portrait frame's 840): 1676 fills GitHub's 838 px README
 // column on 2× screens. Quality is 50–95 (lossy). Encoded straight from the drawn frames, a WebP looks better than one
 // converted from the MP4, though it is larger than the MP4 of the same clip
@@ -85,7 +86,7 @@ async function webpEncoder(cv, W, H, fps, { width = 0, quality = 75 } = {}) {
   const scale = width && width < W ? width / W : 1;
   const w = Math.round(W * scale), h = Math.round(H * scale);
   let codec;
-  try { codec = await loadWebp(); } catch (e) { throw new Error('could not load the WebP encoder. Try a recent Chrome, Edge, Firefox or Safari, or export an MP4.'); }
+  try { codec = await loadWebp(); } catch (e) { throw new Error('the WebP encoder couldn’t be downloaded from this site. Check the connection and try again, or export an MP4.'); }
   // at the frame's own size the pixels are read straight from cv; a smaller WebP is drawn into its own canvas first
   const out = scale === 1 ? cv : Object.assign(document.createElement('canvas'), { width: w, height: h });
   const ox = out.getContext('2d', { willReadFrequently: true });

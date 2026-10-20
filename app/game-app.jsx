@@ -591,7 +591,8 @@ function GameApp() {
             </TweakSection>
           ) : <TweakSection label="Video">
             <div className="twk-note">Drag or tap a piece to try your own moves; click a move in Moves to jump to it. Keys: ← → moves, Shift+← → 1 s, Space play/pause, Home or 0 start, End last move.</div>
-            {(downloads || !IN_CLAUDE) && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
+            {!IN_CLAUDE && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
+            {IN_CLAUDE && downloads && <div className="twk-note">Exports an MP4 here. Animated WebP export is on the <a href={SF_SITE_URL} target="_blank" rel="noopener">self-hosted copy</a>: claude.ai can’t load its encoder.</div>}
             {(downloads || !IN_CLAUDE) && webp && <>
               <TweakSelect id="tw-webp-width" label="WebP width" value={webpPx(webpWidth)} options={webpWidths.map(webpPx)} onChange={(v) => setTweak('webpWidth', webpWidths.find((x) => webpPx(x) === v))} />
               <TweakSlider id="tw-webp-q" label="WebP quality" value={webpQuality} min={WEBP_QUALITY.min} max={WEBP_QUALITY.max} step={WEBP_QUALITY.step} onChange={(v) => setTweak('webpQuality', v)} />
