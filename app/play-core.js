@@ -1,5 +1,5 @@
 // A game on the free board (Play vs human): its clocks, takebacks, resignation, agreed draws and end. A game is a BoardCore board
-// with a game record, board.game = { mode: 'human', tc, date, clock, result }: tc a time control ('10+0') or null,
+// with a game record, board.game = { mode: 'human', id, tc, date, clock, result }: id names it in My games (GamesCore), tc a time control ('10+0') or null,
 // clock { left: { w, b } ms at `since`, since: when the side to move's clock started (null: stopped), clk: the mover's
 // time left after each move }, result null while the game goes on, else { result, reason, side } (side: who resigned
 // or whose flag fell; none for a draw by agreement). Like boards, games are never mutated; `now` is a time in ms.
@@ -53,13 +53,14 @@
   const other = (side) => (side === 'w' ? 'b' : 'w');
   const inProgress = (b) => !!(b && b.game && !b.game.result);
   const withGame = (b, game) => ({ ...b, game: { ...b.game, ...game } });
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const today = () => { const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
 
   // A new game from the board's start: no moves yet, the clocks full and stopped (they start with the first move)
   function start(board, tc, date) {
     const t = parseTc(tc), b = { ...board, steps: [], upto: -1 };
     const clock = t ? { left: { w: t.base, b: t.base }, since: null, clk: [] } : null;
-    return { ...b, game: { mode: 'human', tc: t ? tc : null, date: date || today(), clock, result: outcome(b) } };
+    return { ...b, game: { mode: 'human', id: newId(), tc: t ? tc : null, date: date || today(), clock, result: outcome(b) } };
   }
 
   // the side to move's time left at `now`; null without clocks
@@ -142,7 +143,7 @@
 
   // A stored game back on its board (BoardCore.restore): whatever localStorage held, a game that plays on. The clocks
   // are paused (the time away isn't charged; they run again from the next move), clk fits the moves, and the result
-  // comes from the moves unless it was a resignation, a flag fall or an agreed draw
+  // comes from the moves unless it was a resignation, a flag fall or an agreed draw. A game stored without an id gets one
   function resume(board, g) {
     if (!g || typeof g !== 'object' || g.mode !== 'human') return board;
     const tc = TIME_CONTROLS.includes(g.tc) ? g.tc : null, t = parseTc(tc), n = board.steps.length;
@@ -155,7 +156,8 @@
       : ['resign', 'time'].includes(r.reason) && ['1-0', '0-1', '1/2-1/2'].includes(r.result) && (r.side === 'w' || r.side === 'b') ? { result: r.result, reason: r.reason, side: r.side } : null;
     const result = kept || outcome(board);
     const b = result ? board : B().go(board, n - 1);
-    return { ...b, game: { mode: 'human', tc, date: typeof g.date === 'string' && /^\d{4}\.\d\d\.\d\d$/.test(g.date) ? g.date : today(), clock, result } };
+    const id = typeof g.id === 'string' && /^[\w-]{1,40}$/.test(g.id) ? g.id : newId();
+    return { ...b, game: { mode: 'human', id, tc, date: typeof g.date === 'string' && /^\d{4}\.\d\d\.\d\d$/.test(g.date) ? g.date : today(), clock, result } };
   }
 
   // The game as a PGN (for saving, step 4 of the free-board design): the result, the start when it isn't the standard

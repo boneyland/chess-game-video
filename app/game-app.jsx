@@ -15,6 +15,9 @@ function readStored() {
   return SAMPLE;
 }
 const PLAYBACK = '{"mode":"loop"}';
+// My games (GamesCore), read afresh for each change, so games kept by another tab stay
+const GAMES = 'chess-video.games.v1';
+const readGames = () => { try { return window.GamesCore.read(localStorage.getItem(GAMES)); } catch (e) { return []; } };
 
 // Full screen hides the browser's bars, and the phone layouts grow into the space. iPhone Safari has no element
 // full screen (only <video>) and a frame may not allow it, so the item shows only where the browser says it works;
@@ -166,6 +169,8 @@ function GameApp() {
   const [newMenu, setNewMenu] = React.useState(false);
   const [fenOpen, setFenOpen] = React.useState(false);
   const [playOpen, setPlayOpen] = React.useState(false);
+  // My games' list while its dialog is open
+  const [gamesOpen, setGamesOpen] = React.useState(null);
   // leaving a game in progress asks first: { run } is what waits on the answer
   const [leave, setLeave] = React.useState(null);
   const newRef = React.useRef(null);
@@ -233,24 +238,45 @@ function GameApp() {
   const closeQueen = React.useCallback(() => setQueenOpen(false), []);
   React.useEffect(() => { setQueenArrow(null); }, [M]);
 
+  // false when it couldn't be remembered (the error says so)
   const commit = (next) => {
-    if (!next.board) try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return; }
+    if (!next.board) try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return false; }
     setErr(''); setFiles(next);
-    try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr('Loaded, but the files are too large to remember after reload.'); }
+    try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr(next.board ? 'The board couldn’t be remembered after reload: the browser’s storage is full.' : 'Loaded, but the files are too large to remember after reload.'); return false; }
+    return true;
   };
-  const commitBoard = (b) => { const saved = window.BoardCore.save(b); boardSaved.current = { saved, board: b }; commit({ board: saved }); };
+  // a game is kept in My games as it goes; a full storage doesn't stop the board. The new list, or null when it couldn't
+  // be stored (with `fail` shown, unless null)
+  const updateGames = (fn, fail) => {
+    const next = fn(readGames());
+    try { localStorage.setItem(GAMES, JSON.stringify(next)); return next; } catch (e) { if (fail) setErr(fail); return null; }
+  };
+  // only a game that changed (a move, a takeback, its clocks or result) is kept again: stepping through it isn't, so a
+  // finished game deleted while on the board stays deleted. A board that couldn't be stored has said so already
+  const commitBoard = (b) => {
+    const saved = window.BoardCore.save(b), prev = board;
+    boardSaved.current = { saved, board: b };
+    const ok = commit({ board: saved });
+    if (b.game && !(prev && prev.game === b.game && prev.steps === b.steps)) updateGames((list) => window.GamesCore.keep(list, b, Date.now()), ok ? 'This game couldn’t be kept in My games: the browser’s storage is full.' : null);
+  };
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
   const playHuman = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(true)); };
   const playStart = ({ fen, tc }) => { setPlayOpen(false); setQueenOpen(false); setTweak('playClock', tc || 'Off'); commitBoard(window.PlayCore.start(window.BoardCore.fromFen(fen), tc)); };
   const closePlay = React.useCallback(() => setPlayOpen(false), []);
+  const myGames = () => { setNewMenu(false); setMenu(false); setPanel(false); setGamesOpen(readGames()); };
+  const closeGames = React.useCallback(() => setGamesOpen(null), []);
+  // a finished game replays as a loaded game; one in progress goes back on the board
+  const replayGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commit({ pgn: window.PlayCore.pgn(b), pgnName: `my-game-${b.game.date}.pgn`, gameIndex: 0 }); }); };
+  const resumeGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commitBoard(b); }); };
+  const deleteGame = (id) => { const next = updateGames((list) => window.GamesCore.remove(list, id), 'The game couldn’t be deleted: the browser’s storage is full.'); if (next) setGamesOpen(next); };
   const loadGame = () => guard(() => inputRef.current.click());
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
   const closeFen = React.useCallback(() => setFenOpen(false), []);
   // the board's moves as a loaded game (replay, Analyse with Stockfish, PGN and video export); the board is kept with it, to go back to
   const boardAsGame = () => { commit({ pgn: window.BoardCore.pgn(board), pgnName: 'free-board.pgn', gameIndex: 0, fromBoard: files.board }); };
   // a dialog closed (Esc, Cancel, Set up, Start game): focus goes back to what opened it, Play/Explore or the phone's Menu
-  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || playOpen;
+  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || playOpen || !!gamesOpen;
   React.useEffect(() => {
     if (fenWasOpen.current && !dialogOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
     fenWasOpen.current = dialogOpen;
@@ -398,13 +424,13 @@ function GameApp() {
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Play vs human…', run: playHuman }];
+  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Play vs human…', run: playHuman }, { label: 'My games…', run: myGames }];
   const fsLabel = fullscreen.on ? 'Exit full screen' : 'Full screen';
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); loadGame(); }}>Load game…</button>
-      {/* a list, so the later starting points (Play vs Stockfish, My games) join it */}
+      {/* a list, so the later starting points (Play vs Stockfish) join it */}
       {tall ? <React.Fragment>
         <span className="dock-menu-label">Play/Explore</span>
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
@@ -474,6 +500,7 @@ function GameApp() {
       <ExportOverlay x={video} />
       {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
       {playOpen && <PlayDialog setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} onStart={playStart} onClose={closePlay} />}
+      {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
       {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); run(); }} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} wide>
@@ -595,14 +622,14 @@ function GameApp() {
 }
 
 // A render error would leave a blank page, and saved data could bring it back on every visit: offer to clear it
-// (the loaded game, Queen's answers and settings; the Hugging Face sign-in stays)
+// (the loaded game, Queen's answers and settings; the Hugging Face sign-in and My games stay)
 class Recover extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
   render() {
     if (!this.state.error) return this.props.children;
     const reset = () => {
-      try { Object.keys(localStorage).filter((k) => k.startsWith('chess-video.') && k !== AUTH_STORE).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
+      try { Object.keys(localStorage).filter((k) => k.startsWith('chess-video.') && k !== AUTH_STORE && k !== GAMES).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
       location.reload();
     };
     return (

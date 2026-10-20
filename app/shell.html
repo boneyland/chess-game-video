@@ -161,6 +161,15 @@ body:has(.stage:not(.stage-tall)) .twk-panel { bottom: calc(70px + env(safe-area
 .play-row { display: flex; flex-direction: column; gap: 6px; }
 .play-label { font: 500 12px var(--sans); color: var(--dim); }
 .play-row .twk-seg button { min-height: 30px; color: var(--ink); font: 500 13px var(--sans); }
+/* My games: a scrolling list, each row's text on the left and its buttons on the right (below it on a phone) */
+.games-list { list-style: none; margin: 0; padding: 0; max-height: min(56vh, 460px); overflow-y: auto; border-top: 1px solid var(--line); }
+.games-row { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.games-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.games-head { font: 600 14px var(--sans); color: var(--ink); }
+.games-meta { font: 12px/1.4 var(--sans); color: var(--dim); }
+.games-btns { flex: none; display: flex; align-items: center; gap: 6px; }
+.games-ask { font: 500 12px var(--sans); color: var(--dim); }
+@media (max-width: 480px) { .games-row { flex-wrap: wrap; gap: 8px; } .games-text { flex-basis: 100%; } .games-btns { margin-left: auto; } }
 
 .drop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .drop-box { padding: 40px 60px; margin: 0 16px; border: 2px dashed var(--accent); border-radius: 12px; text-align: center; font: 500 20px/1.6 var(--mono); color: var(--ink); }
