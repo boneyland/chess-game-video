@@ -49,7 +49,7 @@ const game = (tc, moves, fen) => moves.reduce((b, [u, at]) => P.move(b, CC.stepF
 
 test('a new game: no moves, full clocks, stopped until the first move', () => {
   const g = P.start(B.fromFen(), '10+0', '2026.10.19');
-  assert.deepEqual(g.game, { mode: 'human', tc: '10+0', date: '2026.10.19', clock: { left: { w: 600000, b: 600000 }, since: null, clk: [] }, result: null });
+  assert.deepEqual(g.game, { mode: 'human', id: g.game.id, tc: '10+0', date: '2026.10.19', clock: { left: { w: 600000, b: 600000 }, since: null, clk: [] }, result: null });
   assert.equal(P.inProgress(g), true);
   assert.equal(P.timeLeft(g, 'w', 99999), 600000, 'not running before the first move');
   assert.equal(P.start(B.fromFen(), null).game.clock, null);
