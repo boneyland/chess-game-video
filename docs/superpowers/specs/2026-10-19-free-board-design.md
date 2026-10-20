@@ -163,6 +163,17 @@ These are several projects. Proposed order, each usable on its own:
 4. Played games: saving, the My games list, opening one in the replay.
 5. Play vs Stockfish: colour, full-strength replies, background critique.
 6. Chess960.
+7. Player names (see "Added 2026-10-20" below).
+8. Typed commentary.
+9. Maia3.
+
+## Added 2026-10-20
+
+Three more features the user asked for. Each needs its own design pass before a plan; the open questions are listed under each.
+
+- **Maia3 engine integration.** Add Maia3 to the page alongside Stockfish. Maia models play and predict human-like moves at a chosen rating, unlike Stockfish's best moves. Open: what it is for here (an opponent in Play vs Maia, "what would a human play" next to Stockfish's verdict, or both); whether it can run in the browser like `vendor/` Stockfish, which weights and runtime it needs and their size and licence, or whether it would have to run elsewhere (the Non-goals rule out anything that leaves the browser, so that would need the user's say); and which ratings it offers.
+- **Typed commentary.** A way for the user to type their own comment on a move. Open: where it can be typed (a loaded game's replay, the free board, a played game from My games, or all of them); how it sits with the PGN's own comments and the AI commentary in the Commentary box and the video; whether Save PGN writes it as `{ }` comments; and where it is kept (with the loaded game, and with a played game in My games, which ties in with plan 4's carried-forward note that a replayed game's commentary isn't kept).
+- **Player names.** In Play vs human, set the names of White and Black; in Play vs Stockfish, set the player's name (Stockfish's side is "Stockfish 19"). Open: whether the names are asked for in the Play dialog or set later; whether the last names used are remembered as defaults; and where they show: the player bars, My games' rows, and the PGN's `White`/`Black` headers (today `PlayCore.pgn` writes "White"/"Black", and "How it should behave" plans "You"/"Stockfish 19" against Stockfish).
 
 ## Decisions log
 
