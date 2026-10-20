@@ -207,5 +207,5 @@ For the later plans; deferred while building step 3:
 For the later plans; deferred while building step 4:
 - A replayed game's Stockfish analysis, Queen answers and commentary stay with the loaded game only: opening the game from My games again starts without them.
 - Leaving a game in progress still asks, though the game is now kept; the dialog says so. It could go if it only gets in the way.
-- Stepping through a finished game (← →) saves it again, so it moves to the top of My games.
+- A game in progress in two tabs at once (left on the board in one, resumed from My games in the other) is one entry: each tab's moves replace the other's. Nothing marks a game as open elsewhere.
 - Playwright's Firefox on the cloud machine can't fetch cdnjs through the proxy, nor can its service worker: there the live suite needs `LIVE_CDN_DIR` and service workers blocked (a local edit, not committed), and the offline test can't run in Firefox.

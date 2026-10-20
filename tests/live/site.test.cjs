@@ -876,6 +876,12 @@ for (const name of BROWSERS) for (const site of SITES) {
         await drag(b, from, to, flipped);
         await assert.doesNotReject(label.filter({ hasText: san }).waitFor({ timeout: 5000 }));
       }
+      // stepping through the finished game doesn't keep it again (so deleting it while it's on the board sticks)
+      const before = await p.evaluate(() => localStorage.getItem('chess-video.games.v1'));
+      await p.keyboard.press('ArrowLeft');
+      await assert.doesNotReject(label.filter({ hasText: /2\. g4/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await p.evaluate(() => localStorage.getItem('chess-video.games.v1')), before);
+      await p.keyboard.press('ArrowRight');
       // and one in progress, left for the free board (it asks, and says the game is kept)
       await menuItem('Play vs human…');
       await p.getByRole('radio', { name: '10+0' }).click();
@@ -921,9 +927,11 @@ for (const name of BROWSERS) for (const site of SITES) {
       await p.screenshot({ path: path.join(OUT, host + '-my-games-delete.png') });
       await rows.nth(1).getByRole('button', { name: 'Keep' }).click();
       assert.equal(await rows.count(), 2);
+      assert.equal(await rows.nth(1).getByRole('button', { name: 'Delete' }).evaluate((el) => el === document.activeElement), true, 'focus on the row\'s Delete after Keep');
       await rows.nth(1).getByRole('button', { name: 'Delete' }).click();
       await rows.nth(1).getByRole('button', { name: 'Delete', exact: true }).click();
       assert.equal(await rows.count(), 1);
+      assert.equal(await dialog.getByRole('button', { name: 'Close' }).evaluate((el) => el === document.activeElement), true, 'focus on Close after Delete');
       assert.match(await rows.nth(0).innerText(), /In progress/);
       await p.keyboard.press('Escape');
       await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 3000 }));

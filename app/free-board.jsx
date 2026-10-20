@@ -422,21 +422,19 @@ function LeaveDialog({ onLeave, onStay }) {
 
 // My games: the kept games (GamesCore), newest first. A finished game replays as a loaded game, one in progress resumes
 // on the board (the one on the board now can't be resumed or deleted); Delete asks in its row
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const pgnDay = (d) => { const m = /^(\d{4})\.(\d\d)\.(\d\d)$/.exec(d || ''); return m ? `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}` : d; };
 function MyGamesDialog({ games, current, onReplay, onResume, onDelete, onClose }) {
-  const P = window.PlayCore, B = window.BoardCore;
+  const P = window.PlayCore, G = window.GamesCore;
   const [ask, setAsk] = React.useState(null);
-  // the button pressed goes when its row changes, so focus moves on (to the row's Delete after Keep, else Close) and
-  // stays inside the dialog, where Esc and Tab work
-  const box = React.useRef(null), [focus, setFocus] = React.useState(null);
+  // the button pressed goes when its row changes, so focus moves on, to the row's Delete after Keep or to Close after
+  // Delete, and stays inside the dialog, where Esc and Tab work
+  const delBtns = React.useRef({}), closeBtn = React.useRef(null), [focus, setFocus] = React.useState(null);
   React.useEffect(() => {
-    if (!focus || !box.current) return;
-    const dialog = box.current.closest('[role="dialog"]'), el = dialog && (dialog.querySelector(`[data-del="${focus}"]`) || dialog.querySelector('[data-autofocus]'));
+    if (!focus) return;
+    const el = (focus.id && delBtns.current[focus.id]) || closeBtn.current;
     if (el) el.focus();
     setFocus(null);
   }, [focus]);
-  const rows = React.useMemo(() => games.map((e) => ({ e, b: B.restore(e.board) })).filter((r) => r.b && r.b.game), [games]);
+  const rows = React.useMemo(() => games.map((e) => ({ e, b: G.playable(e) })).filter((r) => r.b), [games]);
   return (
     <DialogBox label="My games" onClose={onClose}>
       {rows.length ? (
@@ -444,20 +442,20 @@ function MyGamesDialog({ games, current, onReplay, onResume, onDelete, onClose }
           {rows.map(({ e, b }) => {
             const g = b.game, n = b.steps.length, r = g.result && P.resultText(g.result), turn = b.steps[n - 1].pos.turn === 'w' ? 'White' : 'Black';
             const head = r ? `${r.score} · ${r.why}` : `In progress · ${turn} to move`;
-            const meta = [pgnDay(g.date), g.tc || 'no clock', `${n} move${n === 1 ? '' : 's'}`, b.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a set-up position'].join(' · ');
+            const meta = [window.ChessCore.fmtDate(g.date), g.tc || 'no clock', `${n} move${n === 1 ? '' : 's'}`, b.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a set-up position'].join(' · ');
             return (
               <li key={e.id} className="games-row">
                 <div className="games-text"><span className="games-head">{head}</span><span className="games-meta">{meta}</span></div>
                 {ask === e.id ? (
                   <div className="games-btns">
                     <span className="games-ask">Delete this game?</span>
-                    <button type="button" className="twk-btn" onClick={() => { setAsk(null); onDelete(e.id); setFocus('close'); }}>Delete</button>
-                    <button type="button" className="twk-btn secondary" autoFocus onClick={() => { setAsk(null); setFocus(e.id); }}>Keep</button>
+                    <button type="button" className="twk-btn" onClick={() => { setAsk(null); onDelete(e.id); setFocus({}); }}>Delete</button>
+                    <button type="button" className="twk-btn secondary" autoFocus onClick={() => { setAsk(null); setFocus({ id: e.id }); }}>Keep</button>
                   </div>
                 ) : e.id === current ? <div className="games-btns"><span className="games-ask">Playing now</span></div> : (
                   <div className="games-btns">
                     <button type="button" className="twk-btn" onClick={() => (r ? onReplay(e) : onResume(e))}>{r ? 'Replay' : 'Resume'}</button>
-                    <button type="button" className="twk-btn secondary" data-del={e.id} onClick={() => setAsk(e.id)}>Delete</button>
+                    <button type="button" className="twk-btn secondary" ref={(el) => { delBtns.current[e.id] = el; }} onClick={() => setAsk(e.id)}>Delete</button>
                   </div>
                 )}
               </li>
@@ -467,7 +465,7 @@ function MyGamesDialog({ games, current, onReplay, onResume, onDelete, onClose }
       ) : <div className="fen-note">No games yet. A game of Play vs human is kept here from its first move.</div>}
       <div className="fen-note">A finished game replays like a loaded one: analyse it with Stockfish, ask Queen, save it as a PGN or export a video. The 50 most recent games are kept, in this browser only.</div>
       <div className="fen-btns">
-        <button ref={box} type="button" className="twk-btn secondary" data-autofocus onClick={onClose}>Close</button>
+        <button ref={closeBtn} type="button" className="twk-btn secondary" data-autofocus onClick={onClose}>Close</button>
       </div>
     </DialogBox>
   );

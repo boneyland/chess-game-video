@@ -238,22 +238,26 @@ function GameApp() {
   const closeQueen = React.useCallback(() => setQueenOpen(false), []);
   React.useEffect(() => { setQueenArrow(null); }, [M]);
 
+  // false when it couldn't be remembered (the error says so)
   const commit = (next) => {
-    if (!next.board) try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return; }
+    if (!next.board) try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return false; }
     setErr(''); setFiles(next);
-    try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr('Loaded, but the files are too large to remember after reload.'); }
+    try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr(next.board ? 'The board couldn’t be remembered after reload: the browser’s storage is full.' : 'Loaded, but the files are too large to remember after reload.'); return false; }
+    return true;
   };
-  // a game is kept in My games as it goes; a full storage doesn't stop the board
-  const updateGames = (fn) => {
+  // a game is kept in My games as it goes; a full storage doesn't stop the board. The new list, or null when it couldn't
+  // be stored (with `fail` shown, unless null)
+  const updateGames = (fn, fail) => {
     const next = fn(readGames());
-    try { localStorage.setItem(GAMES, JSON.stringify(next)); } catch (e) { setErr('This game couldn’t be kept in My games: the browser’s storage is full.'); }
-    return next;
+    try { localStorage.setItem(GAMES, JSON.stringify(next)); return next; } catch (e) { if (fail) setErr(fail); return null; }
   };
+  // only a game that changed (a move, a takeback, its clocks or result) is kept again: stepping through it isn't, so a
+  // finished game deleted while on the board stays deleted. A board that couldn't be stored has said so already
   const commitBoard = (b) => {
-    const saved = window.BoardCore.save(b);
+    const saved = window.BoardCore.save(b), prev = board;
     boardSaved.current = { saved, board: b };
-    commit({ board: saved });
-    if (b.game) updateGames((list) => window.GamesCore.keep(list, b, Date.now()));
+    const ok = commit({ board: saved });
+    if (b.game && !(prev && prev.game === b.game && prev.steps === b.steps)) updateGames((list) => window.GamesCore.keep(list, b, Date.now()), ok ? 'This game couldn’t be kept in My games: the browser’s storage is full.' : null);
   };
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
@@ -265,7 +269,7 @@ function GameApp() {
   // a finished game replays as a loaded game; one in progress goes back on the board
   const replayGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commit({ pgn: window.PlayCore.pgn(b), pgnName: `my-game-${b.game.date}.pgn`, gameIndex: 0 }); }); };
   const resumeGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commitBoard(b); }); };
-  const deleteGame = (id) => setGamesOpen(updateGames((list) => window.GamesCore.remove(list, id)));
+  const deleteGame = (id) => { const next = updateGames((list) => window.GamesCore.remove(list, id), 'The game couldn’t be deleted: the browser’s storage is full.'); if (next) setGamesOpen(next); };
   const loadGame = () => guard(() => inputRef.current.click());
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
   const closeFen = React.useCallback(() => setFenOpen(false), []);

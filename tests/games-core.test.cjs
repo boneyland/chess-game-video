@@ -62,6 +62,14 @@ test('read keeps what restores and drops the rest, whatever was stored', () => {
   assert.deepEqual(G.read(JSON.stringify([noGame, wrongId, list[0], list[1], twice])).map((e) => e.id), [live.game.id, mate.game.id]);
   assert.deepEqual(G.read(JSON.stringify([list[1], list[0]])).map((e) => e.id), [live.game.id, mate.game.id], 'sorted newest first');
 });
+test('read checks only the shape, so a game that no longer restores is kept in storage; playable leaves it out', () => {
+  const g = game(['e2e4', 'e7e5']), [e] = G.keep([], g, 1);
+  assert.equal(G.playable(e).game.id, g.game.id);
+  const odd = { ...e, board: { ...e.board, fen: 'not a fen' } };
+  assert.deepEqual(G.read(JSON.stringify([odd])), [odd]);
+  assert.equal(G.playable(odd), null);
+  assert.equal(G.playable({ ...e, id: 'other' }), null);
+});
 test('a kept game opens as a PGN the replay reads', () => {
   const mate = game(['f2f3', 'e7e5', 'g2g4', 'd8h4'], '10+0');
   const [e] = G.read(JSON.stringify(G.keep([], mate, 1)));
