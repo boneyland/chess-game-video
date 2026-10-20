@@ -74,8 +74,8 @@ const site = `<!doctype html>
 <meta property="og:type" content="website">
 <meta property="og:url" content="${SITE_URL}/">
 <meta property="og:image" content="${SITE_URL}/og-image.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:width" content="1653">
+<meta property="og:image:height" content="944">
 <meta property="og:image:alt" content="A game replaying: the board with a best-move arrow, the move list, commentary, Stockfish and Queen's analysis and the eval graph">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f2ece3" media="(prefers-color-scheme: light)">
@@ -100,7 +100,7 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => { naviga
 `;
 fs.writeFileSync(path.join(dir, 'out', 'site', 'chess-game-video.html'), site);
 // the engine and the WebP export's encoder, served next to the self-hosted page, and the link preview's image (a
-// 1200×630 frame from the player)
+// 1653×944 frame from the player)
 fs.copyFileSync(path.join(app, 'og-image.png'), path.join(dir, 'out', 'site', 'og-image.png'));
 for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm']) fs.copyFileSync(path.join(dir, 'vendor', f), path.join(dir, 'out', 'site', f));
 // Add to Home Screen opens the page without the browser's bars (iPhone Safari has no other way to lose them).
