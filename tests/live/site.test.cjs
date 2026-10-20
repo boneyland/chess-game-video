@@ -846,6 +846,104 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });
+    // My games: games are kept from their first move; a finished one replays as a loaded game, one in progress resumes
+    await t.test('desktop: My games keeps played games, replays a finished one and resumes one in progress', async () => {
+      const g = await open(browser, { width: 1440, height: 900 });
+      const p = g.page, label = p.locator('.plabel');
+      const panel = (title) => p.evaluate((tt) => { const d = [...document.querySelectorAll('div')].find((e) => e.firstElementChild && e.firstElementChild.firstElementChild && e.firstElementChild.firstElementChild.textContent === tt); return d ? d.innerText : ''; }, title);
+      const drag = async (b, from, to, flipped) => {
+        const f = square(b, from, flipped), tt = square(b, to, flipped);
+        await p.mouse.move(f.x, f.y);
+        await p.mouse.down();
+        await p.mouse.move(tt.x, tt.y, { steps: 8 });
+        await p.mouse.up();
+      };
+      const menuItem = async (name) => { await p.getByRole('button', { name: 'Play/Explore' }).click(); await p.getByRole('button', { name }).click(); };
+      const dialog = p.getByRole('dialog', { name: 'My games' }), rows = dialog.locator('.games-row');
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await menuItem('My games…');
+      await assert.doesNotReject(dialog.waitFor({ timeout: 3000 }));
+      assert.match(await dialog.innerText(), /No games yet/);
+      await dialog.getByRole('button', { name: 'Close' }).click();
+      // a game that ends in mate
+      await menuItem('Play vs human…');
+      await p.getByRole('radio', { name: 'Off' }).click();
+      await p.getByRole('button', { name: 'Start game' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      const b = await boardBox(p);
+      for (const [from, to, flipped, san] of [['f2', 'f3', false, /1\. f3/], ['e7', 'e5', true, /1… e5/], ['g2', 'g4', false, /2\. g4/], ['d8', 'h4', true, /2… Qh4#/]]) {
+        await drag(b, from, to, flipped);
+        await assert.doesNotReject(label.filter({ hasText: san }).waitFor({ timeout: 5000 }));
+      }
+      // and one in progress, left for the free board (it asks, and says the game is kept)
+      await menuItem('Play vs human…');
+      await p.getByRole('radio', { name: '10+0' }).click();
+      await p.getByRole('button', { name: 'Start game' }).click();
+      await drag(b, 'e2', 'e4', false);
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      await menuItem('My games…');
+      assert.equal(await rows.count(), 2);
+      assert.match(await rows.nth(0).innerText(), /In progress · Black to move[\s\S]*10\+0 · 1 move[\s\S]*Playing now/);
+      assert.equal(await rows.nth(0).getByRole('button').count(), 0, 'the game on the board has no buttons');
+      assert.match(await rows.nth(1).innerText(), /0–1 · Checkmate[\s\S]*no clock · 4 moves · from the starting position/);
+      await dialog.getByRole('button', { name: 'Close' }).click();
+      await menuItem('Starting position');
+      const leave = p.getByRole('dialog', { name: 'Leave this game?' });
+      assert.match(await leave.innerText(), /stays in My games/);
+      await leave.getByRole('button', { name: 'Leave the game' }).click();
+      await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      // kept through a reload: Resume brings the game back on the board, Black to move, its clock paused
+      await p.reload({ waitUntil: 'load' });
+      await loadedOn(p);
+      await menuItem('My games…');
+      await p.screenshot({ path: path.join(OUT, host + '-my-games.png') });
+      const kept = await p.evaluate(() => localStorage.getItem('chess-video.games.v1'));
+      await rows.nth(0).getByRole('button', { name: 'Resume' }).click();
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 3000 }));
+      await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
+      assert.match(await panel('Game'), /Black to move/);
+      assert.deepEqual(await p.locator('.game-clock').allInnerTexts(), ['10:00', '10:00']);
+      // Replay from a game in progress asks first; the finished game opens in the replay, with Save PGN and export
+      await menuItem('My games…');
+      await rows.nth(1).getByRole('button', { name: 'Replay' }).click();
+      await leave.getByRole('button', { name: 'Leave the game' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ timeout: 5000 }));
+      await p.locator('.pdock').getByRole('button', { name: 'Settings' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Save as annotated PGN' }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: /^Export (video|animated WebP)/ }).waitFor({ timeout: 5000 }));
+      assert.match(await p.locator('.twk-note').first().innerText(), /White – Black · 4 plies/);
+      await p.getByRole('button', { name: 'Close settings' }).click();
+      // Delete asks in the row; Keep keeps, Delete deletes
+      await menuItem('My games…');
+      await rows.nth(1).getByRole('button', { name: 'Delete' }).click();
+      assert.match(await rows.nth(1).innerText(), /Delete this game\?/);
+      await p.screenshot({ path: path.join(OUT, host + '-my-games-delete.png') });
+      await rows.nth(1).getByRole('button', { name: 'Keep' }).click();
+      assert.equal(await rows.count(), 2);
+      await rows.nth(1).getByRole('button', { name: 'Delete' }).click();
+      await rows.nth(1).getByRole('button', { name: 'Delete', exact: true }).click();
+      assert.equal(await rows.count(), 1);
+      assert.match(await rows.nth(0).innerText(), /In progress/);
+      await p.keyboard.press('Escape');
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 3000 }));
+      assert.deepEqual(g.errors, []);
+      await g.ctx.close();
+      // the phone: My games from the folded menu
+      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const pp = ph.page;
+      await pp.goto(base, { waitUntil: 'load' });
+      await loadedOn(pp);
+      await pp.evaluate((games) => localStorage.setItem('chess-video.games.v1', games), kept);
+      await pp.getByRole('button', { name: 'Menu' }).click();
+      await pp.getByRole('button', { name: 'My games…' }).click();
+      await assert.doesNotReject(pp.getByRole('dialog', { name: 'My games' }).waitFor({ timeout: 3000 }));
+      assert.equal(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.equal(await pp.locator('.games-row').count(), 2);
+      await pp.screenshot({ path: path.join(OUT, host + '-my-games-phone.png') });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
     await ctx.close();
 
     // sw.js keeps the page and its files: with the connection gone, a reload still opens the player, Stockfish still
