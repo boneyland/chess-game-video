@@ -201,3 +201,11 @@ For the later plans; deferred while building step 3:
 - Mating material (for insufficient material and flag falls) is judged from the pieces alone: a lone king, a king and one minor piece against a lone king, or bishops all on one colour can't mate; anything else can. Dead positions that need a search (locked pawns) play on.
 - Played games aren't kept yet: leaving a game says it isn't kept (step 4 saves it; `PlayCore.pgn` is its PGN).
 - The Analysis box's Play again and Analyse on the free board are buttons in the frame, so on the phone they scale with it.
+
+## Carried forward from plan 4 (played games, 2026-10-20)
+
+For the later plans; deferred while building step 4:
+- A replayed game's Stockfish analysis, Queen answers and commentary stay with the loaded game only: opening the game from My games again starts without them.
+- Leaving a game in progress still asks, though the game is now kept; the dialog says so. It could go if it only gets in the way.
+- Stepping through a finished game (← →) saves it again, so it moves to the top of My games.
+- Playwright's Firefox on the cloud machine can't fetch cdnjs through the proxy, nor can its service worker: there the live suite needs `LIVE_CDN_DIR` and service workers blocked (a local edit, not committed), and the offline test can't run in Firefox.
