@@ -162,8 +162,8 @@ These are several projects. Proposed order, each usable on its own:
 3. Play vs human: auto-flip, takebacks, end detection, clocks.
 4. Played games: saving, the My games list, opening one in the replay.
 5. Play vs Stockfish: colour, full-strength replies, background critique.
-6. Chess960.
-7. Player names (see "Added 2026-10-20" below).
+6. Player names (see "Added 2026-10-20" below).
+7. Chess960.
 8. Typed commentary.
 9. Maia3.
 
