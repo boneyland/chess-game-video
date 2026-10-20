@@ -71,6 +71,32 @@ async function glide(page, target, { click = true, steps = 30 } = {}) {
   await page.mouse.move(x, y, { steps });
   if (click) { await page.waitForTimeout(150); await page.mouse.click(x, y); }
 }
+// Upscayl-style zoom: the page eases in on the panels whose headings match (union of their boxes), or back out with
+// none. A CSS transform on <body>, so text stays sharp; the drawn cursor sits outside it at its true size.
+async function zoom(page, headings = [], max = 1.7) {
+  await page.evaluate(({ headings, max, W, H }) => {
+    const b = document.body, z = window.__zoom || { s: 1, tx: 0, ty: 0 };
+    if (!window.__zoom) { b.style.transformOrigin = '0 0'; b.style.transition = 'transform 1s cubic-bezier(.65,0,.35,1)'; }
+    const rects = headings.map((h) => {
+      const re = new RegExp(h, 'i');
+      let e = [...b.querySelectorAll('*')].find((x) => x.children.length === 0 && re.test(x.textContent.trim()) && x.getBoundingClientRect().width > 0);
+      while (e && e.parentElement && (e.getBoundingClientRect().height < 150 || e.getBoundingClientRect().width < 250)) e = e.parentElement;
+      const r = e.getBoundingClientRect();
+      // back to unzoomed page coordinates
+      return { l: (r.left - z.tx) / z.s, t: (r.top - z.ty) / z.s, r: (r.right - z.tx) / z.s, b: (r.bottom - z.ty) / z.s };
+    });
+    let n = { s: 1, tx: 0, ty: 0 };
+    if (rects.length) {
+      const l = Math.min(...rects.map((r) => r.l)), t = Math.min(...rects.map((r) => r.t)), r = Math.max(...rects.map((r) => r.r)), bt = Math.max(...rects.map((r) => r.b));
+      const sc = Math.min(max, (W * 0.94) / (r - l), (H * 0.94) / (bt - t));
+      const clamp = (v, lo) => Math.min(0, Math.max(lo, v));
+      n = { s: sc, tx: clamp(W / 2 - sc * (l + r) / 2, W - sc * W), ty: clamp(H / 2 - sc * (t + bt) / 2, H - sc * H) };
+    }
+    window.__zoom = n;
+    b.style.transform = `translate(${n.tx}px, ${n.ty}px) scale(${n.s})`;
+  }, { headings, max, W, H });
+  await page.waitForTimeout(1100);
+}
 async function boardBox(page) {
   return page.evaluate(() => {
     const sq = [...document.querySelectorAll('img')].map((i) => i.getBoundingClientRect()).filter((r) => r.width > 40);
@@ -98,6 +124,7 @@ const ready = async (page) => { await page.locator('.dock-primary').waitFor({ st
     // shots 1-4: the desktop page
     lists.push(await clip(browser, 'desktop', { viewport: { width: W, height: H } }, async (page, rec) => {
       await page.goto(BASE); await ready(page);
+      await zoom(page);
       await page.mouse.move(700, 450);
       await page.waitForTimeout(800);
       rec.start();
@@ -119,12 +146,18 @@ const ready = async (page) => { await page.locator('.dock-primary').waitFor({ st
       // 3. the queen sacrifice
       await page.getByRole('button', { name: 'Be6!!' }).scrollIntoViewIfNeeded();
       await glide(page, page.getByRole('button', { name: 'Be6!!' }));
-      await rec.hold(3500);
+      await rec.hold(900);
+      await zoom(page, ['^commentary$', '^analysis$']);
+      await rec.hold(2800);
+      await zoom(page);
       // 4. try 18.Bxe6 instead: Stockfish finds the smothered mate
       await drag(page, 'c4', 'e6');
       await page.waitForFunction(() => /your move · .*(stockfish’s choice|cp vs|as good as|mate)/i.test(document.body.innerText), null, { timeout: 45000 }).catch(() => {});
       await page.mouse.move(1000, 560, { steps: 30 });
-      await rec.hold(4500);
+      await rec.hold(600);
+      await zoom(page, ['^analysis$']);
+      await rec.hold(3200);
+      await zoom(page);
       // ... and the opening explorer on the free board
       await glide(page, page.getByRole('button', { name: 'Play/Explore' }));
       await rec.hold(500);
@@ -133,7 +166,9 @@ const ready = async (page) => { await page.locator('.dock-primary').waitFor({ st
       await drag(page, 'e2', 'e4');
       await rec.hold(2000);
       await drag(page, 'c7', 'c5');
-      await rec.hold(3000);
+      await rec.hold(700);
+      await zoom(page, ['^opening explorer$']);
+      await rec.hold(2800);
     }));
     // 5. the phone layout
     lists.push(await clip(browser, 'phone', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, async (page, rec) => {
@@ -153,12 +188,14 @@ const ready = async (page) => { await page.locator('.dock-primary').waitFor({ st
       await page.setInputFiles('#game-files', { name: 'Byrne-Fischer_1956.pgn', mimeType: 'application/x-chess-pgn', buffer: PGN });
       await page.getByText('Donald Byrne').first().waitFor();
       await page.getByRole('button', { name: 'Be6!!' }).click();
+      await zoom(page);
       await page.mouse.move(1000, 640);
       await page.waitForTimeout(1500);
       rec.start();
       await rec.hold(600);
       await glide(page, page.getByRole('button', { name: 'Settings' }));
       await rec.hold(800);
+      await zoom(page, ['^video$']);
       await glide(page, page.getByRole('button', { name: /^Export (video|animated WebP)/ }), { click: false });
       await rec.hold(3000);
     }));
