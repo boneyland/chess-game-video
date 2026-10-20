@@ -84,11 +84,28 @@ function shortLayout(W) {
     card: { k: 1, w: 1700, stack: false },
   };
 }
-let L = LAYOUTS.wide, BX = L.bx, BY = L.by, tallH = 0, shortW = 0;
+// Square-ish screen (a desktop window near 1:1, a tablet, an unfolded foldable): 1600 wide, 1440–1760 high. The board
+// with the header (players stacked) and Commentary beside it; the eval graph the full width under the board, then
+// Analysis and Moves side by side, taking the extra height.
+const SQUARE = { width: 1600, minHeight: 1440, maxHeight: 1760 };
+function squareLayout(H) {
+  const hh = 290, cy = 40 + hh + 18, by = 1068, bh = H - by - 30;
+  return {
+    eval: 44, bx: 100, by: 88, bar: { k: 1, gap: 10 }, title: 13,
+    header: { x: 916, y: 40, w: 644, h: hh, k: 1, stack: true },
+    comment: { x: 916, y: cy, w: 644, h: 904 - cy, k: 1, text: 1, gap: 18, right: 1 },
+    plot: { x: 44, y: 930, w: 1516, h: 120, k: 1 },
+    analysis: { x: 44, y: by, w: 1000, h: bh, k: 1, scroll: true, right: 1 },
+    moves: { x: 1060, y: by, w: 500, h: bh, k: 1, font: 26, num: 68, rows: Math.floor((bh - 61) / 38) },
+    card: { k: 1, w: 1500, stack: false },
+  };
+}
+let L = LAYOUTS.wide, BX = L.bx, BY = L.by, tallH = 0, shortW = 0, squareH = 0;
 const setLayout = (frame) => {
   if (frame.tall && frame.height !== tallH) { tallH = frame.height; LAYOUTS.tall = tallLayout(tallH); }
   if (frame.short && frame.width !== shortW) { shortW = frame.width; LAYOUTS.short = shortLayout(shortW); }
-  L = frame.tall ? LAYOUTS.tall : frame.short ? LAYOUTS.short : LAYOUTS.wide; BX = L.bx; BY = L.by;
+  if (frame.square && frame.height !== squareH) { squareH = frame.height; LAYOUTS.square = squareLayout(squareH); }
+  L = frame.tall ? LAYOUTS.tall : frame.square ? LAYOUTS.square : frame.short ? LAYOUTS.short : LAYOUTS.wide; BX = L.bx; BY = L.by;
 };
 
 // The side at the bottom ('b' turns the board round). view() maps a board column and row (0 = a, 0 = rank 8) to where it
@@ -451,6 +468,21 @@ function Header({ M, a }) {
       <span style={{ font: `500 15px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>{[[P.title, P.elo].filter(Boolean).join(' '), P.team].filter(Boolean).join(' · ')}</span>
     </div>
   );
+  const line = { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
+  // stacked (the square frame's narrower header): the players one above the other, then event, place and date, opening
+  if (L.header.stack) return (
+    <Panel box={L.header} a={a}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{person(M.white, 'w', 'flex-start')}{person(M.black, 'b', 'flex-start')}</div>
+      <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column', gap: 8, font: `500 15px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>
+        <span style={{ ...line, color: C.ink }}>{[M.event, M.round && 'Round ' + M.round].filter(Boolean).join(' · ')}</span>
+        <span style={line}>{[M.site, M.date].filter(Boolean).join(' · ')}</span>
+        {(M.eco || M.opening) && <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {M.eco && <span style={{ flex: 'none', padding: '2px 8px', border: `1px solid ${C.line}`, borderRadius: 4, color: C.ink }}>{M.eco}</span>}
+          <span style={line}>{M.opening}</span>
+        </div>}
+      </div>
+    </Panel>
+  );
   return (
     <Panel box={L.header} a={a}>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 20, alignItems: 'start' }}>
@@ -459,10 +491,11 @@ function Header({ M, a }) {
         {person(M.black, 'b', 'flex-end')}
       </div>
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line}`, display: 'flex', gap: 18, font: `500 15px ${MONO}`, color: C.dim, alignItems: 'center', whiteSpace: 'nowrap', minWidth: 0 }}>
-        <span style={{ color: C.ink }}>{[M.event, M.round && 'Round ' + M.round].filter(Boolean).join(' · ')}</span>
-        <span>{[M.site, M.date].filter(Boolean).join(' · ')}</span>
-        {M.eco && <span style={{ marginLeft: 'auto', padding: '2px 8px', border: `1px solid ${C.line}`, borderRadius: 4, color: C.ink }}>{M.eco}</span>}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{M.opening}</span>
+        <span style={{ color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 0.1 }}>{[M.event, M.round && 'Round ' + M.round].filter(Boolean).join(' · ')}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 0.2 }}>{[M.site, M.date].filter(Boolean).join(' · ')}</span>
+        {M.eco && <span style={{ marginLeft: 'auto', flexShrink: 0, padding: '2px 8px', border: `1px solid ${C.line}`, borderRadius: 4, color: C.ink }}>{M.eco}</span>}
+        {/* on a narrow header the opening gives way first, then the site, then the event */}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1000 }}>{M.opening}</span>
       </div>
     </Panel>
   );
@@ -491,7 +524,7 @@ function useDragScroll(box) {
 function MoveList({ M, T, S, a, paused, onPick }) {
   const c = lastPly(T, S);
   // COLS move pairs to a row (the phone's full-width list), VIS rows in view
-  const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1;
+  const ROW = 38, VIS = L.moves.rows, COLS = L.moves.cols || 1, NUM = L.moves.num || 50; // NUM: the move number's column
   const odd = M.ply0 % 2, scrollFor = (i) => Math.max(0, Math.floor((Math.max(i, 0) + odd) / (2 * COLS)) - (VIS - (COLS > 1 ? 2 : 3))) * ROW;
   const k = c >= 0 ? MOTION.move(cl01((T - S.tp[c]) / 0.35)) : 1;
   const scroll = lerp(scrollFor(c - 1), scrollFor(c), k), listRef = React.useRef(null);
@@ -529,7 +562,7 @@ function MoveList({ M, T, S, a, paused, onPick }) {
       cells.push(<span key={'n' + q} style={{ color: C.dim, opacity: T >= S.tp[Math.max(0, 2 * q - odd)] || paused ? 1 : 0 }}>{first + q + 1}.</span>, cell(2 * q - odd), cell(2 * q + 1 - odd));
     }
     rows.push(
-      <div key={r} style={{ display: 'grid', gridTemplateColumns: COLS > 1 ? `repeat(${COLS}, 50px 1fr 1fr)` : '50px 1fr 1fr', height: ROW, alignItems: 'center' }}>{cells}</div>
+      <div key={r} style={{ display: 'grid', gridTemplateColumns: COLS > 1 ? `repeat(${COLS}, ${NUM}px 1fr 1fr)` : `${NUM}px 1fr 1fr`, height: ROW, alignItems: 'center' }}>{cells}</div>
     );
   }
   return (
