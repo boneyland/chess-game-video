@@ -10,6 +10,9 @@
 // runs Playwright's own Firefox build instead (machines with no stock Firefox).
 // LIVE_CDN_DIR: for sandboxes that block cdnjs, a folder holding the react and react-dom 18.3.1 npm packages
 // (<dir>/react/package/umd/…); the page's React requests are answered from it.
+// On a Claude Code cloud machine (CCR_AGENT_PROXY_ENABLED) HTTPS goes through a proxy whose CA Playwright's Firefox
+// doesn't trust (its own store), so cdnjs, Google Fonts and the service worker's fetches failed: its contexts there skip
+// certificate checks (Chromium's still check, so a run against the live site still catches a bad certificate).
 // Needs Playwright (global install is fine). Screenshots go to tests/out/live/.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,6 +27,7 @@ const SITES = (process.env.LIVE_URLS || 'https://chess-replay.onrender.com/').sp
 const BROWSERS = (process.env.LIVE_BROWSERS || 'chromium,firefox').split(',').map((b) => b.trim());
 const PAGE = 'chess-game-video.html';
 const SF = 'stockfish-19-lite-single';
+const PROXY_CA = !!process.env.CCR_AGENT_PROXY_ENABLED;
 const firstFile = (...files) => files.find((f) => f && fs.existsSync(f));
 const LAUNCH = {
   chromium: () => pw.chromium.launch({ channel: process.env.CHROMIUM_CHANNEL, executablePath: process.env.CHROMIUM_PATH || firstFile('/var/lib/flatpak/exports/bin/io.github.ungoogled_software.ungoogled_chromium') }),
@@ -40,7 +44,7 @@ test.before(async () => {
 test.after(() => local && local.close());
 
 async function open(browser, viewport, opts) {
-  const ctx = await browser.newContext({ viewport, ...opts });
+  const ctx = await browser.newContext({ viewport, ...(PROXY_CA && browser.browserType().name() === 'firefox' ? { ignoreHTTPSErrors: true } : {}), ...opts });
   const cdn = process.env.LIVE_CDN_DIR;
   if (cdn) await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/**', (r) => {
     const m = r.request().url().match(/\/(react|react-dom)\/18\.3\.1\/umd\/([\w.-]+)$/);
