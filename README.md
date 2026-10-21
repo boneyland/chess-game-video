@@ -18,6 +18,8 @@ A browser app for replaying and playing chess games, at https://chess-replay.onr
 - **Move sounds**: a synthesized Wood set and four of Lichess's sets
 - **Offline**: a service worker keeps the page, the engine and everything they load
 
+https://github.com/user-attachments/assets/d15445d0-b356-4954-b791-e700a717ab14
+
 ## Build
 
 Needs Node 22 or later; nothing to install (Babel and Stockfish are in the repo) and no network.
