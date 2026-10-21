@@ -220,3 +220,14 @@ For the later plans; deferred while building step 4:
 - Leaving a game in progress still asks, though the game is now kept; the dialog says so. It could go if it only gets in the way.
 - A game in progress in two tabs at once (left on the board in one, resumed from My games in the other) is one entry: each tab's moves replace the other's. Nothing marks a game as open elsewhere.
 - Playwright's Firefox on the cloud machine can't fetch cdnjs through the proxy, nor can its service worker: there the live suite needs `LIVE_CDN_DIR` and service workers blocked (a local edit, not committed), and the offline test can't run in Firefox.
+
+## Carried forward from plan 5 (play vs Stockfish, 2026-10-21)
+
+For the later plans; deferred while building step 5:
+- Playing Black, if the engine dies before Stockfish's first move there is nothing to take back: only Resign or a reload starts it again.
+- A move played before the "before" search reaches depth 8 (just after the engine loads), and the move before a reload, go unrated.
+- The search while the player thinks stops at depth 22 or 15 s.
+- On the phone the Commentary box cuts the how-it-works text short (it scrolls).
+- The header's site line says "from a FEN" where the Commentary box says "From a set-up position" (Play vs human too).
+- Settings still shows the "Your moves" depth and time sliders during a Stockfish game, where they don't apply.
+- No draw offers against Stockfish. `PlayCore.resign` takes the side that resigns, so the player can resign while Stockfish thinks.

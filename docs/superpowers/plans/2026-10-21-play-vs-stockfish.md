@@ -32,3 +32,10 @@
 1. **Core.** `SFEngine`: priority `play` before `own` before `game` (unit test). `PlayCore`: the mode in `start`, `resume`, `pgn`; `canTakeback` and the mode's takeback; `thinkMs`; `critique` / `addCritique` (only for a step that is still the player's, dropped with its move on takebacks); `critiqueText(pos, pv, you, cls, mate)`. `GamesCore` keeps working for the mode. Unit tests in `tests/play-core.test.cjs`, `tests/sf-engine.test.cjs`, `tests/games-core.test.cjs`. Commit.
 2. **The page.** `useEngineOpponent` and the mode in `FreeBoard` (orientation from `you`, no input on Stockfish's turn, names), `GameInfo` and `GameStatus` for the mode, `PlayDialog` with *You play*, the menu items and `playStart` in `GameApp`, `TWEAK_DEFAULTS.playSide`, the dock status, the Settings note, My games' rows. Live tests: `desktop: Play vs Stockfish replies, keeps the board on the player's side, takes back to the player's turn` (as White; then a Black game where Stockfish moves first and the board is drawn from Black), and `desktop: Play vs Stockfish flags a blunder` (from a set-up position where a queen move hangs it). Screenshots desktop 1440×900 and phone 390×844, Chromium and Firefox. Commit.
 3. **Docs.** CLAUDE.md (the game record's mode, the `play` priority), README, the spec's carried-forward notes for plan 5. Commit.
+
+## Done
+
+- Task 1: d1e1a80 (core), 956f15b (a critique keeps its line; resign takes a side).
+- Task 2: 83a5818 (the page), e783620 (the search while the player thinks capped at depth 22 or 15 s).
+- Task 3: this commit (docs).
+- Live tests passed in Chromium (31/31) and in Firefox with service workers blocked (28/29; the offline test can't run here).
