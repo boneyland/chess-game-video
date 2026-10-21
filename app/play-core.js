@@ -1,8 +1,11 @@
-// A game on the free board (Play vs human): its clocks, takebacks, resignation, agreed draws and end. A game is a BoardCore board
-// with a game record, board.game = { mode: 'human', id, tc, date, clock, result }: id names it in My games (GamesCore), tc a time control ('10+0') or null,
-// clock { left: { w, b } ms at `since`, since: when the side to move's clock started (null: stopped), clk: the mover's
-// time left after each move }, result null while the game goes on, else { result, reason, side } (side: who resigned
-// or whose flag fell; none for a draw by agreement). Like boards, games are never mutated; `now` is a time in ms.
+// A game on the free board (Play vs human or vs Stockfish): its clocks, takebacks, resignation, agreed draws, end and the
+// critique of the player's moves. A game is a BoardCore board with a game record, board.game = { mode, id, tc, date, clock,
+// result } for mode 'human', { mode: 'stockfish', you, id, tc, date, clock, result, critique } against Stockfish: id names it
+// in My games (GamesCore), tc a time control ('10+0') or null, clock { left: { w, b } ms at `since`, since: when the side to
+// move's clock started (null: stopped), clk: the mover's time left after each move }, result null while the game goes on,
+// else { result, reason, side } (side: who resigned or whose flag fell; none for a draw by agreement); you the player's side
+// ('w' or 'b'), critique the player's flagged moves [{ j, cls, best }] (j the step, cls inaccuracy, mistake or blunder,
+// best Stockfish's move instead, in UCI). Like boards, games are never mutated; `now` is a time in ms.
 (function () {
   const CC = () => window.ChessCore;
   const sqColor = (i) => ((i % 8) + Math.floor(i / 8)) % 2; // a8 (0) is light: 0 light, 1 dark
@@ -56,11 +59,19 @@
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const today = () => { const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
 
-  // A new game from the board's start: no moves yet, the clocks full and stopped (they start with the first move)
-  function start(board, tc, date) {
+  const isSf = (b) => !!(b && b.game && b.game.mode === 'stockfish');
+  // who played step j: the side to move before it, from the positions (a start may have Black to move)
+  const moverOf = (b, j) => (j === 0 ? b.start.pos : b.steps[j - 1].pos).turn;
+  const CLASSES = ['inaccuracy', 'mistake', 'blunder'];
+  const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+
+  // A new game from the board's start: no moves yet, the clocks full and stopped (they start with the first move).
+  // opts { mode: 'human' | 'stockfish', you: 'w' | 'b' } (vs human by default; you only against Stockfish)
+  function start(board, tc, date, { mode = 'human', you = 'w' } = {}) {
     const t = parseTc(tc), b = { ...board, steps: [], upto: -1 };
     const clock = t ? { left: { w: t.base, b: t.base }, since: null, clk: [] } : null;
-    return { ...b, game: { mode: 'human', id: newId(), tc: t ? tc : null, date: date || today(), clock, result: outcome(b) } };
+    const head = mode === 'stockfish' ? { mode, you: you === 'b' ? 'b' : 'w' } : { mode: 'human' };
+    return { ...b, game: { ...head, id: newId(), tc: t ? tc : null, date: date || today(), clock, result: outcome(b), ...(head.you ? { critique: [] } : {}) } };
   }
 
   // the side to move's time left at `now`; null without clocks
@@ -101,10 +112,15 @@
     return withGame(next, { clock, result });
   }
 
+  // Whether a takeback can go: in a game in progress, with a move to take back (against Stockfish, one of the player's)
+  function canTakeback(b) {
+    if (!inProgress(b) || !b.steps.length) return false;
+    return !isSf(b) || b.steps.some((s, j) => moverOf(b, j) === b.game.you);
+  }
+
   // The last move taken back, while the game goes on: the time used stays used, the move's increment goes with it,
   // and taking back every move stops the clocks again
-  function takeback(b, now) {
-    if (!inProgress(b) || !b.steps.length) return b;
+  function takeOne(b, now) {
     const flagged = flag(b, now);
     if (flagged !== b) return flagged;
     const prev = { ...b, steps: b.steps.slice(0, -1), upto: b.steps.length - 2 };
@@ -114,6 +130,60 @@
       clock = { left: { ...c.left, [mover]: c.left[mover] - parseTc(b.game.tc).inc }, since: prev.steps.length ? now : null, clk: c.clk.slice(0, -1) };
     }
     return withGame(prev, { clock });
+  }
+  // Against Stockfish, moves go until one of the player's has (its reply and the player's move, or just the player's move
+  // while it thinks), so it is the player's turn again; their critique goes with them. A flag fall on the way ends it there
+  function takeback(b, now) {
+    if (!canTakeback(b)) return b;
+    if (!isSf(b)) return takeOne(b, now);
+    let x = b;
+    for (;;) {
+      const mine = moverOf(x, x.steps.length - 1) === x.game.you, y = takeOne(x, now);
+      if (y.game.result) return y;
+      x = y;
+      if (mine) break;
+    }
+    return withGame(x, { critique: x.game.critique.filter((c) => c.j < x.steps.length) });
+  }
+
+  // Stockfish's time for its move: 2 s, or with a clock a share of its time left (and half its increment) capped there,
+  // so it never flags; at least 0.1 s
+  function thinkMs(b, now) {
+    const left = timeLeft(b, other(b.game.you), now);
+    if (left == null) return 2000;
+    return Math.round(Math.max(100, Math.min(2000, left / 30 + parseTc(b.game.tc).inc / 2)));
+  }
+
+  // The board with a player's move flagged ({ j, cls, best }): only in a Stockfish game, for a step still on the board that
+  // the player played, once per step; the board as it was otherwise. A rating that lands after the end still counts
+  function addCritique(b, e) {
+    if (!isSf(b) || !e || !Number.isInteger(e.j) || e.j < 0 || e.j >= b.steps.length || moverOf(b, e.j) !== b.game.you) return b;
+    if (!CLASSES.includes(e.cls) || b.game.critique.some((c) => c.j === e.j)) return b;
+    return withGame(b, { critique: [...b.game.critique, { j: e.j, cls: e.cls, best: e.best }] });
+  }
+
+  // A short line on why the player's move was bad, without the better move: pos the position after it, pv Stockfish's reply
+  // line (UCI). When the line's first four plies win the player's material net, the most valuable piece taken is named;
+  // else a mate against the player; else a line for the class
+  const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+  const PIECE = { p: 'a pawn', n: 'the knight', b: 'the bishop', r: 'the rook', q: 'the queen' };
+  function critiqueText(pos, pv, you, cls, mateAgainst) {
+    let p = pos, lost = 0, won = 0, top = null;
+    for (const u of (pv || []).slice(0, 4)) {
+      const m = /^([a-h][1-8])([a-h][1-8])/.exec(u || ''), r = m && CC().applyUci(p, u);
+      if (!r) break;
+      const from = CC().sqIndex(m[1]), to = CC().sqIndex(m[2]), mover = p.b[from];
+      // en passant: a pawn moving sideways onto an empty square
+      const taken = p.b[to] || (mover.toLowerCase() === 'p' && from % 8 !== to % 8 ? (p.turn === 'w' ? 'p' : 'P') : null);
+      if (taken) {
+        const t = taken.toLowerCase(), v = VALUE[t] || 0;
+        if (colorOf(taken) === you) { lost += v; if (!top || v > VALUE[top]) top = t; } else won += v;
+      }
+      p = r.pos;
+    }
+    if (lost > won && top) return 'that drops ' + PIECE[top];
+    if (mateAgainst) return 'that allows mate';
+    return { inaccuracy: 'there was a better move', mistake: 'that gives Stockfish the edge', blunder: 'that should lose' }[cls] || '';
   }
 
   // The side to move resigns
@@ -145,7 +215,7 @@
   // are paused (the time away isn't charged; they run again from the next move), clk fits the moves, and the result
   // comes from the moves unless it was a resignation, a flag fall or an agreed draw. A game stored without an id gets one
   function resume(board, g) {
-    if (!g || typeof g !== 'object' || g.mode !== 'human') return board;
+    if (!g || typeof g !== 'object' || (g.mode !== 'human' && g.mode !== 'stockfish')) return board;
     const tc = TIME_CONTROLS.includes(g.tc) ? g.tc : null, t = parseTc(tc), n = board.steps.length;
     let clock = null;
     if (t) {
@@ -157,14 +227,21 @@
     const result = kept || outcome(board);
     const b = result ? board : B().go(board, n - 1);
     const id = typeof g.id === 'string' && /^[\w-]{1,40}$/.test(g.id) ? g.id : newId();
-    return { ...b, game: { mode: 'human', id, tc, date: typeof g.date === 'string' && /^\d{4}\.\d\d\.\d\d$/.test(g.date) ? g.date : today(), clock, result } };
+    const date = typeof g.date === 'string' && /^\d{4}\.\d\d\.\d\d$/.test(g.date) ? g.date : today();
+    if (g.mode === 'human') return { ...b, game: { mode: 'human', id, tc, date, clock, result } };
+    // a flagged move must still be one of the player's on the board, once each
+    const you = g.you === 'b' ? 'b' : 'w', seen = new Set();
+    const critique = (Array.isArray(g.critique) ? g.critique : []).filter((c) => c && Number.isInteger(c.j) && c.j >= 0 && c.j < n && moverOf(board, c.j) === you
+      && CLASSES.includes(c.cls) && typeof c.best === 'string' && UCI_RE.test(c.best) && !seen.has(c.j) && seen.add(c.j)).map((c) => ({ j: c.j, cls: c.cls, best: c.best }));
+    return { ...b, game: { mode: 'stockfish', you, id, tc, date, clock, result, critique } };
   }
 
   // The game as a PGN (for saving, step 4 of the free-board design): the result, the start when it isn't the standard
   // one, the time control and each move's clock
   function pgn(b) {
     const g = b.game, t = parseTc(g.tc), res = g.result ? g.result.result : '*';
-    const tags = [['Event', 'Play vs human'], ['Site', 'chess-replay'], ['Date', g.date], ['White', 'White'], ['Black', 'Black'], ['Result', res]];
+    const sf = g.mode === 'stockfish', name = (side) => (!sf ? NAME[side] : side === g.you ? 'You' : 'Stockfish 19');
+    const tags = [['Event', sf ? 'Play vs Stockfish' : 'Play vs human'], ['Site', 'chess-replay'], ['Date', g.date], ['White', name('w')], ['Black', name('b')], ['Result', res]];
     if (b.fen !== CC().START_FEN) tags.push(['SetUp', '1'], ['FEN', b.fen]);
     if (t) tags.push(['TimeControl', `${t.base / 1000}+${t.inc / 1000}`]);
     if (g.result) tags.push(['Termination', g.result.reason === 'time' ? 'time forfeit' : 'normal']);
@@ -177,5 +254,8 @@
     return tags.map(([k, v]) => `[${k} "${v}"]`).join('\n') + '\n\n' + moves.concat(res).join(' ') + '\n';
   }
 
-  window.PlayCore = { canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, takeback, resign, agreeDraw, flag, timeLeft, resultText, resume, pgn };
+  window.PlayCore = {
+    canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
+    resign, agreeDraw, flag, timeLeft, resultText, resume, pgn,
+  };
 })();

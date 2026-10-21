@@ -140,3 +140,119 @@ test('a draw by agreement ends the game and survives a reload', () => {
   assert.deepEqual(B.restore(JSON.parse(JSON.stringify(B.save(d)))).game.result, d.game.result);
   assert.match(P.pgn(d), /\[Result "1\/2-1\/2"\][\s\S]*\[Termination "normal"\][\s\S]* 1\/2-1\/2\n$/);
 });
+
+// a Stockfish game played from a list of [uci, ms] moves
+const sfGame = (you, tc, moves, fen) => moves.reduce((b, [u, at]) => P.move(b, CC.stepFromUci(B.pos(b), u), at), P.start(B.fromFen(fen), tc, '2026.10.21', { mode: 'stockfish', you }));
+
+test('a Stockfish game carries the player\'s side and an empty critique; vs human stays as it was', () => {
+  const g = P.start(B.fromFen(), null, '2026.10.21', { mode: 'stockfish', you: 'b' });
+  assert.deepEqual(g.game, { mode: 'stockfish', you: 'b', id: g.game.id, tc: null, date: '2026.10.21', clock: null, result: null, critique: [] });
+  assert.equal(P.start(B.fromFen(), null, null, { mode: 'stockfish' }).game.you, 'w', 'White by default');
+  const h = P.start(B.fromFen(), null, '2026.10.21', { mode: 'human', you: 'b' });
+  assert.deepEqual(Object.keys(h.game).sort(), ['clock', 'date', 'id', 'mode', 'result', 'tc']);
+});
+test('a Stockfish takeback goes back to the player\'s turn, one of the player\'s moves gone', () => {
+  const g = sfGame('w', '15+10', [['e2e4', 0], ['e7e5', 5000], ['g1f3', 7000], ['b8c6', 9000]]);
+  assert.equal(P.canTakeback(g), true);
+  const t = P.takeback(g, 12000);
+  assert.deepEqual(B.ucis(t), ['e2e4', 'e7e5'], 'its reply and the player\'s move');
+  assert.equal(B.pos(t).turn, 'w'); assert.equal(t.upto, 1);
+  assert.deepEqual(t.game.clock.clk, [910000, 905000]);
+  assert.deepEqual(t.game.clock.left, { w: 918000 - 3000 - 10000, b: 913000 - 10000 }, 'each removed move\'s increment goes; White\'s 3 s since stays used');
+  assert.equal(t.game.clock.since, 12000);
+  // while Stockfish thinks, only the player's move goes
+  const thinking = sfGame('w', null, [['e2e4', 0], ['e7e5', 0], ['g1f3', 0]]);
+  assert.deepEqual(B.ucis(P.takeback(thinking, 0)), ['e2e4', 'e7e5']);
+  // the last of the player's moves: back to the start
+  const first = P.takeback(sfGame('w', '5+0', [['e2e4', 0], ['e7e5', 1000]]), 2000);
+  assert.equal(first.steps.length, 0); assert.equal(first.game.clock.since, null);
+  assert.equal(P.canTakeback(first), false); assert.equal(P.takeback(first, 3000), first);
+});
+test('as Black, Stockfish\'s first move alone can\'t be taken back; from a FEN with Black to move, sides come from the positions', () => {
+  const g = sfGame('b', null, [['e2e4', 0]]);
+  assert.equal(P.canTakeback(g), false); assert.equal(P.takeback(g, 0), g);
+  const h = sfGame('b', null, [['e2e4', 0], ['e7e5', 0], ['g1f3', 0]]);
+  assert.deepEqual(B.ucis(P.takeback(h, 0)), ['e2e4'], 'back to Black\'s turn, Stockfish\'s first move kept');
+  const fen = '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1', f = sfGame('b', null, [['e8d7', 0], ['e1d1', 0]], fen);
+  assert.equal(P.canTakeback(f), true);
+  assert.equal(P.takeback(f, 0).steps.length, 0, 'Black moved first, so both go');
+  const fw = sfGame('w', null, [['e8d7', 0]], fen);
+  assert.equal(P.canTakeback(fw), false, 'only Stockfish (Black) has moved');
+  assert.equal(P.canTakeback(P.resign(h, 0)), false, 'not after the end');
+});
+test('thinkMs: 2 s without a clock, a share of Stockfish\'s time left with one, at least 0.1 s', () => {
+  assert.equal(P.thinkMs(sfGame('w', null, [['e2e4', 0]]), 0), 2000);
+  const g = sfGame('w', '5+0', [['e2e4', 0]]);
+  assert.equal(P.thinkMs(g, 0), 2000, '300 s / 30 is over the cap');
+  const low = { ...g, game: { ...g.game, clock: { ...g.game.clock, left: { w: 300000, b: 30000 }, since: 0 } } };
+  assert.equal(P.thinkMs(low, 0), 1000);
+  assert.equal(P.thinkMs(low, 27000), 100, 'its clock runs while it thinks');
+  const inc = sfGame('b', '15+10', []);
+  assert.equal(P.thinkMs({ ...inc, game: { ...inc.game, clock: { ...inc.game.clock, left: { w: 3000, b: 1000 } } } }, 0), 2000, 'half the increment');
+});
+test('critique: only the player\'s moves, once each, dropped with their moves, kept through a reload', () => {
+  const g = sfGame('w', null, [['e2e4', 0], ['e7e5', 0], ['d1h5', 0], ['b8c6', 0]]);
+  const c = P.addCritique(g, { j: 2, cls: 'mistake', best: 'g1f3' });
+  assert.deepEqual(c.game.critique, [{ j: 2, cls: 'mistake', best: 'g1f3' }]);
+  assert.equal(P.addCritique(c, { j: 2, cls: 'blunder', best: 'g1f3' }), c, 'once per move');
+  assert.equal(P.addCritique(c, { j: 1, cls: 'blunder', best: 'g8f6' }), c, 'Stockfish\'s move');
+  assert.equal(P.addCritique(c, { j: 4, cls: 'blunder', best: 'g8f6' }), c, 'not on the board');
+  assert.equal(P.addCritique(c, { j: 0, cls: 'good', best: 'd2d4' }), c);
+  const human = game(null, [['e2e4', 0]]);
+  assert.equal(P.addCritique(human, { j: 0, cls: 'mistake', best: 'd2d4' }), human);
+  const ended = P.addCritique(P.resign(c, 0), { j: 0, cls: 'inaccuracy', best: 'd2d4' });
+  assert.deepEqual(ended.game.critique.map((x) => x.j), [2, 0], 'a rating after the end still lands');
+  assert.deepEqual(P.takeback(c, 0).game.critique, [], 'taken back with its move');
+  const back = B.restore(JSON.parse(JSON.stringify(B.save(ended))));
+  assert.deepEqual(back.game, ended.game);
+  // a Black player's moves, from a FEN with Black to move
+  const f = sfGame('b', null, [['e8d7', 0], ['e1d1', 0]], '4k3/8/8/8/8/8/4P3/4K3 b - - 0 1');
+  assert.equal(P.addCritique(f, { j: 0, cls: 'blunder', best: 'e8f7' }).game.critique.length, 1);
+  assert.equal(P.addCritique(f, { j: 1, cls: 'blunder', best: 'e1f1' }), f);
+});
+test('resume a Stockfish game: the side, and a critique that fits the moves', () => {
+  const g = sfGame('b', '5+0', [['e2e4', 0], ['e7e5', 1000], ['g1f3', 2000]]);
+  const saved = B.save(g);
+  const critique = [{ j: 1, cls: 'blunder', best: 'c7c5' }, { j: 1, cls: 'mistake', best: 'c7c5' }, { j: 0, cls: 'mistake', best: 'd2d4' }, { j: 3, cls: 'mistake', best: 'b8c6' },
+    { j: 1.5, cls: 'mistake', best: 'a7a6' }, { j: 1, cls: 'awful', best: 'a7a6' }, { j: 1, cls: 'mistake', best: 'nope' }, null, 'x'];
+  const back = B.restore({ ...saved, game: { ...saved.game, you: 'x', critique } });
+  assert.equal(back.game.mode, 'stockfish'); assert.equal(back.game.you, 'w', 'a bad side reads as White');
+  assert.deepEqual(back.game.critique, [{ j: 0, cls: 'mistake', best: 'd2d4' }], 'only White\'s moves now');
+  const asBlack = B.restore({ ...saved, game: { ...saved.game, critique } });
+  assert.deepEqual(asBlack.game.critique, [{ j: 1, cls: 'blunder', best: 'c7c5' }]);
+  assert.deepEqual(B.restore({ ...saved, game: { ...saved.game, critique: 'junk' } }).game.critique, []);
+  assert.equal(B.restore({ ...saved, game: { ...saved.game, mode: 'other' } }).game, undefined);
+});
+test('critiqueText: a piece dropped in the reply line, a mate allowed, else a line for the class', () => {
+  const after = (fen, u) => CC.applyUci(CC.parseFen(fen).pos, u).pos;
+  // 1. e4 e5 2. ... d6, and Qg4?? hangs the queen to ...Bxg4
+  const q = after('rnbqkbnr/ppp2ppp/3p4/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3', 'd1g4');
+  assert.equal(P.critiqueText(q, ['c8g4'], 'w', 'blunder', false), 'that drops the queen');
+  assert.equal(P.critiqueText(q, ['g8f6', 'g4c8'], 'w', 'blunder', false), 'that should lose', 'a line that wins Black\'s bishop drops nothing');
+  // a knight for a pawn: the knight is named
+  const n = after('4k3/8/3p4/8/8/8/8/4K1N1 w - - 0 1', 'g1f3');
+  assert.equal(P.critiqueText(CC.parseFen('4k3/8/8/3p4/4N3/8/8/4K3 b - - 0 1').pos, ['d5e4'], 'w', 'mistake', false), 'that drops the knight');
+  assert.equal(P.critiqueText(n, ['e8d7'], 'w', 'mistake', false), 'that gives Stockfish the edge');
+  // a piece not won back is a drop, an even trade isn't; a pawn is "a pawn"
+  const gone = CC.parseFen('4k3/8/8/3p4/4N3/5N2/8/4K3 b - - 0 1').pos;
+  assert.equal(P.critiqueText(gone, ['d5e4', 'f3d4'], 'w', 'inaccuracy', false), 'that drops the knight', 'not won back');
+  const pawn = CC.parseFen('4k3/8/8/3p4/4P3/8/8/4K3 b - - 0 1').pos;
+  assert.equal(P.critiqueText(pawn, ['d5e4'], 'w', 'inaccuracy', false), 'that drops a pawn');
+  const even = CC.parseFen('4k3/8/8/3p4/4P3/8/5N2/4K3 b - - 0 1').pos;
+  assert.equal(P.critiqueText(even, ['d5e4', 'f2e4'], 'w', 'inaccuracy', false), 'there was a better move', 'a pawn each');
+  // en passant counts; an illegal move ends the line
+  const ep = CC.parseFen('4k3/8/8/3Pp3/8/8/8/4K3 w - e6 0 1').pos;
+  assert.equal(P.critiqueText(ep, ['d5e6'], 'b', 'mistake', false), 'that drops a pawn');
+  assert.equal(P.critiqueText(pawn, ['a1a2', 'd5e4'], 'w', 'mistake', false), 'that gives Stockfish the edge');
+  assert.equal(P.critiqueText(n, ['e8d7'], 'w', 'blunder', true), 'that allows mate');
+  assert.equal(P.critiqueText(q, ['c8g4'], 'w', 'blunder', true), 'that drops the queen', 'the piece first');
+  // only four plies count
+  assert.equal(P.critiqueText(pawn, ['e8d8', 'e1d1', 'd8e8', 'd1e1', 'd5e4'], 'w', 'mistake', false), 'that gives Stockfish the edge');
+});
+test('a Stockfish game\'s PGN names the players', () => {
+  const w = P.pgn(sfGame('w', null, [['e2e4', 0]]));
+  assert.match(w, /\[Event "Play vs Stockfish"\][\s\S]*\[White "You"\]\n\[Black "Stockfish 19"\]/);
+  const b = P.pgn(sfGame('b', null, [['e2e4', 0]]));
+  assert.match(b, /\[White "Stockfish 19"\]\n\[Black "You"\]/);
+  assert.equal(CC.buildGame({ pgn: b }).plies.length, 1);
+});

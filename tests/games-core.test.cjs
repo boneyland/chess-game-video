@@ -77,3 +77,14 @@ test('a kept game opens as a PGN the replay reads', () => {
   assert.equal(M.plies.length, 4);
   assert.equal(M.result, '0-1');
 });
+test('a Stockfish game is kept and playable, its side and critique with it', () => {
+  let g = playAll(P.start(B.fromFen(), '5+0', '2026.10.21', { mode: 'stockfish', you: 'b' }), ['e2e4', 'e7e5', 'g1f3']);
+  g = P.addCritique(g, { j: 1, cls: 'mistake', best: 'c7c5' });
+  const [e] = G.read(JSON.stringify(G.keep([], g, 1)));
+  assert.equal(e.id, g.game.id);
+  const back = G.playable(e);
+  assert.equal(back.game.mode, 'stockfish'); assert.equal(back.game.you, 'b');
+  assert.deepEqual(back.game.critique, [{ j: 1, cls: 'mistake', best: 'c7c5' }]);
+  assert.deepEqual(B.ucis(back), ['e2e4', 'e7e5', 'g1f3']);
+  assert.match(P.pgn(back), /\[White "Stockfish 19"\]\n\[Black "You"\]/);
+});
