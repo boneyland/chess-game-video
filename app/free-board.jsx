@@ -141,9 +141,10 @@ const playerName = (G, side) => (G && G.mode === 'stockfish' ? (side === G.you ?
 
 // Stockfish's reply lands no sooner than this after the player's move, so it reads as a reply rather than a jump
 const REPLY_PAUSE_MS = 600;
-// the search of the position the player is to move in, the "before" of their move: as deep as it gets while they think
-// (their move stops it); a move is rated only when both searches reached MIN_RATED_DEPTH
-const BEFORE_SEARCH = { depth: 30, movetimeMs: 600000 }, REPLY_DEPTH = 30, MIN_RATED_DEPTH = 8;
+// the search of the position the player is to move in, the "before" of their move: deep enough to rate it, then it stops
+// rather than run the CPU (a phone's battery) for as long as they think; their move stops it sooner. A move is rated
+// only when both searches reached MIN_RATED_DEPTH
+const BEFORE_SEARCH = { depth: 22, movetimeMs: 15000 }, REPLY_DEPTH = 30, MIN_RATED_DEPTH = 8;
 const FLAGGED = ['inaccuracy', 'mistake', 'blunder'];
 
 // Stockfish's side of a game against it. While the player is to move it searches the position at 'own' priority (the
