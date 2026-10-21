@@ -49,18 +49,19 @@ const LAYOUTS = {
   },
 };
 // Portrait: 840 wide, and as tall as the screen allows. A phone shows it at about 0.43×, so text here is ~27 px
-// (about 12 px on screen): the eval graph is a strip under the board, Moves the full width with two move pairs a row.
+// (about 12 px on screen): no eval graph (the eval bar stays), so Commentary sits right under the board; Moves the full
+// width with two move pairs a row.
 const PORTRAIT = { width: 840, minHeight: 1810, maxHeight: 2100 };
 function tallLayout(H) {
   // Moves gets two thirds of the extra height (each row is 38 px × 1.4), commentary the rest
-  const extra = Math.max(0, H - PORTRAIT.minHeight), movesH = 250 + Math.floor(extra * 2 / 3), commentH = 186 + extra - Math.floor(extra * 2 / 3);
+  const extra = Math.max(0, H - PORTRAIT.minHeight), movesH = 250 + Math.floor(extra * 2 / 3), commentH = 284 + extra - Math.floor(extra * 2 / 3);
   // player bars (40 px × 1.4) sit 5 px from the board, 2 px from the frame's top edge
-  const by = 2 + 56 + 5, py = by + BW + 5 + 56 + 8;
-  const cy = py + 90 + 8, ay = cy + commentH + 8, my = ay + 360 + 8;
+  const by = 2 + 56 + 5, cy = by + BW + 5 + 56 + 8;
+  const ay = cy + commentH + 8, my = ay + 360 + 8;
   return {
     eval: 12, bx: 60, by, bar: { k: 1.4, gap: 5 }, title: 26, titleGap: 44,
     header: null,
-    plot: { x: 4, y: py, w: 832, h: 90, k: 1.3 },
+    plot: null,
     comment: { x: 4, y: cy, w: 832, h: commentH, k: 1, text: 0.78, label: 1.6, gap: 8 },
     // scrolls: Queen's line and verdict can outgrow it
     analysis: { x: 4, y: ay, w: 832, h: 360, k: 1.6, big: 30, scroll: true },
@@ -69,18 +70,18 @@ function tallLayout(H) {
   };
 }
 // Phone held sideways: 880 high (the board and its player bars, 2 px from the edges), as wide as the screen's shape
-// (1900–2400). The board fills the height; Moves and Commentary sit beside it with Analysis under them, all magnified;
-// the eval graph is left out (the eval bar stays).
+// (1900–2400). The board fills the height; Moves and Commentary sit beside it with Analysis under them, all magnified,
+// and the eval graph under Analysis.
 const SHORT = { height: 880, minWidth: 1900, maxWidth: 2400, maxArea: 560 };
 function shortLayout(W) {
-  const x = 60 + BW + 24, w = W - x - 12, top = 420, k = 1.22;
+  const x = 60 + BW + 24, w = W - x - 12, top = 420, k = 1.22, ph = 120, ay = top + 22, ah = SHORT.height - 10 - ph - 12 - ay;
   return {
     eval: 12, bx: 60, by: 2 + 48 + 6, bar: { k: 1.2, gap: 6 }, title: 16,
     header: null,
     moves: { x, y: 10, w: 330, h: top, k, rows: Math.floor((top / k - 61) / 38) },
     comment: { x: x + 342, y: 10, w: w - 342, h: top, k, text: 1, gap: 14, right: 1 },
-    analysis: { x, y: top + 22, w, h: SHORT.height - top - 32, k, scroll: true, right: 1 },
-    plot: null,
+    analysis: { x, y: ay, w, h: ah, k, scroll: true, right: 1 },
+    plot: { x, y: ay + ah + 12, w, h: ph, k },
     card: { k: 1, w: 1700, stack: false },
   };
 }
