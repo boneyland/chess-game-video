@@ -115,7 +115,7 @@ inaccuracy, mistake or blunder it says so in the Commentary box (my call: the cl
 **Takebacks.** In both game modes, ← takes back a move (against Stockfish, back to the player's previous turn, so
 Stockfish's reply goes too). My call: no limit, and nothing recorded about them.
 
-**Clocks (optional).** Off by default. When on: a time control from presets, none under 5 minutes (5+0, 10+0, 15+10, 30+0; the user dropped
+**Clocks (optional).** Off by default. When on: a time control from presets, none under 5 minutes (5+3, 10+0, 15+10, 30+0; 5+0 until 2026-10-21; the user dropped
 1+0 and 3+2) with increment; the running clock is in the player bars (where replayed clocks already show); a flag fall loses,
 unless the opponent has no mating material (draw). Against Stockfish only the player's clock matters; Stockfish's
 clock runs while it thinks (my call: its think time is capped so it doesn't flag).
@@ -186,6 +186,9 @@ Three more features the user asked for. Each needs its own design pass before a 
 - 2026-10-19 (after trying the Play vs human PR): the dock's New board button is renamed Play/Explore; in a game, Take back
   is a button by Resign (not ← or the transport bar), Resign asks first, and a draw by agreement is added.
 
+- 2026-10-21 (after trying the Play vs Stockfish PR): the dialogs' Clock row is Time control, and the 5+0 preset is 5+3
+  (a game stored at 5+0 keeps its clock).
+
 ## Carried forward from plan 1 (custom starts and flip, 2026-10-19)
 
 For the later plans; the per-task reviews deferred these:
@@ -220,3 +223,14 @@ For the later plans; deferred while building step 4:
 - Leaving a game in progress still asks, though the game is now kept; the dialog says so. It could go if it only gets in the way.
 - A game in progress in two tabs at once (left on the board in one, resumed from My games in the other) is one entry: each tab's moves replace the other's. Nothing marks a game as open elsewhere.
 - Playwright's Firefox on the cloud machine can't fetch cdnjs through the proxy, nor can its service worker: there the live suite needs `LIVE_CDN_DIR` and service workers blocked (a local edit, not committed), and the offline test can't run in Firefox. Fixed 2026-10-21: it didn't trust the proxy's CA; the live tests' contexts there now skip certificate checks, and only the offline test still fails in Playwright's Firefox.
+
+## Carried forward from plan 5 (play vs Stockfish, 2026-10-21)
+
+For the later plans; deferred while building step 5:
+- Playing Black, if the engine dies before Stockfish's first move there is nothing to take back: only Resign or a reload starts it again.
+- A move played before the "before" search reaches depth 8 (just after the engine loads), and the move before a reload, go unrated.
+- The search while the player thinks stops at depth 22 or 15 s.
+- On the phone the Commentary box cuts the how-it-works text short (it scrolls).
+- The header's site line says "from a FEN" where the Commentary box says "From a set-up position" (Play vs human too).
+- Settings still shows the "Your moves" depth and time sliders during a Stockfish game, where they don't apply.
+- No draw offers against Stockfish. `PlayCore.resign` takes the side that resigns, so the player can resign while Stockfish thinks.

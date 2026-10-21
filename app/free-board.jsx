@@ -4,9 +4,9 @@
 // panels, board drawing and input. The board (BoardCore) lives in GameApp's files, so it is stored like a loaded game.
 const FULL_SET = { q: 1, r: 2, b: 2, n: 2, p: 8 };
 
-// A player bar for "White" or "Black": the pieces taken and the material edge, counted from the pieces on the board
+// A player bar for "White" or "Black" (or name: "You", "Stockfish 19"): the pieces taken and the material edge, counted from the pieces on the board
 // against a full set (so a position set up with an edge shows it), and in a clocked game the clock ({ s, active })
-function FreeBar({ pos, side, a, clock }) {
+function FreeBar({ pos, side, a, clock, name }) {
   const left = (col, t) => pos.b.filter((p) => p === (col === 'w' ? t.toUpperCase() : t)).length;
   const lost = (col, t) => Math.max(0, FULL_SET[t] - left(col, t));
   const worth = (col) => Object.keys(FULL_SET).reduce((s, t) => s + left(col, t) * VALUE[t], 0);
@@ -17,7 +17,7 @@ function FreeBar({ pos, side, a, clock }) {
   return (
     <div style={{ position: 'absolute', left: BX, width: BW / L.bar.k, top: side === ORIENT ? BY + BW + L.bar.gap : BY - L.bar.gap - 40 * L.bar.k, height: 40, transform: `scale(${L.bar.k})`, transformOrigin: '0 0', display: 'flex', alignItems: 'center', gap: 14, opacity: a }}>
       <span style={{ width: 14, height: 14, borderRadius: 3, background: side === 'w' ? '#f1ebe1' : '#1c1613', border: `1.5px solid ${C.dim}`, flex: 'none' }} />
-      <span style={{ font: `600 20px ${SANS}`, color: C.ink, whiteSpace: 'nowrap' }}>{side === 'w' ? 'White' : 'Black'}</span>
+      <span style={{ font: `600 20px ${SANS}`, color: C.ink, whiteSpace: 'nowrap' }}>{name || (side === 'w' ? 'White' : 'Black')}</span>
       <span style={{ display: 'flex', alignItems: 'center', marginLeft: 6 }}>{shown}</span>
       {pts > 0 && <span style={{ font: `600 16px ${MONO}`, color: C.dim, marginLeft: 8 }}>+{pts}</span>}
       {clock && <span className="game-clock" style={{ marginLeft: 'auto', minWidth: 96, textAlign: 'center', padding: '2px 10px', borderRadius: 5, font: `600 22px ${MONO}`, background: clock.active ? (clock.s < 60 ? C.blunder : '#f1ebe1') : C.off, color: clock.active ? '#15100d' : C.dim, boxShadow: clock.active ? `0 0 0 1px ${C.line}` : 'none' }}>{fmtClock(clock.s)}</span>}
@@ -132,31 +132,149 @@ function boardLayout(base) {
   return BOARD_LAYOUTS.get(base);
 }
 
-// ---------- a game at the board (Play vs human) ----------
-// The Commentary box in a game: how the game works, in place of the explorer (a hint, so hidden)
+// ---------- a game at the board (Play vs human, Play vs Stockfish) ----------
+// the side to move in a game: after its last move (a game always shows its last move while it goes on)
+const gameTurn = (board) => (board.steps.length ? board.steps[board.steps.length - 1].pos : board.start.pos).turn;
+const sideName = (side) => (side === 'w' ? 'White' : 'Black');
+// the names in a game's bars and header: "You" and "Stockfish 19" against Stockfish
+const playerName = (G, side) => (G && G.mode === 'stockfish' ? (side === G.you ? 'You' : 'Stockfish 19') : sideName(side));
+
+// Stockfish's reply lands no sooner than this after the player's move, so it reads as a reply rather than a jump
+const REPLY_PAUSE_MS = 600;
+// the search of the position the player is to move in, the "before" of their move: deep enough to rate it, then it stops
+// rather than run the CPU (a phone's battery) for as long as they think; their move stops it sooner. A move is rated
+// only when both searches reached MIN_RATED_DEPTH
+const BEFORE_SEARCH = { depth: 22, movetimeMs: 15000 }, REPLY_DEPTH = 30, MIN_RATED_DEPTH = 8;
+const FLAGGED = ['inaccuracy', 'mistake', 'blunder'];
+
+// Stockfish's side of a game against it. While the player is to move it searches the position at 'own' priority (the
+// engine is idle then); the player's move stops that search, and the new position is searched at 'play' priority for
+// Stockfish's reply, played through PlayCore.move no sooner than REPLY_PAUSE_MS after the move. The player's move is rated
+// from the two searches, and a flagged one joins the critique in the same change. A result lands only on the board it was
+// searched for (the same game, the same moves, still going on): a takeback, a resign, a new game or leaving the board
+// cancels the searches and drops what they find. Returns { down }: 'unavailable' or 'stopped' when Stockfish can't answer
+// (a takeback tries again; a stopped engine restarts on the next engine.get())
+function useEngineOpponent(board, onChange, sf) {
+  const B = window.BoardCore, P = window.PlayCore, G = board.game;
+  const active = !!G && G.mode === 'stockfish' && P.inProgress(board);
+  const moves = B.ucis(board, board.steps.length), key = active ? G.id + '|' + moves.join(' ') : '';
+  const latest = React.useRef(null);
+  latest.current = { board, onChange };
+  // the "before" search of the position the player last moved from: { key, promise } (its result, or null)
+  const before = React.useRef(null);
+  const [down, setDown] = React.useState(null);
+  React.useEffect(() => {
+    setDown(null);
+    if (!active) { before.current = null; return; }
+    const A = window.AnalysisCore, CC = window.ChessCore, id = G.id, you = G.you, fen = board.fen, n = moves.length, list = moves.join(' ');
+    let live = true, handle = null, timer = null;
+    const engine = async () => { try { return await sf.engine.get(); } catch (e) { if (live) setDown('unavailable'); return null; } };
+    if (gameTurn(board) === you) {
+      before.current = { key, promise: (async () => { const eng = await engine(); if (!live || !eng) return null; handle = eng.search({ moves, fen, ...BEFORE_SEARCH, priority: 'own' }); return handle.promise; })() };
+      // the player's move (or a takeback) stops it; its last complete depth is what the move is rated against
+      return () => { live = false; if (handle) handle.cancel(); };
+    }
+    const movedAt = Date.now(), prevKey = id + '|' + moves.slice(0, -1).join(' ');
+    const prior = before.current && before.current.key === prevKey ? before.current.promise : null;
+    before.current = null;
+    const same = (b) => P.inProgress(b) && b.game.id === id && b.steps.length === n && B.ucis(b, n).join(' ') === list;
+    (async () => {
+      const eng = await engine();
+      if (!live || !eng) return;
+      handle = eng.search({ moves, fen, depth: REPLY_DEPTH, movetimeMs: P.thinkMs(latest.current.board, Date.now()), priority: 'play' });
+      const r = await handle.promise, bf = prior ? await prior : null;
+      if (!live) return;
+      if (!r || !r.best) { setDown('stopped'); return; }
+      const wait = movedAt + REPLY_PAUSE_MS - Date.now();
+      if (wait > 0) await new Promise((res) => { timer = setTimeout(res, wait); });
+      const { board: b, onChange: set } = latest.current;
+      if (!live || !same(b)) return;
+      const step = CC.stepFromUci(n ? b.steps[n - 1].pos : b.start.pos, r.best);
+      if (!step) { setDown('stopped'); return; }
+      // the player's move, rated from the search before it and Stockfish's search after it (both White's point of view)
+      let next = b;
+      const j = n - 1, played = b.steps[j], best = bf && A.bestOf(bf);
+      if (played && best && bf.cp != null && r.cp != null && bf.depth >= MIN_RATED_DEPTH && r.depth >= MIN_RATED_DEPTH) {
+        const cls = A.rateMove({ bestEval: bf.cp, currentEval: r.cp, isWhite: you === 'w', playedIsBest: played.uci === best, isCheckmate: played.san.endsWith('#') }).classification;
+        const mated = (you === 'w' ? r.cp : -r.cp) <= -(A.C.MATE_SCORE_CP - A.C.MATE_BAND_CP);
+        if (FLAGGED.includes(cls)) next = P.addCritique(next, { j, cls, best, text: P.critiqueText(played.pos, r.pv, you, cls, mated) });
+      }
+      set(P.move(next, step, Date.now()));
+    })();
+    return () => { live = false; clearTimeout(timer); if (handle) handle.cancel(); };
+  }, [key]);
+  return { down: active ? down : null };
+}
+
+// The Commentary box in a game: how the game works, in place of the explorer (a hint, so hidden). Against Stockfish it
+// also shows the critique: during the game the latest flagged move and why, without the better move; after it, every
+// flagged move with the better one
 function GameInfo({ board }) {
-  const G = board.game, t = window.PlayCore.parseTc(G.tc), z = L.comment.label || 1;
+  const G = board.game, t = window.PlayCore.parseTc(G.tc), z = L.comment.label || 1, sfGame = G.mode === 'stockfish';
   const note = (txt) => <span style={{ display: 'block', marginTop: 10 * z, font: `400 ${Math.round(19 * z)}px/1.4 ${SANS}`, color: C.dim }}>{txt}</span>;
+  const heading = (txt, col) => <span className="game-info-head" style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: col || C.ink }}>{txt}</span>;
   // scrolls with a mouse drag as the explorer does, and its text can't be selected
   const top = React.useRef(null), drag = useDragScroll(() => top.current && top.current.parentElement);
-  return (
-    <Panel box={{ ...L.comment, scroll: true }} a={1} title="Play vs human" right={G.tc || 'No clock'}>
-      <div ref={top} {...drag}>
-        <span style={{ display: 'block', font: `400 ${Math.round(40 * Math.max(1, L.comment.text))}px/1.14 ${SERIF}`, color: C.ink }}>{board.fen === window.ChessCore.START_FEN ? 'From the starting position' : 'From a set-up position'}</span>
+  const from = board.fen === window.ChessCore.START_FEN ? 'From the starting position' : 'From a set-up position';
+  let body;
+  if (!sfGame) {
+    body = (
+      <React.Fragment>
+        {heading(from)}
         {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box.')}
         {note(t ? `Each side has ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.')}
         {note('No engine and no hints: Stockfish is off until the game ends.')}
-      </div>
+      </React.Fragment>
+    );
+  } else {
+    const crit = [...(G.critique || [])].sort((x, y) => x.j - y.j), side = sideName(G.you);
+    const named = (c) => `${CLASS_LABEL[c.cls]}: ${window.BoardCore.label(board, c.j)}`;
+    const why = (c) => (c.text ? c.text[0].toUpperCase() + c.text.slice(1) + '.' : '');
+    const bestSan = (c) => { const r = window.ChessCore.applyUci(c.j ? board.steps[c.j - 1].pos : board.start.pos, c.best); return r ? r.san : c.best; };
+    const line = (txt, col) => <span style={{ display: 'block', marginTop: 6 * z, font: `400 ${Math.round(22 * z)}px/1.35 ${SANS}`, color: col || C.ink }}>{txt}</span>;
+    const clock = t ? `You and Stockfish each have ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.';
+    if (G.result) {
+      body = (
+        <React.Fragment>
+          {heading(crit.length ? `${crit.length} flagged move${crit.length === 1 ? '' : 's'}` : 'No moves flagged')}
+          {crit.length ? (
+            <div className="game-critique" style={{ display: 'flex', flexDirection: 'column', gap: 10 * z, marginTop: 12 * z }}>
+              {crit.map((c) => (
+                <div key={c.j}>
+                  <span style={{ display: 'block', font: `600 ${Math.round(20 * z)}px ${MONO}`, color: clsColor(c.cls) }}>{named(c)}</span>
+                  {line(`${why(c)} Better was ${bestSan(c)}.`.trim())}
+                </div>
+              ))}
+            </div>
+          ) : note('Stockfish found no inaccuracy, mistake or blunder in your moves.')}
+          {note(`You played ${side}, ${from.toLowerCase()}. Analyse on the free board shows Stockfish’s eval of every move.`)}
+        </React.Fragment>
+      );
+    } else {
+      const c = crit.length ? crit[crit.length - 1] : null;
+      body = (
+        <React.Fragment>
+          {c ? <div className="game-critique">{heading(named(c), clsColor(c.cls))}{line(why(c))}</div> : heading(`You play ${side}`)}
+          {note(`${c ? `You play ${side}, ${from.toLowerCase()}` : from}. Stockfish 19 plays the other side at full strength; the board stays on your side.`)}
+          {note(clock)}
+          {note('No hints: Stockfish only says when one of your moves is an inaccuracy, a mistake or a blunder, and keeps the better move for the end of the game. Take back and Resign are in the Game box.')}
+        </React.Fragment>
+      );
+    }
+  }
+  return (
+    <Panel box={{ ...L.comment, scroll: true }} a={1} title={sfGame ? 'Play vs Stockfish' : 'Play vs human'} right={G.tc || 'No clock'}>
+      <div ref={top} {...drag}>{body}</div>
     </Panel>
   );
 }
 
 // The Analysis box in a game: whose move it is, with Take back, Offer a draw and Resign (the last two asked twice: a draw is
-// offered by the side to move and accepted by the other), or
-// the result with Play again beside it and Analyse on the free board below
-function GameStatus({ board, onChange }) {
+// offered by the side to move and accepted by the other; against Stockfish there is no draw offer, and the player resigns),
+// or the result with Play again beside it and Analyse on the free board below. down: why Stockfish can't answer, if so
+function GameStatus({ board, onChange, down }) {
   const P = window.PlayCore, G = board.game, last = board.steps.length ? board.steps[board.steps.length - 1] : null;
-  const turn = (last ? last.pos : board.start.pos).turn, side = turn === 'w' ? 'White' : 'Black';
+  const turn = (last ? last.pos : board.start.pos).turn, side = sideName(turn), sfGame = G.mode === 'stockfish';
   // the question waiting on an answer: 'resign' or 'draw'; another position or result drops it
   const [ask, setAsk] = React.useState(null);
   React.useEffect(() => { setAsk(null); }, [board.steps.length, !!G.result]);
@@ -168,11 +286,13 @@ function GameStatus({ board, onChange }) {
   if (G.result) {
     const r = P.resultText(G.result);
     const { game, ...free } = board;
+    // Play again keeps the mode, the clock and the side played (a Random side stays the one it came out as)
+    const again = () => onChange(P.start(window.BoardCore.fromFen(board.fen), G.tc, null, sfGame ? { mode: 'stockfish', you: G.you } : undefined));
     return (
       <React.Fragment>
         <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
           <div className="game-result" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{big(r.score, C.ink)}{small(r.why, C.last)}</div>
-          <div style={{ marginLeft: 'auto' }}><FrameButton primary onClick={() => onChange(P.start(window.BoardCore.fromFen(board.fen), G.tc))}>Play again</FrameButton></div>
+          <div style={{ marginLeft: 'auto' }}><FrameButton primary onClick={again}>Play again</FrameButton></div>
         </div>
         {row(<FrameButton primary color={C.last} onClick={() => onChange(free)}>Analyse on the free board</FrameButton>)}
         {hint('← → step through the game')}
@@ -182,11 +302,32 @@ function GameStatus({ board, onChange }) {
   const check = last && last.checkSq;
   const paused = G.clock && G.clock.since == null && board.steps.length > 0;
   const now = () => Date.now();
+  const clockNote = G.clock && !board.steps.length ? 'The clocks start with the first move' : paused ? 'Clocks paused by the reload · they run again from the next move' : ' ';
+  if (sfGame) {
+    const mine = turn === G.you;
+    const trouble = down === 'unavailable' ? 'Stockfish can’t run here' : down === 'stopped' ? 'Stockfish stopped · Take back or Resign' : null;
+    return (
+      <React.Fragment>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {big(mine ? 'Your move' : trouble ? 'Stockfish to move' : 'Stockfish is thinking…', C.last)}
+          {small(check ? 'Check' : trouble || clockNote, check || trouble ? C.blunder : C.dim)}
+        </div>
+        {ask === 'resign' ? row(<React.Fragment>
+          <span style={{ font: `600 18px ${SANS}`, color: C.ink }}>Resign this game?</span>
+          <FrameButton color={C.blunder} onClick={() => onChange(P.resign(board, now(), G.you))}>Resign</FrameButton>
+          <FrameButton color={C.dim} onClick={() => setAsk(null)}>Keep playing</FrameButton>
+        </React.Fragment>) : row(<React.Fragment>
+          {P.canTakeback(board) && <FrameButton color={C.dim} onClick={() => onChange(P.takeback(board, now()))}>Take back</FrameButton>}
+          <FrameButton color={C.dim} onClick={() => setAsk('resign')}>Resign</FrameButton>
+        </React.Fragment>)}
+      </React.Fragment>
+    );
+  }
   return (
     <React.Fragment>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {big(`${side} to move`, C.last)}
-        {small(check ? 'Check' : G.clock && !board.steps.length ? 'The clocks start with the first move' : paused ? 'Clocks paused by the reload · they run again from the next move' : ' ', check ? C.blunder : C.dim)}
+        {small(check ? 'Check' : clockNote, check ? C.blunder : C.dim)}
       </div>
       {ask ? row(<React.Fragment>
         <span style={{ font: `600 18px ${SANS}`, color: C.ink }}>{ask === 'resign' ? `Resign as ${side}?` : `${side} offers a draw. ${side === 'White' ? 'Black' : 'White'}, accept?`}</span>
@@ -205,14 +346,16 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   setLayout(useFrame()); // before the children render, which read the layout
   L = boardLayout(L);
   const B = window.BoardCore, P = window.PlayCore, pos = B.pos(board), { steps, upto } = board, last = steps.length - 1;
-  // a game (Play vs human): no Stockfish, no hints, the board turned to the side to move in the game's last position
-  const G = board.game || null, live = P.inProgress(board);
-  setOrient(G ? (last >= 0 ? steps[last].pos : board.start.pos).turn : orient);
+  // a game: no eval, no hints; vs human the board turned to the side to move in the game's last position, against
+  // Stockfish drawn from the player's side, which Stockfish's moves never change (nor Flip)
+  const G = board.game || null, live = P.inProgress(board), sfGame = !!G && G.mode === 'stockfish';
+  setOrient(sfGame ? G.you : G ? gameTurn(board) : orient);
+  const opponent = useEngineOpponent(board, onChange, sf);
   const go = (u) => onChange(B.go(board, u));
   const play = (step) => onChange(live ? P.move(board, step, Date.now()) : B.play(board, step));
   const input = useBoardInput({ pos, onPick: () => {}, onMiss: () => {}, onMove: play });
-  // a finished game takes no moves (Analyse on the free board does)
-  const still = G && !live, NO_INPUT = { onDown: () => {}, onMove: () => {}, onUp: () => {}, onCancel: () => {} };
+  // a finished game takes no moves (Analyse on the free board does), nor the board while Stockfish is to move
+  const still = G && (!live || (sfGame && gameTurn(board) !== G.you)), NO_INPUT = { onDown: () => {}, onMove: () => {}, onUp: () => {}, onCancel: () => {} };
   const boardKey = board.fen + '|' + B.ucis(board).join(' ');
   // another position (a step, a takeback) drops a half-made move: a selected piece, the promotion picker
   React.useEffect(() => { input.clear(); }, [boardKey]);
@@ -285,20 +428,20 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   const S = React.useMemo(() => ({ N: steps.length, tp: steps.map((_, i) => i) }), [steps.length]);
   const named = boardOpening(board, book);
   const from = board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN';
-  const HM = G ? { white: { name: 'White' }, black: { name: 'Black' }, event: 'Play vs human', site: `${G.tc || 'no clock'} · ${from}` }
+  const HM = G ? { white: { name: playerName(G, 'w') }, black: { name: playerName(G, 'b') }, event: sfGame ? 'Play vs Stockfish' : 'Play vs human', site: `${G.tc || 'no clock'} · ${from}` }
     : { white: { name: 'White' }, black: { name: 'Black' }, event: 'Free board', site: from, eco: named && named.eco, opening: named && named.name };
   return (
     <div style={{ position: 'absolute', inset: 0, background: C.bg, overflow: 'hidden' }}>
       {!G && <EvalBarView cp={cp == null ? 0 : cp} txt={cp == null ? (down ? '' : '…') : fmtSf(cp)} a={1} />}
-      <FreeBar pos={pos} side="b" a={1} clock={clockOf('b')} />
+      <FreeBar pos={pos} side="b" a={1} clock={clockOf('b')} name={G ? playerName(G, 'b') : null} />
       <LineBoard a={1} sq={boardSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} />
       <BoardTouch pos={pos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...(still ? NO_INPUT : input.handlers)} />
-      <FreeBar pos={pos} side="w" a={1} clock={clockOf('w')} />
+      <FreeBar pos={pos} side="w" a={1} clock={clockOf('w')} name={G ? playerName(G, 'w') : null} />
       {L.header && <Header M={HM} a={1} />}
       <MoveList M={MV} T={upto + 0.999} S={S} a={1} paused onPick={live ? () => {} : go} />
       {G ? <GameInfo board={board} /> : <OpeningExplorer board={board} book={book} onPlay={onBook} />}
       <Panel box={L.analysis} a={1} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(window.AnalysisCore.ENGINE.name, ev.after)}>
-        {G ? <GameStatus board={board} onChange={onChange} />
+        {G ? <GameStatus board={board} onChange={onChange} down={opponent.down} />
           : upto < 0
           ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />
           : <React.Fragment>
@@ -388,17 +531,23 @@ function DialogChoice({ label, value, options, onChange }) {
   );
 }
 
-// Play vs human: where the game starts (the starting position, or the open board's set-up position when it has one)
-// and the clock. onStart({ fen, tc })
-function PlayDialog({ setUpFen, clock, onStart, onClose }) {
+// Play vs human or vs Stockfish (mode): where the game starts (the starting position, or the open board's set-up position
+// when it has one), the clock, and against Stockfish the side the player takes (side: 'w', 'b' or 'random', resolved when
+// the game starts). onStart({ fen, tc, you })
+function PlayDialog({ mode = 'human', setUpFen, clock, side, onStart, onClose }) {
+  const sfGame = mode === 'stockfish';
   const [from, setFrom] = React.useState(setUpFen ? 'setup' : 'start');
   const [tc, setTc] = React.useState(window.PlayCore.TIME_CONTROLS.includes(clock) ? clock : null);
-  const start = () => onStart({ fen: from === 'setup' ? setUpFen : window.ChessCore.START_FEN, tc });
+  const [you, setYou] = React.useState(['w', 'b', 'random'].includes(side) ? side : 'w');
+  const start = () => onStart({ fen: from === 'setup' ? setUpFen : window.ChessCore.START_FEN, tc, you: sfGame ? you : null });
   return (
-    <DialogBox label="Play vs human" onClose={onClose}>
+    <DialogBox label={sfGame ? 'Play vs Stockfish' : 'Play vs human'} onClose={onClose}>
       {setUpFen && <DialogChoice label="Start from" value={from} options={[{ label: 'Starting position', value: 'start' }, { label: 'Set-up position', value: 'setup' }]} onChange={setFrom} />}
-      <DialogChoice label="Clock" value={tc} options={[{ label: 'Off', value: null }].concat(window.PlayCore.TIME_CONTROLS.map((x) => ({ label: x, value: x })))} onChange={setTc} />
-      <div className="fen-note">Two players at this screen. The board turns after each move, so the side to move plays from the bottom; Take back is a button by Resign. Stockfish stays off until the game ends.</div>
+      {sfGame && <DialogChoice label="You play" value={you} options={[{ label: 'White', value: 'w' }, { label: 'Black', value: 'b' }, { label: 'Random', value: 'random' }]} onChange={setYou} />}
+      <DialogChoice label="Time control" value={tc} options={[{ label: 'Off', value: null }].concat(window.PlayCore.TIME_CONTROLS.map((x) => ({ label: x, value: x })))} onChange={setTc} />
+      <div className="fen-note">{sfGame
+        ? 'Stockfish 19 plays at full strength and replies after a short pause; the board stays on your side. No hints during the game, but Stockfish says when one of your moves is an inaccuracy, a mistake or a blunder. Take back is a button by Resign.'
+        : 'Two players at this screen. The board turns after each move, so the side to move plays from the bottom; Take back is a button by Resign. Stockfish stays off until the game ends.'}</div>
       <div className="fen-btns">
         <button type="button" className="twk-btn secondary" onClick={onClose}>Cancel</button>
         <button type="button" className="twk-btn" data-autofocus onClick={start}>Start game</button>
@@ -442,7 +591,8 @@ function MyGamesDialog({ games, current, onReplay, onResume, onDelete, onClose }
           {rows.map(({ e, b }) => {
             const g = b.game, n = b.steps.length, r = g.result && P.resultText(g.result), turn = b.steps[n - 1].pos.turn === 'w' ? 'White' : 'Black';
             const head = r ? `${r.score} · ${r.why}` : `In progress · ${turn} to move`;
-            const meta = [window.ChessCore.fmtDate(g.date), g.tc || 'no clock', `${n} move${n === 1 ? '' : 's'}`, b.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a set-up position'].join(' · ');
+            const meta = [g.mode === 'stockfish' && `vs Stockfish · you played ${sideName(g.you)}`, window.ChessCore.fmtDate(g.date), g.tc || 'no clock', `${n} move${n === 1 ? '' : 's'}`,
+              b.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a set-up position'].filter(Boolean).join(' · ');
             return (
               <li key={e.id} className="games-row">
                 <div className="games-text"><span className="games-head">{head}</span><span className="games-meta">{meta}</span></div>
@@ -462,7 +612,7 @@ function MyGamesDialog({ games, current, onReplay, onResume, onDelete, onClose }
             );
           })}
         </ul>
-      ) : <div className="fen-note">No games yet. A game of Play vs human is kept here from its first move.</div>}
+      ) : <div className="fen-note">No games yet. A game of Play vs human or Play vs Stockfish is kept here from its first move.</div>}
       <div className="fen-note">A finished game replays like a loaded one: analyse it with Stockfish, ask Queen, save it as a PGN or export a video. The 50 most recent games are kept, in this browser only.</div>
       <div className="fen-btns">
         <button ref={closeBtn} type="button" className="twk-btn secondary" data-autofocus onClick={onClose}>Close</button>

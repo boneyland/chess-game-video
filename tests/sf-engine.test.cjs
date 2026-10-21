@@ -63,6 +63,23 @@ test('an own search runs before queued game searches but never interrupts one', 
   assert.ok(w.posted.includes('go depth 24 movetime 3000'));
 });
 
+test('a play search runs before own and game searches, in queue order within each, never interrupting one', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: [], depth: 20, movetimeMs: 3000, priority: 'game' });
+  await tick();
+  const g = e.search({ moves: ['a2a3'], depth: 20, movetimeMs: 3000, priority: 'game' });
+  const o = e.search({ moves: ['b2b3'], depth: 20, movetimeMs: 3000, priority: 'own' });
+  const p1 = e.search({ moves: ['c2c3'], depth: 30, movetimeMs: 2000, priority: 'play' });
+  const p2 = e.search({ moves: ['d2d3'], depth: 30, movetimeMs: 2000, priority: 'play' });
+  await tick();
+  assert.equal(w.posted.filter((s) => s === 'stop').length, 0);
+  for (const [q, best] of [[a, 'e2e4'], [p1, 'e7e5'], [p2, 'e7e5'], [o, 'e7e5'], [g, 'e7e5']]) { w.finish(best); await q.promise; await tick(); }
+  assert.deepEqual(positions(w), ['position startpos', 'position startpos moves c2c3', 'position startpos moves d2d3', 'position startpos moves b2b3', 'position startpos moves a2a3']);
+  assert.ok(w.posted.includes('go depth 30 movetime 2000'));
+});
+
 test('a cancelled queued search never posts go and resolves null', async () => {
   let w;
   const e = SF.create(() => (w = fakeWorker()), {});

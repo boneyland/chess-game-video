@@ -1,4 +1,6 @@
-// Stockfish over UCI in a Web Worker: one search at a time, the viewer's own moves ahead of queued game positions.
+// Stockfish over UCI in a Web Worker: one search at a time, picked by priority: 'play' (Stockfish's own move in a game against
+// the viewer, which must never wait behind analysis), then 'own' (the viewer's own moves), then 'game' (queued game positions);
+// in queue order within a priority. A running search is never interrupted for a higher one.
 // Positions go to the engine as move lists from the start: the standard one, or a game's start FEN (the page's FENs carry no castling or en passant).
 (function () {
   const positionCommand = (moves, fen) => {
@@ -21,7 +23,8 @@
     const pump = () => {
       if (cur || !isReady || failed) return;
       if (hashWant !== hashSet) { worker.postMessage(`setoption name Hash value ${hashWant}`); hashSet = hashWant; }
-      let i = queue.findIndex((q) => q.priority === 'own');
+      let i = queue.findIndex((q) => q.priority === 'play');
+      if (i < 0) i = queue.findIndex((q) => q.priority === 'own');
       if (i < 0) i = 0;
       const q = queue.splice(i, 1)[0];
       if (!q) return;
