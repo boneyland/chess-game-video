@@ -18,7 +18,7 @@
 ## Decisions made here (the spec left them to the builder)
 
 - **Entering**: *Play vs Stockfish…* follows *Play vs human…* in the Play/Explore menu and the phone menu's group. Its dialog is Play vs human's with one more row, *You play*: White, Black, Random (remembered as the `playSide` setting, default White; Random is resolved when the game starts).
-- **Stockfish's moves**: `go depth 30 movetime <thinkMs>`; without a clock 2 s a move; with one, `min(2 s, its time left / 30 + increment / 2)`, at least 0.1 s, so it never flags. A reply lands at least `REPLY_PAUSE_MS` (600 ms) after the player's move. After a reload with Stockfish to move, it searches again.
+- **Stockfish's moves**: `go depth 30 movetime <thinkMs>`; without a clock 3 s a move (2 s until 2026-10-21: it rated 7. Bc4 in a Four Knights, an inaccuracy at 3 s, as fine); with one, `min(3 s, its time left / 30 + increment / 2)`, at least 0.1 s, so it never flags. A reply lands at least `REPLY_PAUSE_MS` (600 ms) after the player's move. After a reload with Stockfish to move, it searches again.
 - **Takeback**: the Game box's *Take back* removes moves until it is the player's turn with one of the player's moves gone (Stockfish's reply and the player's move, or just the player's move while Stockfish thinks, which stops the search). Hidden when no player's move is on the board (the player is Black and only Stockfish's first move is played). Clocks as in Play vs human (each removed move's increment goes).
 - **No draw offers** against Stockfish (it doesn't negotiate); resign, the rules' draws and flag falls end the game. Resign asks "Resign this game?".
 - **Input**: the board takes no moves while Stockfish is to move.

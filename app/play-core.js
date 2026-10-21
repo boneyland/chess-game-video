@@ -148,12 +148,14 @@
     return withGame(x, { critique: x.game.critique.filter((c) => c.j < x.steps.length) });
   }
 
-  // Stockfish's time for its move: 2 s, or with a clock a share of its time left (and half its increment) capped there,
-  // so it never flags; at least 0.1 s
+  // Stockfish's time for its move, which also rates the player's move before it: 3 s (at 2 s a borderline inaccuracy,
+  // 7. Bc4 in a Four Knights, rated as fine), or with a clock a share of its time left (and half its increment) capped
+  // there, so it never flags; at least 0.1 s
+  const THINK_MS = 3000;
   function thinkMs(b, now) {
     const left = timeLeft(b, other(b.game.you), now);
-    if (left == null) return 2000;
-    return Math.round(Math.max(100, Math.min(2000, left / 30 + parseTc(b.game.tc).inc / 2)));
+    if (left == null) return THINK_MS;
+    return Math.round(Math.max(100, Math.min(THINK_MS, left / 30 + parseTc(b.game.tc).inc / 2)));
   }
 
   // The board with a player's move flagged ({ j, cls, best, text }; text, critiqueText's line, is optional): only in a

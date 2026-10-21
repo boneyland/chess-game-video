@@ -190,15 +190,15 @@ test('as Black, Stockfish\'s first move alone can\'t be taken back; from a FEN w
   assert.equal(P.canTakeback(fw), false, 'only Stockfish (Black) has moved');
   assert.equal(P.canTakeback(P.resign(h, 0)), false, 'not after the end');
 });
-test('thinkMs: 2 s without a clock, a share of Stockfish\'s time left with one, at least 0.1 s', () => {
-  assert.equal(P.thinkMs(sfGame('w', null, [['e2e4', 0]]), 0), 2000);
+test('thinkMs: 3 s without a clock, a share of Stockfish\'s time left with one, at least 0.1 s', () => {
+  assert.equal(P.thinkMs(sfGame('w', null, [['e2e4', 0]]), 0), 3000);
   const g = sfGame('w', '5+0', [['e2e4', 0]]);
-  assert.equal(P.thinkMs(g, 0), 2000, '300 s / 30 is over the cap');
+  assert.equal(P.thinkMs(g, 0), 3000, '300 s / 30 is over the cap');
   const low = { ...g, game: { ...g.game, clock: { ...g.game.clock, left: { w: 300000, b: 30000 }, since: 0 } } };
   assert.equal(P.thinkMs(low, 0), 1000);
   assert.equal(P.thinkMs(low, 27000), 100, 'its clock runs while it thinks');
   const inc = sfGame('b', '15+10', []);
-  assert.equal(P.thinkMs({ ...inc, game: { ...inc.game, clock: { ...inc.game.clock, left: { w: 3000, b: 1000 } } } }, 0), 2000, 'half the increment');
+  assert.equal(P.thinkMs({ ...inc, game: { ...inc.game, clock: { ...inc.game.clock, left: { w: 3000, b: 1000 } } } }, 0), 3000, 'half the increment');
 });
 test('critique: only the player\'s moves, once each, dropped with their moves, kept through a reload', () => {
   const g = sfGame('w', null, [['e2e4', 0], ['e7e5', 0], ['d1h5', 0], ['b8c6', 0]]);
