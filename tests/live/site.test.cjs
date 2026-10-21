@@ -11,8 +11,8 @@
 // LIVE_CDN_DIR: for sandboxes that block cdnjs, a folder holding the react and react-dom 18.3.1 npm packages
 // (<dir>/react/package/umd/…); the page's React requests are answered from it.
 // On a Claude Code cloud machine (CCR_AGENT_PROXY_ENABLED) HTTPS goes through a proxy whose CA Playwright's Firefox
-// doesn't trust (its own store), so cdnjs, Google Fonts and the service worker's fetches failed: contexts there skip
-// certificate checks.
+// doesn't trust (its own store), so cdnjs, Google Fonts and the service worker's fetches failed: its contexts there skip
+// certificate checks (Chromium's still check, so a run against the live site still catches a bad certificate).
 // Needs Playwright (global install is fine). Screenshots go to tests/out/live/.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -44,7 +44,7 @@ test.before(async () => {
 test.after(() => local && local.close());
 
 async function open(browser, viewport, opts) {
-  const ctx = await browser.newContext({ viewport, ...(PROXY_CA ? { ignoreHTTPSErrors: true } : {}), ...opts });
+  const ctx = await browser.newContext({ viewport, ...(PROXY_CA && browser.browserType().name() === 'firefox' ? { ignoreHTTPSErrors: true } : {}), ...opts });
   const cdn = process.env.LIVE_CDN_DIR;
   if (cdn) await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/**', (r) => {
     const m = r.request().url().match(/\/(react|react-dom)\/18\.3\.1\/umd\/([\w.-]+)$/);
