@@ -115,7 +115,7 @@ inaccuracy, mistake or blunder it says so in the Commentary box (my call: the cl
 **Takebacks.** In both game modes, ← takes back a move (against Stockfish, back to the player's previous turn, so
 Stockfish's reply goes too). My call: no limit, and nothing recorded about them.
 
-**Clocks (optional).** Off by default. When on: a time control from presets, none under 5 minutes (5+0, 10+0, 15+10, 30+0; the user dropped
+**Clocks (optional).** Off by default. When on: a time control from presets, none under 5 minutes (5+3, 10+0, 15+10, 30+0; 5+0 until 2026-10-21; the user dropped
 1+0 and 3+2) with increment; the running clock is in the player bars (where replayed clocks already show); a flag fall loses,
 unless the opponent has no mating material (draw). Against Stockfish only the player's clock matters; Stockfish's
 clock runs while it thinks (my call: its think time is capped so it doesn't flag).
@@ -185,6 +185,9 @@ Three more features the user asked for. Each needs its own design pass before a 
   for replay, analysis and MP4/WebP export, with "Back to the free board" to return.
 - 2026-10-19 (after trying the Play vs human PR): the dock's New board button is renamed Play/Explore; in a game, Take back
   is a button by Resign (not ← or the transport bar), Resign asks first, and a draw by agreement is added.
+
+- 2026-10-21 (after trying the Play vs Stockfish PR): the dialogs' Clock row is Time control, and the 5+0 preset is 5+3
+  (a game stored at 5+0 keeps its clock).
 
 ## Carried forward from plan 1 (custom starts and flip, 2026-10-19)
 

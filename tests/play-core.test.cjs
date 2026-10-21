@@ -104,6 +104,16 @@ test('resign: the side to move resigns, and its clock stops', () => {
   assert.deepEqual(P.resultText(r.game.result), { score: '1–0', why: 'Black resigned' });
   assert.deepEqual(P.resultText({ result: '1/2-1/2', reason: 'time', side: 'w' }), { score: '½–½', why: 'White’s flag fell, but Black can’t mate' });
 });
+test('the presets: 5+3 adds 3 s a move; a game stored at 5+0 (the preset before it) keeps its clock, an unknown one loses it', () => {
+  assert.deepEqual(P.TIME_CONTROLS, ['5+3', '10+0', '15+10', '30+0']);
+  const g = game('5+3', [['e2e4', 0], ['e7e5', 4000]]);
+  assert.deepEqual(g.game.clock.clk, [303000, 299000]);
+  const back = (tc) => B.restore(JSON.parse(JSON.stringify(B.save({ ...g, game: { ...g.game, tc } })))).game;
+  assert.equal(back('5+3').tc, '5+3');
+  assert.equal(back('5+0').tc, '5+0');
+  assert.deepEqual([back('1+0').tc, back('1+0').clock], [null, null]);
+});
+
 test('resume pauses the clocks and trims what doesn\'t fit', () => {
   const g = game('5+0', [['e2e4', 0], ['e7e5', 4000]]);
   const back = B.restore(JSON.parse(JSON.stringify(B.save(g))));

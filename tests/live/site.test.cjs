@@ -715,7 +715,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       const dialog = p.getByRole('dialog', { name: 'Play vs human' });
       await assert.doesNotReject(dialog.waitFor({ timeout: 3000 }));
       await p.screenshot({ path: path.join(OUT, host + '-play-dialog.png') });
-      await dialog.getByRole('radio', { name: '5+0' }).click();
+      await dialog.getByRole('radiogroup', { name: 'Time control' }).getByRole('radio', { name: '5+3' }).click();
       await dialog.getByRole('button', { name: 'Start game' }).click();
       await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 3000 }));
       await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
@@ -730,9 +730,9 @@ for (const name of BROWSERS) for (const site of SITES) {
       await drag(b, 'e7', 'e5', true);
       await assert.doesNotReject(label.filter({ hasText: /1… e5/ }).waitFor({ timeout: 5000 }));
       await p.waitForTimeout(2500);
-      // Black's clock ran while Black thought; White's runs now
+      // Black's clock ran while Black thought, and each move added 3 s; White's runs now
       const clocks = await p.locator('.game-clock').allInnerTexts();
-      assert.ok(clocks.every((c) => /^4:5\d$|^5:00$/.test(c)) && clocks.some((c) => c !== '5:00'), clocks.join(' '));
+      assert.ok(clocks.every((c) => /^4:5\d$|^5:0[0-3]$/.test(c)) && clocks.some((c) => c !== '5:00'), clocks.join(' '));
       await noHints();
       await p.screenshot({ path: path.join(OUT, host + '-play.png') });
       // ← and the transport bar don't take moves back in a game; Take back does: Black to move again, still at the bottom

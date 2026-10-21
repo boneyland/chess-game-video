@@ -50,7 +50,9 @@
     return seen >= 3 ? draw('repetition') : null;
   }
 
-  const TIME_CONTROLS = ['5+0', '10+0', '15+10', '30+0'];
+  const TIME_CONTROLS = ['5+3', '10+0', '15+10', '30+0'];
+  // games stored before 5+0 became 5+3 keep their clock
+  const RETIRED_TCS = ['5+0'];
   const parseTc = (tc) => { const m = /^(\d+)\+(\d+)$/.exec(tc || ''); return m ? { base: +m[1] * 60000, inc: +m[2] * 1000 } : null; };
   const B = () => window.BoardCore;
   const other = (side) => (side === 'w' ? 'b' : 'w');
@@ -217,7 +219,7 @@
   // comes from the moves unless it was a resignation, a flag fall or an agreed draw. A game stored without an id gets one
   function resume(board, g) {
     if (!g || typeof g !== 'object' || (g.mode !== 'human' && g.mode !== 'stockfish')) return board;
-    const tc = TIME_CONTROLS.includes(g.tc) ? g.tc : null, t = parseTc(tc), n = board.steps.length;
+    const tc = TIME_CONTROLS.includes(g.tc) || RETIRED_TCS.includes(g.tc) ? g.tc : null, t = parseTc(tc), n = board.steps.length;
     let clock = null;
     if (t) {
       const c = g.clock || {}, ms = (x) => (Number.isFinite(x) ? Math.max(0, x) : t.base);
