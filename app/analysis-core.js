@@ -116,7 +116,7 @@
   // end on a bestmove token that isn't the start of its last complete line
   const bestOf = (r) => (r && r.pv && r.pv[0]) || (r && r.best) || null;
 
-  const ENGINE = { name: 'Stockfish 19 lite (browser)', depth: 22, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
+  const ENGINE = { name: 'Stockfish 19 lite (browser)', depth: 24, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
   // The engine settings a viewer can change (Settings → Engine), from the saved tweaks, kept in range; anything
   // missing or out of range falls back to the default. game: as ENGINE (written into the analysis JSON); own: the
   // search of the viewer's own moves
