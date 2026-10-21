@@ -17,30 +17,45 @@ function useTweaks(defaults) {
   return [values, setTweak];
 }
 
-function TweaksPanel({ open, onClose, title = 'Settings', wide = false, children }) {
+// tabs: [{ id, label, body }], falsy ones left out; tab is the open one's id (the first tab when it isn't shown). Every
+// layout gets the same panel: one column under a fixed grid of tabs, of one height whichever tab is open
+function TweaksPanel({ open, onClose, title = 'Settings', tabs, tab, onTab }) {
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+  const strip = React.useRef(null);
   if (!open) return null;
+  const shown = tabs.filter(Boolean), cur = shown.find((x) => x.id === tab) || shown[0];
+  // arrows, Home and End move between the tabs, as in a tab list
+  const onKeyDown = (e) => {
+    const i = shown.indexOf(cur), n = shown.length;
+    const j = { ArrowRight: i + 1, ArrowLeft: i - 1 + n, Home: 0, End: n - 1 }[e.key];
+    if (j === undefined) return;
+    e.preventDefault();
+    onTab(shown[j % n].id);
+    strip.current.children[j % n].focus();
+  };
   return (
-    <aside className={'twk-panel' + (wide ? ' twk-wide' : '')} aria-label={title}>
+    <aside className="twk-panel twk-tabbed" aria-label={title}>
       <div className="twk-hd">
         <b>{title}</b>
         <button type="button" className="twk-x" aria-label="Close settings" onClick={onClose}>✕</button>
       </div>
-      <div className="twk-body">{wide ? <div className="twk-cols">{children}</div> : children}</div>
+      <div ref={strip} className="twk-tabs" role="tablist" aria-label={title} style={{ '--twk-tab-cols': shown.length <= 4 ? shown.length : Math.ceil(shown.length / 2) }} onKeyDown={onKeyDown}>
+        {shown.map((x) => (
+          <button key={x.id} id={'twk-tab-' + x.id} type="button" role="tab" aria-selected={x === cur} aria-controls="twk-tabpanel" tabIndex={x === cur ? 0 : -1} onClick={() => onTab(x.id)}>{x.label}</button>
+        ))}
+      </div>
+      <div key={cur.id} className="twk-body" id="twk-tabpanel" role="tabpanel" aria-labelledby={'twk-tab-' + cur.id}>{cur.body}</div>
     </aside>
   );
 }
 
-// a titled group of rows; the wide panel lays groups out in columns, never splitting one (with four columns, TweakColumn
-// sets which groups share one; with three, the groups are balanced across them)
+// a titled group of rows within a tab
 function TweakSection({ label, children }) { return <section className="twk-group"><div className="twk-sect">{label}</div>{children}</section>; }
-// The groups that make one column of the wide panel's four (on narrower screens the groups flow on their own)
-function TweakColumn({ children }) { return <div className="twk-column">{children}</div>; }
 
 function TweakRow({ label, value, children }) {
   return (
@@ -99,4 +114,4 @@ function TweakButton({ label, onClick, secondary = false, disabled = false }) {
   return <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'} disabled={disabled} onClick={onClick}>{label}</button>;
 }
 
-Object.assign(window, { useTweaks, TweaksPanel, TweakSection, TweakColumn, TweakSlider, TweakToggle, TweakRadio, TweakSelect, TweakButton });
+Object.assign(window, { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle, TweakRadio, TweakSelect, TweakButton });

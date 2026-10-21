@@ -165,6 +165,12 @@ for (const name of BROWSERS) for (const site of SITES) {
 
     await t.test('desktop: a changed setting survives a reload', async () => {
       await page.getByRole('button', { name: 'Settings' }).click();
+      // the tabs, and the arrow keys moving between them
+      const tabs = page.getByRole('tablist', { name: 'Settings' }).getByRole('tab');
+      assert.deepEqual(await tabs.allInnerTexts(), ['Game', 'View', 'Engine', 'Commentary', 'Export', 'Sound']);
+      await tabs.first().focus();
+      await page.keyboard.press('ArrowRight');
+      assert.equal(await page.getByRole('tab', { name: 'View' }).getAttribute('aria-selected'), 'true');
       await page.getByRole('radiogroup', { name: 'Theme' }).getByRole('radio', { name: 'Dark' }).click();
       await page.reload({ waitUntil: 'load' });
       await loaded();
@@ -310,6 +316,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       const before = await kings();
       assert.equal(before.length, 2, 'two kings found: ' + JSON.stringify(before));
       await fl.page.getByRole('button', { name: 'Settings' }).click();
+      await fl.page.getByRole('tab', { name: 'View' }).click();
       const sw = fl.page.getByRole('switch', { name: 'Flip board' });
       await sw.click();
       assert.equal(await sw.getAttribute('aria-checked'), 'true');
@@ -687,7 +694,9 @@ for (const name of BROWSERS) for (const site of SITES) {
       await p.getByRole('button', { name: 'Settings' }).click();
       await p.getByRole('button', { name: 'Replay these moves as a game' }).click();
       await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ timeout: 5000 }));
+      await p.getByRole('tab', { name: 'Export' }).click();
       await assert.doesNotReject(p.getByRole('button', { name: /^Export (video|animated WebP)/ }).waitFor({ timeout: 5000 }));
+      await p.getByRole('tab', { name: 'Game' }).click();
       await p.getByRole('button', { name: 'Back to the free board' }).click();
       await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
       await assert.doesNotReject(label.filter({ hasText: new RegExp('^1\\. ' + san.replace(/[+#]/g, '\\$&') + '$') }).waitFor({ timeout: 5000 }));
@@ -1067,9 +1076,11 @@ for (const name of BROWSERS) for (const site of SITES) {
       await leave.getByRole('button', { name: 'Leave the game' }).click();
       await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ timeout: 5000 }));
       await p.locator('.pdock').getByRole('button', { name: 'Settings' }).click();
-      await assert.doesNotReject(p.getByRole('button', { name: 'Save as annotated PGN' }).waitFor({ timeout: 5000 }));
-      await assert.doesNotReject(p.getByRole('button', { name: /^Export (video|animated WebP)/ }).waitFor({ timeout: 5000 }));
       assert.match(await p.locator('.twk-note').first().innerText(), /White – Black · 4 plies/);
+      await p.getByRole('tab', { name: 'Commentary' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Save as annotated PGN' }).waitFor({ timeout: 5000 }));
+      await p.getByRole('tab', { name: 'Export' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: /^Export (video|animated WebP)/ }).waitFor({ timeout: 5000 }));
       await p.getByRole('button', { name: 'Close settings' }).click();
       // Delete asks in the row; Keep keeps, Delete deletes
       await menuItem('My games…');

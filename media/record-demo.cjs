@@ -195,7 +195,9 @@ const ready = async (page) => { await page.locator('.dock-primary').waitFor({ st
       await rec.hold(600);
       await glide(page, page.getByRole('button', { name: 'Settings' }));
       await rec.hold(800);
-      await zoom(page, ['^video$']);
+      await glide(page, page.getByRole('tab', { name: 'Export' }));
+      await rec.hold(500);
+      await zoom(page, ['^export as$']);
       await glide(page, page.getByRole('button', { name: /^Export (video|animated WebP)/ }), { click: false });
       await rec.hold(3000);
     }));
