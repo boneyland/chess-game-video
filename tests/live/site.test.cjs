@@ -224,7 +224,10 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.ok(await top() < end - 100, 'the drag scrolled the list up');
       assert.equal(await page.evaluate(() => String(window.getSelection())), '', 'no text selected');
       assert.equal(await page.locator('.plabel').innerText(), at, 'the drag picked no move');
-      const dragged = await top();
+      // let go while moving, the list glides on: wait until it stops
+      let dragged = await top();
+      for (let i = 0; i < 40; i++) { await page.waitForTimeout(100); const now = await top(); if (now === dragged) break; dragged = now; }
+      assert.ok(dragged < end - 100, 'the glide left the list scrolled up');
       await page.mouse.wheel(0, 120);
       await page.waitForFunction((d) => document.querySelector('.moves-list').scrollTop > d, dragged, { timeout: 3000 });
       await page.locator('[data-ply="0"]').click();

@@ -19,7 +19,7 @@ class BrowserJsonTest(unittest.TestCase):
         data = AnalysisData.from_json_file(JSON)
         self.assertEqual(len(data.moves), 7)
         summary = data.engine_summary()
-        self.assertTrue(summary.startswith("Stockfish 19 lite (browser) · depth 22"), summary)
+        self.assertTrue(summary.startswith("Stockfish 19 lite (browser) · depth 24"), summary)
         self.assertIn("3s per position", summary)
         self.assertEqual(data.moves[-1].move_san, "Qxf7#")
 
