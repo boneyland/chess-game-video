@@ -148,6 +148,7 @@ function GameApp() {
   const [err, setErr] = React.useState('');
   const [drag, setDrag] = React.useState(false);
   const [panel, setPanel] = React.useState(false);
+  const [panelTab, setPanelTab] = React.useState('game'); // Settings' open tab, kept while the page is open
   const [ai, setAi] = React.useState({ busy: false, err: '', chars: 0 });
   const [saveMsg, setSaveMsg] = React.useState('');
   const inputRef = React.useRef(null);
@@ -514,123 +515,117 @@ function GameApp() {
       {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
       {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); run(); }} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
-      <TweaksPanel open={panel} onClose={closePanel} wide>
-        <TweakColumn>
+      <TweaksPanel open={panel} onClose={closePanel} tab={panelTab} onTab={setPanelTab} tabs={[
+        { id: 'game', label: 'Game', body: <>
+          <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
+          <TweakButton label="Load game…" onClick={loadGame} />
+          {!board && <div className="twk-note">Uses the PGN’s own evals (Lichess [%eval] or cutechess +0.25/20). Without them, run “Analyse with Stockfish” from Analysis or Engine. Saved analysis, notes and Queen files load here too.</div>}
+          {board && !window.PlayCore.inProgress(board) && <TweakButton label="Replay these moves as a game" disabled={!board.steps.length} onClick={boardAsGame} />}
+          {board && !window.PlayCore.inProgress(board) && <div className="twk-note">{board.steps.length ? 'Opens every move on the board as a game: watch it, analyse it with Stockfish, and export it as a video or WebP. The board comes back with “Back to the free board”.' : 'Play some moves first; then they can be replayed and exported as a video.'}</div>}
+          {!board && files.fromBoard && <TweakButton secondary label="Back to the free board" onClick={() => { const b = window.BoardCore.restore(files.fromBoard); if (b) commitBoard(b); }} />}
+          {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => guard(() => commit(SAMPLE))} />}
+          {!board && M.canChooseSource && (
+            <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
+          )}
+          {!board && M.gameCount > 1 && (
+            <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
+          )}
+          <TweakSection label="About">
+            <div className="twk-note">This player is free software under the GPL-3.0-or-later; <a href="https://github.com/boneyland/chess-replay" target="_blank" rel="noopener">source on GitHub</a>.</div>
+          </TweakSection>
+        </> },
+        { id: 'view', label: 'View', body: <>
           <TweakSection label="Appearance">
             <TweakRadio id="tw-scheme" label="Theme" value={t.scheme || 'Auto'} options={['Auto', 'Light', 'Dark']} onChange={(v) => setTweak('scheme', v)} />
           </TweakSection>
-          <TweakSection label="Game">
-            <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
-            <TweakButton label="Load game…" onClick={loadGame} />
-            {!board && <div className="twk-note">Uses the PGN’s own evals (Lichess [%eval] or cutechess +0.25/20). Without them, run “Analyse with Stockfish” from Analysis or Engine. Saved analysis, notes and Queen files load here too.</div>}
-            {board && !window.PlayCore.inProgress(board) && <TweakButton label="Replay these moves as a game" disabled={!board.steps.length} onClick={boardAsGame} />}
-            {board && !window.PlayCore.inProgress(board) && <div className="twk-note">{board.steps.length ? 'Opens every move on the board as a game: watch it, analyse it with Stockfish, and export it as a video or WebP. The board comes back with “Back to the free board”.' : 'Play some moves first; then they can be replayed and exported as a video.'}</div>}
-            {!board && files.fromBoard && <TweakButton secondary label="Back to the free board" onClick={() => { const b = window.BoardCore.restore(files.fromBoard); if (b) commitBoard(b); }} />}
-            {!files.sample && <TweakButton secondary label="Back to sample game" onClick={() => guard(() => commit(SAMPLE))} />}
-            {!board && M.canChooseSource && (
-              <TweakRadio id="tw-source" label="Evaluations from" value={M.evalSource === 'pgn' ? 'PGN' : 'Analysis'} options={['Analysis', 'PGN']} onChange={(v) => commit({ ...files, evalSource: v === 'PGN' ? 'pgn' : 'analysis' })} />
-            )}
-            {!board && M.gameCount > 1 && (
-              <TweakSelect id="tw-game" label="Game in PGN" value={String((files.gameIndex || 0) + 1)} options={Array.from({ length: M.gameCount }, (_, i) => String(i + 1))} onChange={(v) => commit({ ...files, gameIndex: +v - 1, analysis: null, analysisName: null })} />
-            )}
-          </TweakSection>
-          <TweakSection label="Sound">
-            <TweakToggle id="tw-sound" label="Move sounds" value={t.sound !== false} onChange={(v) => setTweak('sound', v)} />
-            <TweakSelect id="tw-sset" label="Sound set" value={soundSet} options={window.Sfx.SETS} onChange={(v) => { setTweak('soundSet', v); sfxPlayer.play(v, ['move'], soundVolume); }} />
-            <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v); }} />
-            <div className="twk-note">The Lichess sets are by <a href="https://github.com/Enigmahack" target="_blank" rel="noopener">Enigmahack</a>, from <a href="https://github.com/lichess-org/lila" target="_blank" rel="noopener">Lichess’s source</a>, under the AGPL-3.0-or-later. Wood is made in your browser.</div>
-          </TweakSection>
-        </TweakColumn>
-        <TweakColumn>
-          <TweakSection label="Engine">
-            <div className="twk-note">Stockfish 19 lite runs in your browser, for your own moves and “Analyse with Stockfish”. Each search stops at its depth or time limit, whichever comes first.</div>
-            <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
-            <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
-            <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />
-            <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
-            <TweakSelect id="tw-sf-hash" label="Hash table (helps long searches; a phone may run out of memory)" value={ES.game.hash_mb + ' MB'} options={window.AnalysisCore.HASH_MB.map((x) => x + ' MB')} onChange={(v) => setTweak('sfHash', parseInt(v, 10))} />
-            {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
-            {!board && (analysis.state === 'running'
-              ? <>
-                <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ' · ' + fmtEta(analysis.etaSec) : ''}</div>
-                <TweakButton secondary label="Stop the analysis" onClick={analysis.stop} />
-              </>
-              : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}
-            {!board && analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
-            {!board && files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
-            <div className="twk-note">{board && board.game ? (board.game.mode === 'stockfish' ? 'Stockfish 19 plays the other side at full strength (there is no strength setting) and quietly rates your moves; Analyse on the free board shows its eval once the game ends.' : 'Stockfish is off during a game; Analyse on the free board brings it back once the game ends.') : board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
-          </TweakSection>
-        </TweakColumn>
-        {!board && <TweakColumn>
-          <TweakSection label="Commentary">
-            <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
-            {sample && <>
-              <TweakRadio id="tw-tone" label="Style" value={t.aiTone || window.TWEAK_DEFAULTS.aiTone} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
-              <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || window.TWEAK_DEFAULTS.aiAudience} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
-              <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || window.TWEAK_DEFAULTS.aiDensity} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
+          <TweakSection label="Board">
+            {board && board.game ? (
+              <div className="twk-note">{board.game.mode === 'stockfish'
+                ? 'Drag or tap a piece to play a move; the board stays on your side, and Stockfish replies after a short pause. Take back and Resign are in the Game box; after the game, ← → step through it.'
+                : 'Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box; after the game, ← → step through it.'}</div>
+            ) : board ? <>
+              <div className="twk-note">Drag or tap a piece to play a move, for either side; Stockfish rates each one. Keys: ← → moves, Home the start, End the last move, F flips the board.</div>
+              <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />
+            </> : <>
+              <div className="twk-note">Drag or tap a piece to try your own moves; click a move in Moves to jump to it. Keys: ← → moves, Shift+← → 1 s, Space play/pause, Home or 0 start, End last move.</div>
+              <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />
+              <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
+              <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
+              <TweakToggle id="tw-glow" label="Red glow on blunders and mates" value={t.blunderGlow !== false} onChange={(v) => setTweak('blunderGlow', v)} />
+              <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
+              <div className="twk-note">Shows Queen’s comments and lines on the moves it has analysed; those moves stay on screen longer.</div>
             </>}
-            {sample
-              ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
-              : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
-            {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
-            {M.hasNotes && <div className="twk-note">Where both comment on a move, your notes file wins.</div>}
-            {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
-            {M.hasAiNotes && (downloads || !IN_CLAUDE) && <>
-              <TweakButton secondary label="Save Claude's commentary as a notes file" onClick={downloadNotes} />
-              <div className="twk-note">Load the notes file with the PGN to restore Claude’s commentary; the annotated PGN includes all of it.</div>
-            </>}
-            {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
-            {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save as annotated PGN" onClick={savePgn} />}
-            {saveMsg && <div className="twk-note">{saveMsg}</div>}
           </TweakSection>
-          <TweakSection label="Pace">
+          {!board && <TweakSection label="Pace">
             <div className="twk-note">Video length {fmtLen(TM.total)}{TM.capped ? ' (capped at 5:00)' : ''}</div>
             <TweakSlider id="tw-spm" label="Seconds per move" value={t.secondsPerMove} min={0.5} max={4} step={0.1} unit="s" onChange={(v) => setTweak('secondsPerMove', v)} />
             <TweakSlider id="tw-hold" label="Extra hold on !/? moves and uncommented mates" value={t.keyHold} min={0} max={6} step={0.5} unit="s" onChange={(v) => setTweak('keyHold', v)} />
             <TweakToggle id="tw-fast" label="Faster opening" value={t.fastOpening} onChange={(v) => setTweak('fastOpening', v)} />
-          </TweakSection>
-        </TweakColumn>}
-        <TweakColumn>
-          {board && board.game ? (
-            <TweakSection label="Board">
-              <div className="twk-note">{board.game.mode === 'stockfish'
-                ? 'Drag or tap a piece to play a move; the board stays on your side, and Stockfish replies after a short pause. Take back and Resign are in the Game box; after the game, ← → step through it.'
-                : 'Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box; after the game, ← → step through it.'}</div>
-            </TweakSection>
-          ) : board ? (
-            <TweakSection label="Board">
-              <div className="twk-note">Drag or tap a piece to play a move, for either side; Stockfish rates each one. Keys: ← → moves, Home the start, End the last move, F flips the board.</div>
-              <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />
-            </TweakSection>
-          ) : <TweakSection label="Video">
-            <div className="twk-note">Drag or tap a piece to try your own moves; click a move in Moves to jump to it. Keys: ← → moves, Shift+← → 1 s, Space play/pause, Home or 0 start, End last move.</div>
-            {!IN_CLAUDE && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
-            {IN_CLAUDE && downloads && <div className="twk-note">Exports an MP4 here. Animated WebP export is on the <a href={SF_SITE_URL} target="_blank" rel="noopener">self-hosted copy</a>: claude.ai can’t load its encoder.</div>}
-            {(downloads || !IN_CLAUDE) && webp && <>
-              <TweakSelect id="tw-webp-width" label="WebP width" value={webpPx(webpWidth)} options={webpWidths.map(webpPx)} onChange={(v) => setTweak('webpWidth', webpWidths.find((x) => webpPx(x) === v))} />
-              <TweakSlider id="tw-webp-q" label="WebP quality" value={webpQuality} min={WEBP_QUALITY.min} max={WEBP_QUALITY.max} step={WEBP_QUALITY.step} onChange={(v) => setTweak('webpQuality', v)} />
-            </>}
-            {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
-            {(downloads || !IN_CLAUDE) && <>
-              <div className="twk-pair">
-                <TweakSelect id="tw-clip-from" label="From" aria="Export from" value={clipFromOpts.find((o) => o.i === clipFrom).s} options={clipFromOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, from: clipFromOpts.find((o) => o.s === v).i }))} />
-                <TweakSelect id="tw-clip-to" label="To" aria="Export to" value={clipToOpts.find((o) => o.i === clipTo).s} options={clipToOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, to: clipToOpts.find((o) => o.s === v).i }))} />
-              </div>
-              <TweakButton label={`${webp ? 'Export animated WebP (' : 'Export video (MP4, '}${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
-              <div className="twk-note">Renders every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. Higher frame rates are smoother but slower. Each move’s clip runs from just before it until the board settles. {webp ? 'No sound, and it loops; a smaller width or quality makes a smaller file.' : 'Includes move sounds when on.'} No camera push.</div>
-            </>}
-            <TweakToggle id="tw-flip" label="Flip board" value={!!t.flip} onChange={(v) => setTweak('flip', v)} />
-            <TweakToggle id="tw-arrows" label="Best-move arrows" value={t.bestArrows} onChange={(v) => setTweak('bestArrows', v)} />
-            <TweakToggle id="tw-push" label="Camera push on blunders" value={t.cameraPush} onChange={(v) => setTweak('cameraPush', v)} />
-            <TweakToggle id="tw-glow" label="Red glow on blunders and mates" value={t.blunderGlow !== false} onChange={(v) => setTweak('blunderGlow', v)} />
-            <TweakToggle id="tw-queen" label="Queen in the video" value={queenInVideo} onChange={(v) => setTweak('queenInVideo', v)} />
-            <div className="twk-note">Shows Queen’s comments and lines on the moves it has analysed; those moves stay on screen longer.</div>
           </TweakSection>}
-          <TweakSection label="About">
-            <div className="twk-note">This player is free software under the GPL-3.0-or-later; <a href="https://github.com/boneyland/chess-replay" target="_blank" rel="noopener">source on GitHub</a>.</div>
-          </TweakSection>
-        </TweakColumn>
-      </TweaksPanel>
+        </> },
+        { id: 'engine', label: 'Engine', body: <>
+          <div className="twk-note">Stockfish 19 lite runs in your browser, for your own moves and “Analyse with Stockfish”. Each search stops at its depth or time limit, whichever comes first.</div>
+          <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
+          <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
+          <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />
+          <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
+          <TweakSelect id="tw-sf-hash" label="Hash table (helps long searches; a phone may run out of memory)" value={ES.game.hash_mb + ' MB'} options={window.AnalysisCore.HASH_MB.map((x) => x + ' MB')} onChange={(v) => setTweak('sfHash', parseInt(v, 10))} />
+          {sfChanged && <TweakButton secondary label="Reset engine settings" onClick={() => SF_KEYS.forEach((k) => setTweak(k, window.TWEAK_DEFAULTS[k]))} />}
+          {!board && (analysis.state === 'running'
+            ? <>
+              <div className="twk-note">Analysing {analysis.done} of {analysis.total} positions{analysis.etaSec != null ? ' · ' + fmtEta(analysis.etaSec) : ''}</div>
+              <TweakButton secondary label="Stop the analysis" onClick={analysis.stop} />
+            </>
+            : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}
+          {!board && analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
+          {!board && files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
+          <div className="twk-note">{board && board.game ? (board.game.mode === 'stockfish' ? 'Stockfish 19 plays the other side at full strength (there is no strength setting) and quietly rates your moves; Analyse on the free board shows its eval once the game ends.' : 'Stockfish is off during a game; Analyse on the free board brings it back once the game ends.') : board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+        </> },
+        !board && { id: 'commentary', label: 'Commentary', body: <>
+          <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
+          {sample && <>
+            <TweakRadio id="tw-tone" label="Style" value={t.aiTone || window.TWEAK_DEFAULTS.aiTone} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
+            <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || window.TWEAK_DEFAULTS.aiAudience} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
+            <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || window.TWEAK_DEFAULTS.aiDensity} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
+          </>}
+          {sample
+            ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
+            : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
+          {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
+          {M.hasNotes && <div className="twk-note">Where both comment on a move, your notes file wins.</div>}
+          {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
+          {M.hasAiNotes && (downloads || !IN_CLAUDE) && <>
+            <TweakButton secondary label="Save Claude's commentary as a notes file" onClick={downloadNotes} />
+            <div className="twk-note">Load the notes file with the PGN to restore Claude’s commentary; the annotated PGN includes all of it.</div>
+          </>}
+          {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
+          {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save as annotated PGN" onClick={savePgn} />}
+          {saveMsg && <div className="twk-note">{saveMsg}</div>}
+        </> },
+        !board && (downloads || !IN_CLAUDE) && { id: 'export', label: 'Export', body: <>
+          {!IN_CLAUDE && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
+          {IN_CLAUDE && downloads && <div className="twk-note">Exports an MP4 here. Animated WebP export is on the <a href={SF_SITE_URL} target="_blank" rel="noopener">self-hosted copy</a>: claude.ai can’t load its encoder.</div>}
+          {(downloads || !IN_CLAUDE) && webp && <>
+            <TweakSelect id="tw-webp-width" label="WebP width" value={webpPx(webpWidth)} options={webpWidths.map(webpPx)} onChange={(v) => setTweak('webpWidth', webpWidths.find((x) => webpPx(x) === v))} />
+            <TweakSlider id="tw-webp-q" label="WebP quality" value={webpQuality} min={WEBP_QUALITY.min} max={WEBP_QUALITY.max} step={WEBP_QUALITY.step} onChange={(v) => setTweak('webpQuality', v)} />
+          </>}
+          {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
+          {(downloads || !IN_CLAUDE) && <>
+            <div className="twk-pair">
+              <TweakSelect id="tw-clip-from" label="From" aria="Export from" value={clipFromOpts.find((o) => o.i === clipFrom).s} options={clipFromOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, from: clipFromOpts.find((o) => o.s === v).i }))} />
+              <TweakSelect id="tw-clip-to" label="To" aria="Export to" value={clipToOpts.find((o) => o.i === clipTo).s} options={clipToOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, to: clipToOpts.find((o) => o.s === v).i }))} />
+            </div>
+            <TweakButton label={`${webp ? 'Export animated WebP (' : 'Export video (MP4, '}${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
+            <div className="twk-note">Renders every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. Higher frame rates are smoother but slower. Each move’s clip runs from just before it until the board settles. {webp ? 'No sound, and it loops; a smaller width or quality makes a smaller file.' : 'Includes move sounds when on.'} No camera push.</div>
+          </>}
+        </> },
+        { id: 'sound', label: 'Sound', body: <>
+          <TweakToggle id="tw-sound" label="Move sounds" value={t.sound !== false} onChange={(v) => setTweak('sound', v)} />
+          <TweakSelect id="tw-sset" label="Sound set" value={soundSet} options={window.Sfx.SETS} onChange={(v) => { setTweak('soundSet', v); sfxPlayer.play(v, ['move'], soundVolume); }} />
+          <TweakSlider id="tw-vol" label="Volume" value={soundVolume} min={0} max={100} step={5} unit="%" onChange={(v) => { setTweak('soundVolume', v); sfxPlayer.play(soundSet, ['move'], v); }} />
+          <div className="twk-note">The Lichess sets are by <a href="https://github.com/Enigmahack" target="_blank" rel="noopener">Enigmahack</a>, from <a href="https://github.com/lichess-org/lila" target="_blank" rel="noopener">Lichess’s source</a>, under the AGPL-3.0-or-later. Wood is made in your browser.</div>
+        </> },
+      ]} />
     </React.Fragment>
   );
 }
