@@ -168,7 +168,8 @@ function GameApp() {
   // the dock's Play/Explore menu (landscape); on a phone its items sit in the folded menu instead
   const [newMenu, setNewMenu] = React.useState(false);
   const [fenOpen, setFenOpen] = React.useState(false);
-  const [playOpen, setPlayOpen] = React.useState(false);
+  // the Play dialog's mode while it is open: 'human' or 'stockfish'
+  const [playOpen, setPlayOpen] = React.useState(null);
   // My games' list while its dialog is open
   const [gamesOpen, setGamesOpen] = React.useState(null);
   // leaving a game in progress asks first: { run } is what waits on the answer
@@ -261,9 +262,17 @@ function GameApp() {
   };
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
-  const playHuman = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(true)); };
-  const playStart = ({ fen, tc }) => { setPlayOpen(false); setQueenOpen(false); setTweak('playClock', tc || 'Off'); commitBoard(window.PlayCore.start(window.BoardCore.fromFen(fen), tc)); };
-  const closePlay = React.useCallback(() => setPlayOpen(false), []);
+  const playIn = (mode) => () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(mode)); };
+  const playHuman = playIn('human'), playSf = playIn('stockfish');
+  // against Stockfish the side is remembered as picked, and Random resolved here, for this game
+  const playStart = ({ fen, tc, you }) => {
+    const mode = playOpen;
+    setPlayOpen(null); setQueenOpen(false); setTweak('playClock', tc || 'Off');
+    if (mode === 'stockfish') setTweak('playSide', you);
+    const side = you === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : you;
+    commitBoard(window.PlayCore.start(window.BoardCore.fromFen(fen), tc, null, mode === 'stockfish' ? { mode, you: side } : undefined));
+  };
+  const closePlay = React.useCallback(() => setPlayOpen(null), []);
   const myGames = () => { setNewMenu(false); setMenu(false); setPanel(false); setGamesOpen(readGames()); };
   const closeGames = React.useCallback(() => setGamesOpen(null), []);
   // a finished game replays as a loaded game; one in progress goes back on the board
@@ -276,7 +285,7 @@ function GameApp() {
   // the board's moves as a loaded game (replay, Analyse with Stockfish, PGN and video export); the board is kept with it, to go back to
   const boardAsGame = () => { commit({ pgn: window.BoardCore.pgn(board), pgnName: 'free-board.pgn', gameIndex: 0, fromBoard: files.board }); };
   // a dialog closed (Esc, Cancel, Set up, Start game): focus goes back to what opened it, Play/Explore or the phone's Menu
-  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || playOpen || !!gamesOpen;
+  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || !!playOpen || !!gamesOpen;
   React.useEffect(() => {
     if (fenWasOpen.current && !dialogOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
     fenWasOpen.current = dialogOpen;
@@ -419,18 +428,20 @@ function GameApp() {
   }, [queenOpen, tall]);
   const sf = { engine, own: ES.own, game: ES.game, book, status: engine.status, run: analysis, start: analysis.start, stop: analysis.stop, estimateMin: analysis.estimateMin };
 
-  const boardStatus = board && board.game ? `Play vs human · ${board.game.tc || 'no clock'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}${board.game.result ? ' · ' + window.PlayCore.resultText(board.game.result).score : ''}`
+  const gameName = (g) => (g.mode === 'stockfish' ? `Play vs Stockfish · you play ${g.you === 'w' ? 'White' : 'Black'}` : 'Play vs human');
+  const boardStatus = board && board.game ? `${gameName(board.game)} · ${board.game.tc || 'no clock'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}${board.game.result ? ' · ' + window.PlayCore.resultText(board.game.result).score : ''}`
     : board && `Free board · ${board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}`;
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Play vs human…', run: playHuman }, { label: 'My games…', run: myGames }];
+  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Play vs human…', run: playHuman }, { label: 'Play vs Stockfish…', run: playSf },
+    { label: 'My games…', run: myGames }];
   const fsLabel = fullscreen.on ? 'Exit full screen' : 'Full screen';
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); loadGame(); }}>Load game…</button>
-      {/* a list, so the later starting points (Play vs Stockfish) join it */}
+      {/* a list of starting points, a heading over them on the phone */}
       {tall ? <React.Fragment>
         <span className="dock-menu-label">Play/Explore</span>
         {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
@@ -499,7 +510,7 @@ function GameApp() {
       )}
       <ExportOverlay x={video} />
       {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
-      {playOpen && <PlayDialog setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} onStart={playStart} onClose={closePlay} />}
+      {playOpen && <PlayDialog key={playOpen} mode={playOpen} setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} side={t.playSide} onStart={playStart} onClose={closePlay} />}
       {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
       {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); run(); }} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
@@ -547,7 +558,7 @@ function GameApp() {
               : <TweakButton disabled={engine.status === 'unavailable'} label={`${analysis.resumeAt ? `Resume analysis from move ${Math.floor((MV.ply0 + analysis.resumeAt) / 2) + 1}` : files.analysis ? 'Analyse again' : 'Analyse with Stockfish'} · about ${analysis.estimateMin} min`} onClick={analysis.start} />)}
             {!board && analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
             {!board && files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
-            <div className="twk-note">{board && board.game ? 'Stockfish is off during a game; Analyse on the free board brings it back once the game ends.' : board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+            <div className="twk-note">{board && board.game ? (board.game.mode === 'stockfish' ? 'Stockfish 19 plays the other side at full strength (there is no strength setting) and quietly rates your moves; Analyse on the free board shows its eval once the game ends.' : 'Stockfish is off during a game; Analyse on the free board brings it back once the game ends.') : board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
           </TweakSection>
         </TweakColumn>
         {!board && <TweakColumn>
@@ -582,7 +593,9 @@ function GameApp() {
         <TweakColumn>
           {board && board.game ? (
             <TweakSection label="Board">
-              <div className="twk-note">Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box; after the game, ← → step through it.</div>
+              <div className="twk-note">{board.game.mode === 'stockfish'
+                ? 'Drag or tap a piece to play a move; the board stays on your side, and Stockfish replies after a short pause. Take back and Resign are in the Game box; after the game, ← → step through it.'
+                : 'Drag or tap a piece to play a move; the board turns after each one, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box; after the game, ← → step through it.'}</div>
             </TweakSection>
           ) : board ? (
             <TweakSection label="Board">
