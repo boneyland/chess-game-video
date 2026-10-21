@@ -49,7 +49,7 @@ function TweaksPanel({ open, onClose, title = 'Settings', tabs, tab, onTab }) {
           <button key={x.id} id={'twk-tab-' + x.id} type="button" role="tab" aria-selected={x === cur} aria-controls="twk-tabpanel" tabIndex={x === cur ? 0 : -1} onClick={() => onTab(x.id)}>{x.label}</button>
         ))}
       </div>
-      <div key={cur.id} className="twk-body" id="twk-tabpanel" role="tabpanel" aria-labelledby={'twk-tab-' + cur.id}>{cur.body}</div>
+      <div key={cur.id} className="twk-body" id="twk-tabpanel" role="tabpanel" aria-labelledby={'twk-tab-' + cur.id}><div className="twk-flow">{cur.body}</div></div>
     </aside>
   );
 }
