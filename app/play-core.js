@@ -154,12 +154,14 @@
     return Math.round(Math.max(100, Math.min(2000, left / 30 + parseTc(b.game.tc).inc / 2)));
   }
 
-  // The board with a player's move flagged ({ j, cls, best }): only in a Stockfish game, for a step still on the board that
-  // the player played, once per step; the board as it was otherwise. A rating that lands after the end still counts
+  // The board with a player's move flagged ({ j, cls, best, text }; text, critiqueText's line, is optional): only in a
+  // Stockfish game, for a step still on the board that the player played, once per step; the board as it was otherwise.
+  // A rating that lands after the end still counts
+  const TEXT_MAX = 120, entry = (c) => ({ j: c.j, cls: c.cls, best: c.best, ...(typeof c.text === 'string' && c.text && c.text.length <= TEXT_MAX ? { text: c.text } : {}) });
   function addCritique(b, e) {
     if (!isSf(b) || !e || !Number.isInteger(e.j) || e.j < 0 || e.j >= b.steps.length || moverOf(b, e.j) !== b.game.you) return b;
     if (!CLASSES.includes(e.cls) || b.game.critique.some((c) => c.j === e.j)) return b;
-    return withGame(b, { critique: [...b.game.critique, { j: e.j, cls: e.cls, best: e.best }] });
+    return withGame(b, { critique: [...b.game.critique, entry(e)] });
   }
 
   // A short line on why the player's move was bad, without the better move: pos the position after it, pv Stockfish's reply
@@ -186,10 +188,9 @@
     return { inaccuracy: 'there was a better move', mistake: 'that gives Stockfish the edge', blunder: 'that should lose' }[cls] || '';
   }
 
-  // The side to move resigns
-  function resign(b, now) {
+  // The side to move resigns, or `side` (against Stockfish the player can resign while it thinks)
+  function resign(b, now, side = B().pos(b).turn) {
     if (!inProgress(b)) return b;
-    const side = B().pos(b).turn;
     return withGame(b, { clock: b.game.clock && charged(b, now), result: { result: side === 'w' ? '0-1' : '1-0', reason: 'resign', side } });
   }
 
@@ -232,7 +233,7 @@
     // a flagged move must still be one of the player's on the board, once each
     const you = g.you === 'b' ? 'b' : 'w', seen = new Set();
     const critique = (Array.isArray(g.critique) ? g.critique : []).filter((c) => c && Number.isInteger(c.j) && c.j >= 0 && c.j < n && moverOf(board, c.j) === you
-      && CLASSES.includes(c.cls) && typeof c.best === 'string' && UCI_RE.test(c.best) && !seen.has(c.j) && seen.add(c.j)).map((c) => ({ j: c.j, cls: c.cls, best: c.best }));
+      && CLASSES.includes(c.cls) && typeof c.best === 'string' && UCI_RE.test(c.best) && !seen.has(c.j) && seen.add(c.j)).map(entry);
     return { ...b, game: { mode: 'stockfish', you, id, tc, date, clock, result, critique } };
   }
 

@@ -223,6 +223,22 @@ test('resume a Stockfish game: the side, and a critique that fits the moves', ()
   assert.deepEqual(B.restore({ ...saved, game: { ...saved.game, critique: 'junk' } }).game.critique, []);
   assert.equal(B.restore({ ...saved, game: { ...saved.game, mode: 'other' } }).game, undefined);
 });
+test('critique text: critiqueText\'s line is kept with its move and through a reload, a bad one dropped', () => {
+  const g = sfGame('w', null, [['e2e4', 0], ['e7e5', 0], ['d1h5', 0], ['b8c6', 0]]);
+  const c = P.addCritique(g, { j: 2, cls: 'mistake', best: 'g1f3', text: 'that drops the queen' });
+  assert.deepEqual(c.game.critique, [{ j: 2, cls: 'mistake', best: 'g1f3', text: 'that drops the queen' }]);
+  assert.deepEqual(P.addCritique(g, { j: 2, cls: 'mistake', best: 'g1f3', text: 'x'.repeat(121) }).game.critique, [{ j: 2, cls: 'mistake', best: 'g1f3' }], 'too long');
+  assert.deepEqual(P.addCritique(g, { j: 2, cls: 'mistake', best: 'g1f3', text: 7 }).game.critique, [{ j: 2, cls: 'mistake', best: 'g1f3' }]);
+  assert.deepEqual(B.restore(JSON.parse(JSON.stringify(B.save(c)))).game.critique, c.game.critique);
+  const saved = B.save(c);
+  assert.deepEqual(B.restore({ ...saved, game: { ...saved.game, critique: [{ j: 2, cls: 'mistake', best: 'g1f3', text: {} }] } }).game.critique, [{ j: 2, cls: 'mistake', best: 'g1f3' }]);
+});
+test('resign: against Stockfish the player can resign while it is to move', () => {
+  const g = sfGame('w', '5+0', [['e2e4', 0]]);
+  assert.deepEqual(P.resign(g, 1000, 'w').game.result, { result: '0-1', reason: 'resign', side: 'w' });
+  assert.equal(P.resign(g, 1000, 'w').game.clock.left.b, 299000, 'the running clock is charged');
+  assert.deepEqual(P.resign(g, 1000).game.result.side, 'b', 'the side to move by default');
+});
 test('critiqueText: a piece dropped in the reply line, a mate allowed, else a line for the class', () => {
   const after = (fen, u) => CC.applyUci(CC.parseFen(fen).pos, u).pos;
   // 1. e4 e5 2. ... d6, and Qg4?? hangs the queen to ...Bxg4
