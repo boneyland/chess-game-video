@@ -144,7 +144,7 @@ const REPLY_PAUSE_MS = 600;
 // the search of the position the player is to move in, the "before" of their move: deep enough to rate it, then it stops
 // rather than run the CPU (a phone's battery) for as long as they think; their move stops it sooner. A move is rated
 // only when both searches reached MIN_RATED_DEPTH
-const BEFORE_SEARCH = { depth: 24, movetimeMs: 5000 }, REPLY_DEPTH = 30, MIN_RATED_DEPTH = 8;
+const BEFORE_SEARCH = { depth: 24, movetimeMs: 5000 }, REPLY_DEPTH = 30, MIN_RATED_DEPTH = 15;
 const FLAGGED = ['inaccuracy', 'mistake', 'blunder'];
 
 // Stockfish's side of a game against it. While the player is to move it searches the position at 'own' priority (the
