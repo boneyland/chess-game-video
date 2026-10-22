@@ -37,7 +37,7 @@ Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sig
 
 The [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT) is the same page in one file, but it does less than the site. Its current limitations:
 
-- **No WebP export**: the WebP encoder is loaded from next to the page, and the artifact has nothing next to it, so Settings offers MP4 only, with a link to the site for WebP
+- **No WebP export**: the page encodes WebP with libwebp in WebAssembly (the browsers' own `toBlob` encoder blurred some frames with its strongest deblocking filter), loaded from next to the page, and the artifact has nothing next to it, so Settings offers MP4 only, with a link to the site for WebP
 - **Saving files goes through claude.ai**: PGNs, analysis, notes and videos are saved through the artifact's `downloads` capability; where that isn't granted, the save and export buttons are hidden
 - **Ask Queen only through the Hugging Face connector**: it calls the Space through the viewer's own Hugging Face connector on claude.ai; Hugging Face sign-in isn't offered
 - **No offline use or Add to Home Screen**: the artifact registers no service worker and has no web app manifest, so it needs a connection and opens inside claude.ai

@@ -228,8 +228,8 @@ For the later plans; deferred while building step 4:
 
 For the later plans; deferred while building step 5:
 - Playing Black, if the engine dies before Stockfish's first move there is nothing to take back: only Resign or a reload starts it again.
-- A move played before the "before" search reaches depth 8 (just after the engine loads), and the move before a reload, go unrated.
-- The search while the player thinks stops at depth 22 or 15 s.
+- A move played before the "before" search reaches depth 15 (just after the engine loads), and the move before a reload, go unrated.
+- The search while the player thinks stops at depth 24 or 5 s.
 - On the phone the Commentary box cuts the how-it-works text short (it scrolls).
 - The header's site line says "from a FEN" where the Commentary box says "From a set-up position" (Play vs human too).
 - Settings still shows the "Your moves" depth and time sliders during a Stockfish game, where they don't apply.
