@@ -605,12 +605,16 @@ for (const name of BROWSERS) for (const site of SITES) {
       const b = await boardBox(p);
       // a mouse drag on the list scrolls it: no move played, no text selected
       const listTop = () => p.evaluate(() => document.querySelector('.book-head').parentElement.parentElement.scrollTop);
+      // once the list has the room to scroll that far (in CI's Firefox its rows and fonts can still be settling)
+      const room = () => p.evaluate(() => { const e = document.querySelector('.book-head').parentElement.parentElement; return e.scrollHeight - e.clientHeight; });
+      await p.waitForFunction(() => { const e = document.querySelector('.book-head').parentElement.parentElement; return e.scrollHeight - e.clientHeight >= 120; }, null, { timeout: 10000 }).catch(() => {});
+      await p.evaluate(() => document.fonts.ready);
       const from = await row(p, 'Nc3').boundingBox();
       await p.mouse.move(from.x + 40, from.y + from.height / 2);
       await p.mouse.down();
       await p.mouse.move(from.x + 40, from.y + from.height / 2 - 120, { steps: 8 });
       await p.mouse.up();
-      assert.ok(await listTop() >= 100, `the list scrolled (${await listTop()} px)`);
+      assert.ok(await listTop() >= 100, `the list scrolled (${await listTop()} px of ${await room()} px it can)`);
       assert.match(await label.innerText(), /^Start$/, 'the drag played no move');
       assert.equal(await p.evaluate(() => String(window.getSelection())), '', 'and selected no text');
       await row(p, 'e4').click();
