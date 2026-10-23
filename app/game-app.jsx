@@ -210,9 +210,10 @@ function GameApp() {
     if (files.board) return { M: lastGood.current || window.ChessCore.buildGame(SAMPLE) };
     try { return { M: window.ChessCore.buildGame(files) }; } catch (e) { return { error: e.message }; }
   }, [files]);
-  // the board's state, restored from its stored form; a board this page just committed is used as it is
+  // the board's state, restored from its stored form (on a reload, a game's running clock charged for the time away); a
+  // board this page just committed is used as it is
   const boardSaved = React.useRef(null);
-  const board = React.useMemo(() => (!files.board ? null : boardSaved.current && boardSaved.current.saved === files.board ? boardSaved.current.board : window.BoardCore.restore(files.board)), [files.board]);
+  const board = React.useMemo(() => (!files.board ? null : boardSaved.current && boardSaved.current.saved === files.board ? boardSaved.current.board : window.BoardCore.restore(files.board, Date.now())), [files.board]);
   if (built.M) lastGood.current = built.M;
   const gameRef = React.useRef(false);
   gameRef.current = !!(board && board.game);

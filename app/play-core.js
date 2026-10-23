@@ -32,21 +32,33 @@
     return CC().toFen(pos) + ' ' + (pos.castle || '-') + ' ' + ep;
   }
 
-  // The end of the game in the position after the board's last move, or null while it goes on
-  function outcome(board) {
-    const steps = board.steps, last = steps.length ? steps[steps.length - 1] : null, pos = last ? last.pos : board.start.pos;
+  const lastPos = (board) => (board.steps.length ? board.steps[board.steps.length - 1].pos : board.start.pos);
+  // In the position after the board's last move: half, the half-moves since a capture or pawn move (from the FEN's), and
+  // seen, how often the position has stood on the board, counted from the start
+  function drawCounts(board) {
+    const steps = board.steps, pos = lastPos(board);
+    let half = +board.fen.split(' ')[4] || 0;
+    for (const s of steps) half = /^[a-h]/.test(s.san) || s.san.includes('x') ? 0 : half + 1;
+    const key = positionKey(pos);
+    let seen = positionKey(board.start.pos) === key ? 1 : 0;
+    for (const s of steps) if (positionKey(s.pos) === key) seen++;
+    return { half, seen };
+  }
+
+  // The end of the game in the position after the board's last move, or null while it goes on. With claim (vs human) a
+  // threefold repetition and the fifty-move rule only let the side to move claim a draw (claimable); the game ends by
+  // itself at a fivefold repetition or after 75 moves, as FIDE's rules have it. Without, the 3 and 50 end it
+  function outcome(board, claim) {
+    const pos = lastPos(board);
     if (!CC().hasLegal(pos)) {
       if (CC().inCheck(pos.b, pos.turn)) return { result: pos.turn === 'w' ? '0-1' : '1-0', reason: 'checkmate' };
       return { result: '1/2-1/2', reason: 'stalemate' };
     }
     const draw = (reason) => ({ result: '1/2-1/2', reason });
     if (!canMate(pos, 'w') && !canMate(pos, 'b')) return draw('material');
-    let half = +board.fen.split(' ')[4] || 0;
-    for (const s of steps) half = /^[a-h]/.test(s.san) || s.san.includes('x') ? 0 : half + 1;
+    const { half, seen } = drawCounts(board);
+    if (claim) return half >= 150 ? draw('seventyfive') : seen >= 5 ? draw('fivefold') : null;
     if (half >= 100) return draw('fifty');
-    const key = positionKey(pos);
-    let seen = positionKey(board.start.pos) === key ? 1 : 0;
-    for (const s of steps) if (positionKey(s.pos) === key) seen++;
     return seen >= 3 ? draw('repetition') : null;
   }
 
@@ -62,6 +74,7 @@
   const today = () => { const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
 
   const isSf = (b) => !!(b && b.game && b.game.mode === 'stockfish');
+  const claims = (b) => !!(b && b.game && b.game.mode === 'human');
   // who played step j: the side to move before it, from the positions (a start may have Black to move)
   const moverOf = (b, j) => (j === 0 ? b.start.pos : b.steps[j - 1].pos).turn;
   const CLASSES = ['inaccuracy', 'mistake', 'blunder'];
@@ -73,7 +86,7 @@
     const t = parseTc(tc), b = { ...board, steps: [], upto: -1 };
     const clock = t ? { left: { w: t.base, b: t.base }, since: null, clk: [] } : null;
     const head = mode === 'stockfish' ? { mode, you: you === 'b' ? 'b' : 'w' } : { mode: 'human' };
-    return { ...b, game: { ...head, id: newId(), tc: t ? tc : null, date: date || today(), clock, result: outcome(b), ...(head.you ? { critique: [] } : {}) } };
+    return { ...b, game: { ...head, id: newId(), tc: t ? tc : null, date: date || today(), clock, result: outcome(b, mode !== 'stockfish'), ...(head.you ? { critique: [] } : {}) } };
   }
 
   // the side to move's time left at `now`; null without clocks
@@ -109,7 +122,7 @@
       const c = charged(b, now), left = c.left[side] + parseTc(b.game.tc).inc;
       clock = { left: { ...c.left, [side]: left }, since: now, clk: [...c.clk, left] };
     }
-    const result = outcome(next);
+    const result = outcome(next, claims(b));
     if (result && clock) clock = { ...clock, since: null };
     return withGame(next, { clock, result });
   }
@@ -120,16 +133,19 @@
     return !isSf(b) || b.steps.some((s, j) => moverOf(b, j) === b.game.you);
   }
 
-  // The last move taken back, while the game goes on: the time used stays used, the move's increment goes with it,
-  // and taking back every move stops the clocks again
+  // The last move taken back, while the game goes on: both clocks go back to where they stood before it (the mover's to
+  // its time left when its turn began, from clk; the waiting side's time thinking since isn't charged), the mover's clock
+  // runs again from `now`, and taking back every move stops the clocks again. A clk that doesn't fit the moves (a stored
+  // game's) only takes the increment back, the time used staying used
   function takeOne(b, now) {
     const flagged = flag(b, now);
     if (flagged !== b) return flagged;
     const prev = { ...b, steps: b.steps.slice(0, -1), upto: b.steps.length - 2 };
     let clock = b.game.clock;
     if (clock) {
-      const c = charged(b, now), mover = other(B().pos(b).turn);
-      clock = { left: { ...c.left, [mover]: c.left[mover] - parseTc(b.game.tc).inc }, since: prev.steps.length ? now : null, clk: c.clk.slice(0, -1) };
+      const c = clock, t = parseTc(b.game.tc), mover = other(B().pos(b).turn), j = b.steps.length - 1;
+      const left = c.clk.length === b.steps.length ? (j >= 2 ? c.clk[j - 2] : t.base) : charged(b, now).left[mover] - t.inc;
+      clock = { left: { ...c.left, [mover]: left }, since: prev.steps.length ? now : null, clk: c.clk.slice(0, -1) };
     }
     return withGame(prev, { clock });
   }
@@ -204,32 +220,53 @@
     return withGame(b, { clock: b.game.clock && charged(b, now), result: { result: '1/2-1/2', reason: 'agreement' } });
   }
 
+  // The draw the side to move can claim in a vs-human game in progress: 'repetition' (the position on the board three
+  // times) or 'fifty' (fifty moves each without a capture or pawn move); null when there's none
+  function claimable(b) {
+    if (!inProgress(b) || !claims(b)) return null;
+    const { half, seen } = drawCounts(b);
+    return seen >= 3 ? 'repetition' : half >= 100 ? 'fifty' : null;
+  }
+  // The draw claimed; the board as it was when there's none to claim
+  function claimDraw(b, now) {
+    const reason = claimable(b);
+    if (!reason) return b;
+    return withGame(b, { clock: b.game.clock && charged(b, now), result: { result: '1/2-1/2', reason } });
+  }
+
   // The result for people: the score and why
   const NAME = { w: 'White', b: 'Black' };
   function resultText(r) {
     const score = { '1-0': '1–0', '0-1': '0–1', '1/2-1/2': '½–½' }[r.result];
     const why = {
       checkmate: 'Checkmate', stalemate: 'Stalemate', repetition: 'Draw by threefold repetition', fifty: 'Draw by the fifty-move rule',
+      fivefold: 'Draw by fivefold repetition', seventyfive: 'Draw by the 75-move rule',
       material: 'Draw: neither side can mate', agreement: 'Draw by agreement', resign: `${NAME[r.side]} resigned`,
       time: r.result === '1/2-1/2' ? `${NAME[r.side]}’s flag fell, but ${NAME[other(r.side)]} can’t mate` : `${NAME[r.side]}’s flag fell`,
     }[r.reason];
     return { score, why };
   }
 
-  // A stored game back on its board (BoardCore.restore): whatever localStorage held, a game that plays on. The clocks
-  // are paused (the time away isn't charged; they run again from the next move), clk fits the moves, and the result
-  // comes from the moves unless it was a resignation, a flag fall or an agreed draw. A game stored without an id gets one
-  function resume(board, g) {
+  // A stored game back on its board (BoardCore.restore): whatever localStorage held, a game that plays on. Given `now` (a
+  // reload) the side to move's clock runs on from its stored start, so the time away is charged (and its flag may have
+  // fallen meanwhile); without (a game opened from My games) the clocks are paused, running again from the next move. clk
+  // fits the moves, and the result comes from the moves unless it was a resignation, a flag fall, an agreed draw or a
+  // claimed draw the moves still allow. A game stored without an id gets one
+  function resume(board, g, now) {
     if (!g || typeof g !== 'object' || (g.mode !== 'human' && g.mode !== 'stockfish')) return board;
     const tc = TIME_CONTROLS.includes(g.tc) || RETIRED_TCS.includes(g.tc) ? g.tc : null, t = parseTc(tc), n = board.steps.length;
     let clock = null;
     if (t) {
       const c = g.clock || {}, ms = (x) => (Number.isFinite(x) ? Math.max(0, x) : t.base);
-      clock = { left: { w: ms(c.left && c.left.w), b: ms(c.left && c.left.b) }, since: null, clk: (Array.isArray(c.clk) ? c.clk : []).filter(Number.isFinite).slice(0, n) };
+      const running = Number.isFinite(now) && Number.isFinite(c.since) && c.since > 0 && c.since <= now && n > 0;
+      clock = { left: { w: ms(c.left && c.left.w), b: ms(c.left && c.left.b) }, since: running ? c.since : null, clk: (Array.isArray(c.clk) ? c.clk : []).filter(Number.isFinite).slice(0, n) };
     }
+    const human = g.mode === 'human', claimed = human && { ...board, game: { mode: 'human' } };
     const r = g.result, kept = !r ? null : r.reason === 'agreement' && r.result === '1/2-1/2' ? { result: r.result, reason: r.reason }
+      : human && r.result === '1/2-1/2' && r.reason === claimable(claimed) ? { result: r.result, reason: r.reason }
       : ['resign', 'time'].includes(r.reason) && ['1-0', '0-1', '1/2-1/2'].includes(r.result) && (r.side === 'w' || r.side === 'b') ? { result: r.result, reason: r.reason, side: r.side } : null;
-    const result = kept || outcome(board);
+    const result = kept || outcome(board, human);
+    if (result && clock) clock = { ...clock, since: null };
     const b = result ? board : B().go(board, n - 1);
     const id = typeof g.id === 'string' && /^[\w-]{1,40}$/.test(g.id) ? g.id : newId();
     const date = typeof g.date === 'string' && /^\d{4}\.\d\d\.\d\d$/.test(g.date) ? g.date : today();
@@ -261,6 +298,6 @@
 
   window.PlayCore = {
     canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
-    resign, agreeDraw, flag, timeLeft, resultText, resume, pgn,
+    resign, agreeDraw, claimable, claimDraw, flag, timeLeft, resultText, resume, pgn,
   };
 })();
