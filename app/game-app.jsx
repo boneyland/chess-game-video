@@ -228,11 +228,17 @@ function GameApp() {
   const engine = useEngine(ES.game.hash_mb);
   const queenInVideo = t.queenInVideo !== false;
   const showCommentary = t.commentary !== false;
-  // commentary off: no comments, intro or conclusion, so the video's timing drops their reading time too
+  const sayFrom = { pgn: t.commentPgn !== false, claude: t.commentClaude !== false, notes: t.commentNotes !== false, queen: t.commentQueen !== false };
+  const sources = React.useMemo(() => window.ChessCore.commentarySources(M), [M]);
+  // commentary off (or a source off): no comments, intro or conclusion from it, so the video's timing drops their reading time too
   const MV = React.useMemo(() => {
     const G = queenInVideo ? withQueen(M, Q.resultAt) : M;
-    return showCommentary ? G : { ...G, intro: '', conclusion: '', plies: G.plies.map((p) => ({ ...p, comment: '' })) };
-  }, [M, Q.cache, queenInVideo, showCommentary]);
+    const hidden = !showCommentary ? sources.length > 0 : sources.some((k) => !sayFrom[k]);
+    const C = !showCommentary ? { ...G, intro: '', conclusion: '', plies: G.plies.map((p) => ({ ...p, comment: '' })) } : window.ChessCore.withCommentary(G, sayFrom);
+    const D = showCommentary && sayFrom.queen ? C : { ...C, plies: C.plies.map((p) => (p.queenText ? { ...p, queenText: '' } : p)) };
+    return hidden ? { ...D, commentaryHidden: true } : D;
+  }, [M, Q.cache, queenInVideo, showCommentary, sources, sayFrom.pgn, sayFrom.claude, sayFrom.notes, sayFrom.queen]);
+  const queenSays = queenInVideo && M.plies.some((p, i) => { const r = Q.resultAt(i + 1); return r && r.evalText; });
   const TM = React.useMemo(() => window.ChessCore.timing(MV, { secondsPerMove: t.secondsPerMove, keyHold: t.keyHold, fastOpening: t.fastOpening }), [MV, t.secondsPerMove, t.keyHold, t.fastOpening]);
   const scenes = JSON.stringify(TM.scenes);
   const fmtLen = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
@@ -584,6 +590,13 @@ function GameApp() {
         </> },
         !board && { id: 'commentary', label: 'Commentary', body: <>
           <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
+          {showCommentary && <>
+            {sources.includes('pgn') && <TweakToggle id="tw-comm-pgn" label="From the PGN" value={sayFrom.pgn} onChange={(v) => setTweak('commentPgn', v)} />}
+            {sources.includes('claude') && <TweakToggle id="tw-comm-claude" label="From Claude" value={sayFrom.claude} onChange={(v) => setTweak('commentClaude', v)} />}
+            {sources.includes('notes') && <TweakToggle id="tw-comm-notes" label={files.sample && !files.notes ? 'From the sample notes' : 'From the notes file'} value={sayFrom.notes} onChange={(v) => setTweak('commentNotes', v)} />}
+            {queenSays && <TweakToggle id="tw-comm-queen" label="From Queen" value={sayFrom.queen} onChange={(v) => setTweak('commentQueen', v)} />}
+            {sources.length + (queenSays ? 1 : 0) > 1 && <div className="twk-note">Where several comment on a move, the first one on wins: notes file, then Claude, then the PGN; Queen’s sentence follows.</div>}
+          </>}
           {sample && <>
             <TweakRadio id="tw-tone" label="Style" value={t.aiTone || window.TWEAK_DEFAULTS.aiTone} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
             <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || window.TWEAK_DEFAULTS.aiAudience} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
@@ -593,7 +606,6 @@ function GameApp() {
             ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
             : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
           {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
-          {M.hasNotes && <div className="twk-note">Where both comment on a move, your notes file wins.</div>}
           {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
           {M.hasAiNotes && (downloads || !IN_CLAUDE) && <>
             <TweakButton secondary label="Save Claude's commentary as a notes file" onClick={downloadNotes} />

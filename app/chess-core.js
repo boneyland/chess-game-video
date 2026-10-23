@@ -392,15 +392,35 @@
     };
   }
 
+  const ends = (N) => ({ intro: (N && N.intro) || '', conclusion: (N && (N.conclusion || N.result)) || '' });
+  const SAY_ORDER = ['notes', 'claude', 'pgn']; // a notes file wins over Claude, Claude over the PGN's comments
+
+  // the sources of commentary this game has
+  const commentarySources = (M) => SAY_ORDER.filter((k) => M.says && (M.says[k].intro || M.says[k].conclusion || M.plies.some((p) => p.says && p.says[k])));
+
+  // M with only the commentary of the sources show leaves on ({ pgn, claude, notes }; a missing key is on)
+  function withCommentary(M, show) {
+    if (!M.says || SAY_ORDER.every((k) => show[k] !== false)) return M;
+    const on = SAY_ORDER.filter((k) => show[k] !== false);
+    const first = (f) => { for (const k of on) { const v = f(k); if (v) return v; } return ''; };
+    return {
+      ...M, intro: first((k) => M.says[k].intro), conclusion: first((k) => M.says[k].conclusion),
+      plies: M.plies.map((p) => ({ ...p, comment: p.says ? first((k) => p.says[k]) : p.comment })),
+    };
+  }
+
   function buildGame(files) {
     const { pgn, analysis, notes } = files;
     const gameIndex = files.gameIndex || 0;
     let P = null, gameCount = 1;
     if (pgn) { const games = splitGames(pgn); if (!games.length) throw new Error('The PGN has no games'); gameCount = games.length; P = parsePGN(games[Math.min(gameIndex, games.length - 1)]); }
     const A = analysis ? (typeof analysis === 'string' ? JSON.parse(analysis) : analysis) : null;
-    // commentary layers, lowest priority first: bundled sample notes, AI-written, user's notes file
-    const layers = [files.sampleNotes, files.aiNotes, notes].filter(Boolean).map(parseNotes);
-    const NT = layers.length ? layers.reduce((acc, n) => ({ ...acc, ...n, plies: { ...acc.plies, ...n.plies } }), { plies: {} }) : null;
+    // commentary layers, lowest priority first: bundled sample notes, AI-written, user's notes file; each source is
+    // kept apart too (ply.says, M.says), so withCommentary can show some of them
+    const merge = (ls) => (ls.length ? ls.reduce((acc, n) => ({ ...acc, ...n, plies: { ...acc.plies, ...n.plies } }), { plies: {} }) : null);
+    const NC = files.aiNotes ? parseNotes(files.aiNotes) : null;
+    const NF = merge([files.sampleNotes, notes].filter(Boolean).map(parseNotes));
+    const NT = merge([files.sampleNotes, files.aiNotes, notes].filter(Boolean).map(parseNotes));
     const pgnHasEval = !!P && P.plies.some((p) => p.cp != null || p.mate != null);
     const useA = !!A && !(files.evalSource === 'pgn' && pgnHasEval);
     const H = P ? P.headers : {};
@@ -459,6 +479,7 @@
       if (pp.nags) ply.nags = pp.nags;
       ply.pgnComment = pp.comment || '';
       ply.comment = note || pp.comment || '';
+      ply.says = { pgn: pp.comment || '', claude: (NC && NC.plies[i + 1]) || '', notes: (NF && NF.plies[i + 1]) || '' };
       plies.push(ply);
     });
     // PGN-only evals: rate unmarked moves by win-chance drop (Lichess thresholds)
@@ -510,6 +531,7 @@
       event: clean(H.Event) || (A && A.event) || '', round, site: clean(H.Site) || (A && A.site) || '', date: fmtDate(clean(H.Date) || (A && A.date)), pgnDate: clean(H.Date) || (A && clean(A.date)) || '',
       eco: opening.eco, opening: opening.name,
       result, intro: (NT && NT.intro) || (P && P.intro) || '', conclusion: (NT && (NT.conclusion || NT.result)) || '',
+      says: { pgn: { intro: (P && P.intro) || '', conclusion: '' }, claude: ends(NC), notes: ends(NF) },
       engine, engineName: eng ? eng.name || '' : '', start: { fen: start.fen, pos: start.pos }, ply0, plies, evalStart, evalStartKnown, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
     };
   }
@@ -814,5 +836,5 @@
     for (let m = step; 2 * m - ply0 <= N; m += step) if (2 * (m - 1) - ply0 >= 0) ticks.push({ m, at: 2 * (m - 1) - ply0 });
     return ticks;
   }
-  window.ChessCore = { START_FEN, fmtDate, hasLegal, inCheck, evalTicks, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  window.ChessCore = { START_FEN, fmtDate, hasLegal, inCheck, evalTicks, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, withCommentary, commentarySources, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();
