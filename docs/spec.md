@@ -241,7 +241,7 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 
 **Play vs human** (2026-10-19)
 - A draw can only be claimed in the position on the board, not by announcing the move that would make the repetition or the fiftieth move.
-- Dead positions are found only behind locked pawns with kings and pawns alone (`PlayCore.lockedDead`: every pawn blocked, no capture possible, neither king able to reach an enemy pawn it could take). Any other piece, a pawn break either king could make, or a position dead for other reasons (a forced line, a fortress with bishops) plays on; finding those needs a helpmate search (CHA-style).
+- Dead positions are found only behind locked pawns, with kings, pawns and bishops all on one colour of square (`PlayCore.lockedDead`: every pawn blocked, no capture possible, neither king nor any bishop able to reach an enemy pawn it could take; a king a bishop can reach always has a square of the other colour to step to, and the kings never meet). Knights, rooks, queens, bishops on both colours, a pawn break either king could make, or a position dead for other reasons (a forced line) play on; finding those needs a helpmate search (CHA-style).
 - A flag fall against a side that could only mate through a locked structure still loses: the flag rule looks at material only.
 - Play again and Analyse in the Analysis box scale with the frame on the phone.
 
@@ -270,5 +270,5 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - 2026-10-21, after the vs-Stockfish PR: the Clock row is Time control; 5+0 became 5+3 (a game stored at 5+0 keeps its clock).
 - 2026-10-23: Lichess data and threads planned: explorer sign-in by Lichess OAuth (PKCE) with a pasted token fallback; cloud eval and explorer default off; Threads default half the cores up to 4; COEP `require-corp`.
 - 2026-10-23: vs human, threefold repetition and the fifty-move rule are claimed (fivefold and 75 moves automatic); a reload charges the running clock; a game resumed from My games runs its clock from then. Against Stockfish they stay automatic. A takeback giving back the time spent was tried and dropped: it felt like cheating.
-- 2026-10-23: dead positions behind locked pawns end the game (both modes), proven by a flood fill, not a search: a position it can't prove plays on.
+- 2026-10-23: dead positions behind locked pawns end the game (both modes), proven by flood fills, not a search: a position it can't prove plays on. Bishops of one colour count too (after a game reached one with a dark bishop walled in behind its own pawns).
 - 2026-10-23: specs merged into this file. Background music added: plays on the replay (also paused), free board and games; not in exports; bundled tracks plus the viewer's own file.
