@@ -342,7 +342,7 @@ test('a dead position behind locked pawns ends the game; one a king can break in
   // a pawn that can still move, a capture on offer, a piece besides the pawns, no pawns at all
   assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1P1/8/4K2P/8 w - - 0 1'), false);
   assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1PPP1/8/4K3/8 w - - 0 1'), false);
-  assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1P1/8/4K3/5B2 w - - 0 1'), false);
+  assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1P1/8/4K3/5N2 w - - 0 1'), false);
   assert.equal(dead('8/8/1k6/8/8/8/4K3/8 w - - 0 1'), false);
   // an enemy pawn behind the line that a king reaches: not dead (it could take it and free a pawn)
   assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1P1/7p/4K2P/8 w - - 0 1'), false);
@@ -354,4 +354,20 @@ test('a dead position behind locked pawns ends the game; one a king can break in
   assert.deepEqual(sfGame('w', null, [['g3g4', 0]], '8/8/1k6/p1p1p1p1/P1P1P3/6P1/4K3/8 w - - 0 1').game.result.reason, 'dead');
   // and stays ended through a reload
   assert.deepEqual(B.restore(JSON.parse(JSON.stringify(B.save(g)))).game.result, g.game.result);
+});
+test('a dead position with bishops of one colour: none can take a pawn, and the king they face always has a square', () => {
+  const dead = (fen) => P.lockedDead(CC.parseFen(fen).pos);
+  // from a game: Black's dark bishop can't touch White's light-square pawns, and the kings can't cross
+  assert.equal(dead('4k3/4b3/8/p1p1p1p1/P1P1P1P1/8/7K/8 b - - 0 29'), true);
+  assert.deepEqual(game(null, [['g1h2', 0]], '4k3/4b3/8/p1p1p1p1/P1P1P1P1/8/8/6K1 w - - 0 1').game.result, { result: '1/2-1/2', reason: 'dead' });
+  // the game's own last move, 29. Kxh2 taking Black's rook, ends it
+  assert.deepEqual(game('30+0', [['h1h2', 0]], '4k3/4b3/8/p1p1p1p1/P1P1P1P1/8/7r/7K w - - 0 29').game.result, { result: '1/2-1/2', reason: 'dead' });
+  // the bishop never gets past its own pawns on a5, c5, e5 and g5, the only dark squares through to White's side
+  assert.equal(dead('4k3/4b3/8/p1p1p1p1/P1P1P1P1/8/8/K7 b - - 0 1'), true);
+  // White's light-square bishop can't touch Black's dark-square pawns
+  assert.equal(dead('4k3/8/8/p1p1p1p1/P1P1P1P1/8/7K/5B2 w - - 0 1'), true);
+  // a bishop that can reach an enemy pawn on its colour
+  assert.equal(dead('4k3/3b4/8/p1p1p1p1/P1P1P1P1/8/7K/8 b - - 0 1'), false);
+  // bishops on both colours
+  assert.equal(dead('4k3/4b3/8/p1p1p1p1/P1P1P1P1/8/7K/5B2 w - - 0 1'), false);
 });
