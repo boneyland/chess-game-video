@@ -272,3 +272,19 @@ test('an analysis file with the same start_fen attaches', () => {
   const A = JSON.stringify({ start_fen: fen, moves: [{ move_san: 'e4', move_uci: 'e2e4' }] });
   assert.equal(CC.buildGame({ pgn: `[FEN "${fen}"]\n\n1. e4 *`, analysis: A }).hasAnalysis, true);
 });
+
+test('withCommentary shows only the sources left on, notes file first, then Claude, then the PGN', () => {
+  const M = CC.buildGame({ pgn: '{PGN intro} 1. e4 {pgn 1} e5 {pgn 2} 2. Nf3 {pgn 3} *', aiNotes: '[INTRO]\nClaude intro\n[1]\nclaude 1\n[3]\nclaude 3', notes: '[1]\nnotes 1\n[CONCLUSION]\nNotes end' });
+  assert.deepEqual(CC.commentarySources(M), ['notes', 'claude', 'pgn']);
+  assert.deepEqual(M.plies.map((p) => p.comment), ['notes 1', 'pgn 2', 'claude 3']);
+  assert.equal(CC.withCommentary(M, {}), M);
+  const noNotes = CC.withCommentary(M, { notes: false });
+  assert.deepEqual(noNotes.plies.map((p) => p.comment), ['claude 1', 'pgn 2', 'claude 3']);
+  assert.equal(noNotes.intro, 'Claude intro');
+  assert.equal(noNotes.conclusion, '');
+  const pgnOnly = CC.withCommentary(M, { notes: false, claude: false });
+  assert.deepEqual(pgnOnly.plies.map((p) => p.comment), ['pgn 1', 'pgn 2', 'pgn 3']);
+  assert.equal(pgnOnly.intro, 'PGN intro');
+  assert.deepEqual(CC.withCommentary(M, { pgn: false }).plies.map((p) => p.comment), ['notes 1', '', 'claude 3']);
+  assert.deepEqual(CC.commentarySources(CC.buildGame({ pgn: '1. e4 e5 *' })), []);
+});

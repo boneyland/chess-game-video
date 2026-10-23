@@ -636,7 +636,7 @@ function Commentary({ M, T, S, a, book, line }) {
       ) : (
         // a quiet line instead of an empty box: why there's nothing here
         <span style={{ ...NO_SELECT, font: `italic 400 30px/1.25 ${SERIF}`, color: C.dim }}>
-          {!M.intro && !M.plies.some((p) => p.comment) ? (M.hasNotes || M.hasAiNotes ? 'Commentary is off.' : 'This game has no commentary.')
+          {!M.intro && !M.plies.some((p) => p.comment) ? (M.commentaryHidden ? 'Commentary is off.' : 'This game has no commentary.')
             : c < 0 ? 'Comments appear here as the game plays.' : `No comment on ${label(M, c)}.`}
         </span>
       )}
