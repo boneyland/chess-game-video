@@ -21,6 +21,52 @@
     return !(own.length === 1 && (own[0] === 'n' || own[0] === 'b') && all.length === 1);
   }
 
+  // Whether the position is dead behind locked pawns: proven only for kings and pawns (any other piece, and it isn't),
+  // when no pawn can ever move or capture and neither king can ever reach an enemy pawn to take it. Then the pawns never
+  // change, only the kings move, and a king can't step where a pawn would check it, so no sequence of moves mates. Each
+  // king's reach is a flood fill over the squares neither its own pawns hold nor enemy pawns guard (the other king could
+  // always step aside, so it blocks nothing). Positions this can't prove play on
+  function lockedDead(pos) {
+    const b = pos.b, pawns = [];
+    for (let i = 0; i < 64; i++) {
+      const p = b[i];
+      if (!p) continue;
+      if (p.toLowerCase() === 'p') pawns.push(i);
+      else if (p.toLowerCase() !== 'k') return false;
+    }
+    if (!pawns.length) return false;
+    // squares a pawn of each colour attacks: a8 is 0, so White's pawns take towards lower indexes
+    const guard = { w: new Set(), b: new Set() };
+    for (const i of pawns) {
+      const c = colorOf(b[i]), f = i % 8, row = c === 'w' ? i - 8 : i + 8;
+      // every pawn blocked by a pawn straight ahead (no pushes ever, so no double step and no en passant)
+      if (row < 0 || row > 63 || !b[row] || b[row].toLowerCase() !== 'p') return false;
+      for (const df of [-1, 1]) {
+        if (f + df < 0 || f + df > 7) continue;
+        const t = row + df, x = b[t];
+        // a capture now: the pawn structure could change
+        if (x && x.toLowerCase() === 'p' && colorOf(x) !== c) return false;
+        guard[c].add(t);
+      }
+    }
+    for (const c of ['w', 'b']) {
+      const king = b.indexOf(c === 'w' ? 'K' : 'k'), foe = other(c);
+      if (king < 0) return false;
+      const seen = new Set([king]), todo = [king];
+      while (todo.length) {
+        const i = todo.pop();
+        for (let dr = -1; dr <= 1; dr++) for (let df = -1; df <= 1; df++) {
+          const r = Math.floor(i / 8) + dr, f = (i % 8) + df, j = r * 8 + f;
+          if ((!dr && !df) || r < 0 || r > 7 || f < 0 || f > 7 || seen.has(j) || guard[foe].has(j)) continue;
+          const x = b[j];
+          if (x && x.toLowerCase() === 'p') { if (colorOf(x) === c) continue; return false; } // an enemy pawn it could take
+          seen.add(j); todo.push(j);
+        }
+      }
+    }
+    return true;
+  }
+
   // A position for repetition: the pieces, the side to move, the castling rights, and the en-passant square only when a
   // pawn of the side to move can take there
   function positionKey(pos) {
@@ -56,6 +102,7 @@
     }
     const draw = (reason) => ({ result: '1/2-1/2', reason });
     if (!canMate(pos, 'w') && !canMate(pos, 'b')) return draw('material');
+    if (lockedDead(pos)) return draw('dead');
     const { half, seen } = drawCounts(board);
     if (claim) return half >= 150 ? draw('seventyfive') : seen >= 5 ? draw('fivefold') : null;
     if (half >= 100) return draw('fifty');
@@ -238,7 +285,7 @@
     const why = {
       checkmate: 'Checkmate', stalemate: 'Stalemate', repetition: 'Draw by threefold repetition', fifty: 'Draw by the fifty-move rule',
       fivefold: 'Draw by fivefold repetition', seventyfive: 'Draw by the 75-move rule',
-      material: 'Draw: neither side can mate', agreement: 'Draw by agreement', resign: `${NAME[r.side]} resigned`,
+      material: 'Draw: neither side can mate', dead: 'Draw: dead position, the pawns are locked', agreement: 'Draw by agreement', resign: `${NAME[r.side]} resigned`,
       time: r.result === '1/2-1/2' ? `${NAME[r.side]}’s flag fell, but ${NAME[other(r.side)]} can’t mate` : `${NAME[r.side]}’s flag fell`,
     }[r.reason];
     return { score, why };
@@ -310,7 +357,7 @@
   }
 
   window.PlayCore = {
-    canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
+    canMate, lockedDead, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
     resign, agreeDraw, claimable, claimDraw, flag, pause, runClock, timeLeft, resultText, resume, pgn,
   };
 })();
