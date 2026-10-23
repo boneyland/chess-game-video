@@ -85,17 +85,11 @@ test('takebacks only in a game in progress', () => {
   assert.deepEqual(B.ucis(t), ['e2e4']); assert.equal(t.upto, 0);
   assert.equal(B.pos(t).turn, 'b');
   assert.deepEqual(t.game.clock.clk, [910000]);
-  assert.deepEqual(t.game.clock.left, { w: 910000, b: 900000 }, 'Black\'s clock back to its turn\'s start; White\'s 3 s since not charged');
+  assert.deepEqual(t.game.clock.left, { w: 907000, b: 905000 - 10000 }, 'White\'s time used stays used; Black\'s increment goes');
   assert.equal(t.game.clock.since, 8000);
   const none = P.takeback(t, 9000);
   assert.equal(none.steps.length, 0); assert.equal(none.game.clock.since, null, 'every move taken back stops the clocks');
-  assert.deepEqual(none.game.clock.left, { w: 900000, b: 900000 });
-  // later moves go back to the mover's time after its move before
-  const long = game('15+10', [['e2e4', 0], ['e7e5', 5000], ['g1f3', 7000], ['b8c6', 60000]]);
-  assert.deepEqual(P.takeback(long, 70000).game.clock.left, { w: 918000, b: 905000 });
-  // a stored clk that doesn't fit the moves: only the increment comes back off
-  const odd = { ...long, game: { ...long.game, clock: { ...long.game.clock, clk: [1] } } };
-  assert.deepEqual(P.takeback(odd, 70000).game.clock.left, { w: 918000, b: 862000 - 10000 });
+  assert.deepEqual(none.game.clock.left, { w: 907000 - 10000, b: 895000 - 1000 }, 'no time comes back, however far back');
   assert.equal(P.takeback(none, 9000), none);
   const mate = game(null, [['f2f3', 0], ['e7e5', 0], ['g2g4', 0], ['d8h4', 0]]);
   assert.equal(mate.game.result.reason, 'checkmate');
@@ -175,7 +169,7 @@ test('a Stockfish takeback goes back to the player\'s turn, one of the player\'s
   assert.deepEqual(B.ucis(t), ['e2e4', 'e7e5'], 'its reply and the player\'s move');
   assert.equal(B.pos(t).turn, 'w'); assert.equal(t.upto, 1);
   assert.deepEqual(t.game.clock.clk, [910000, 905000]);
-  assert.deepEqual(t.game.clock.left, { w: 910000, b: 905000 }, 'both clocks as they were after the moves kept');
+  assert.deepEqual(t.game.clock.left, { w: 918000 - 3000 - 10000, b: 913000 - 10000 }, 'each removed move\'s increment goes; White\'s 3 s since stays used');
   assert.equal(t.game.clock.since, 12000);
   // while Stockfish thinks, only the player's move goes
   const thinking = sfGame('w', null, [['e2e4', 0], ['e7e5', 0], ['g1f3', 0]]);

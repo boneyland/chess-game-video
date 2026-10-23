@@ -133,19 +133,16 @@
     return !isSf(b) || b.steps.some((s, j) => moverOf(b, j) === b.game.you);
   }
 
-  // The last move taken back, while the game goes on: both clocks go back to where they stood before it (the mover's to
-  // its time left when its turn began, from clk; the waiting side's time thinking since isn't charged), the mover's clock
-  // runs again from `now`, and taking back every move stops the clocks again. A clk that doesn't fit the moves (a stored
-  // game's) only takes the increment back, the time used staying used
+  // The last move taken back, while the game goes on: the time used stays used (a takeback never buys time), the move's
+  // increment goes with it, and taking back every move stops the clocks again
   function takeOne(b, now) {
     const flagged = flag(b, now);
     if (flagged !== b) return flagged;
     const prev = { ...b, steps: b.steps.slice(0, -1), upto: b.steps.length - 2 };
     let clock = b.game.clock;
     if (clock) {
-      const c = clock, t = parseTc(b.game.tc), mover = other(B().pos(b).turn), j = b.steps.length - 1;
-      const left = c.clk.length === b.steps.length ? (j >= 2 ? c.clk[j - 2] : t.base) : charged(b, now).left[mover] - t.inc;
-      clock = { left: { ...c.left, [mover]: left }, since: prev.steps.length ? now : null, clk: c.clk.slice(0, -1) };
+      const c = charged(b, now), mover = other(B().pos(b).turn);
+      clock = { left: { ...c.left, [mover]: c.left[mover] - parseTc(b.game.tc).inc }, since: prev.steps.length ? now : null, clk: c.clk.slice(0, -1) };
     }
     return withGame(prev, { clock });
   }
