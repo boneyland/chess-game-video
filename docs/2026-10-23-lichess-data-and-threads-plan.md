@@ -113,9 +113,9 @@ The headers live in `render.yaml` alone. If isolation breaks something not caugh
 - Visual changes follow the repo rule: screenshots at 1440×900 and phone (390×844), Chromium and Firefox, in the PR description via the `pr-screenshots` branch.
 - Offline: all four features degrade to "not available" with no error and the app works as today with no network.
 
-## Open questions
+## Decisions (2026-10-23)
 
-1. Explorer sign-in: Lichess OAuth PKCE (reusable for a future Play on Lichess, needs redirect URLs listed in README) or a pasted personal token (simpler)? Recommendation: PKCE, with a pasted-token fallback.
-2. Default for cloud eval and explorer: off (private by default, recommended) or on?
-3. Threads default: half the cores up to 4 (recommended), or 1 until the user raises it?
-4. `COEP`: `require-corp` (recommended first, works everywhere that supports threads) or `credentialless`?
+1. Explorer sign-in: Lichess OAuth (PKCE), with a pasted personal token as the fallback.
+2. Cloud eval and the explorer default to off.
+3. Threads default: half the cores, up to 4.
+4. `COEP`: `require-corp`.
