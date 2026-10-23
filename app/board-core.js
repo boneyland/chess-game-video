@@ -41,9 +41,9 @@
     return tags.map(([k, v]) => `[${k} "${v}"]`).join('\n') + '\n\n' + moves.concat('*').join(' ') + '\n';
   }
 
-  // A stored board back: the legal prefix of its moves, upto clamped (a missing one shows the last move), its game resumed;
-  // null when the FEN doesn't parse. Never throws, whatever localStorage held.
-  function restore(saved) {
+  // A stored board back: the legal prefix of its moves, upto clamped (a missing one shows the last move), its game resumed
+  // (`now` given for a reload: PlayCore.resume); null when the FEN doesn't parse. Never throws, whatever localStorage held.
+  function restore(saved, now) {
     try {
       if (!saved || typeof saved !== 'object' || typeof saved.fen !== 'string') return null;
       let b = fromFen(saved.fen);
@@ -54,7 +54,7 @@
         b = play(b, step);
       }
       b = go(b, typeof saved.upto === 'number' ? saved.upto : b.steps.length - 1);
-      return saved.game && window.PlayCore ? window.PlayCore.resume(b, saved.game) : b;
+      return saved.game && window.PlayCore ? window.PlayCore.resume(b, saved.game, now) : b;
     } catch (e) {
       return null;
     }

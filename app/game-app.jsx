@@ -210,9 +210,10 @@ function GameApp() {
     if (files.board) return { M: lastGood.current || window.ChessCore.buildGame(SAMPLE) };
     try { return { M: window.ChessCore.buildGame(files) }; } catch (e) { return { error: e.message }; }
   }, [files]);
-  // the board's state, restored from its stored form; a board this page just committed is used as it is
+  // the board's state, restored from its stored form (on a reload, a game's running clock charged for the time away); a
+  // board this page just committed is used as it is
   const boardSaved = React.useRef(null);
-  const board = React.useMemo(() => (!files.board ? null : boardSaved.current && boardSaved.current.saved === files.board ? boardSaved.current.board : window.BoardCore.restore(files.board)), [files.board]);
+  const board = React.useMemo(() => (!files.board ? null : boardSaved.current && boardSaved.current.saved === files.board ? boardSaved.current.board : window.BoardCore.restore(files.board, Date.now())), [files.board]);
   if (built.M) lastGood.current = built.M;
   const gameRef = React.useRef(false);
   gameRef.current = !!(board && board.game);
@@ -267,6 +268,16 @@ function GameApp() {
     const ok = commit({ board: saved });
     if (b.game && !(prev && prev.game === b.game && prev.steps === b.steps)) updateGames((list) => window.GamesCore.keep(list, b, Date.now()), ok ? 'This game couldn’t be kept in My games: the browser’s storage is full.' : null);
   };
+  // a game left (for another board, a loaded game, or by closing the page) is kept with its clock charged up to then, so
+  // Resume goes on from there; the stored board keeps its running clock, which a reload charges for the time away
+  const keepLeft = (b) => { if (b && window.PlayCore.inProgress(b) && b.steps.length) updateGames((list) => window.GamesCore.keep(list, window.PlayCore.pause(b, Date.now()), Date.now()), null); };
+  const boardRef = React.useRef(board);
+  boardRef.current = board;
+  React.useEffect(() => {
+    const hide = () => keepLeft(boardRef.current);
+    window.addEventListener('pagehide', hide);
+    return () => window.removeEventListener('pagehide', hide);
+  }, []);
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
   const playIn = (mode) => () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(mode)); };
@@ -282,9 +293,10 @@ function GameApp() {
   const closePlay = React.useCallback(() => setPlayOpen(null), []);
   const myGames = () => { setNewMenu(false); setMenu(false); setPanel(false); setGamesOpen(readGames()); };
   const closeGames = React.useCallback(() => setGamesOpen(null), []);
-  // a finished game replays as a loaded game; one in progress goes back on the board
+  // a finished game replays as a loaded game; one in progress goes back on the board, the side to move's clock running
+  // from now (the time away isn't charged)
   const replayGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commit({ pgn: window.PlayCore.pgn(b), pgnName: `my-game-${b.game.date}.pgn`, gameIndex: 0 }); }); };
-  const resumeGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commitBoard(b); }); };
+  const resumeGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commitBoard(window.PlayCore.runClock(b, Date.now())); }); };
   const deleteGame = (id) => { const next = updateGames((list) => window.GamesCore.remove(list, id), 'The game couldn’t be deleted: the browser’s storage is full.'); if (next) setGamesOpen(next); };
   const loadGame = () => guard(() => inputRef.current.click());
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
@@ -520,7 +532,7 @@ function GameApp() {
       {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
       {playOpen && <PlayDialog key={playOpen} mode={playOpen} setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} side={t.playSide} onStart={playStart} onClose={closePlay} />}
       {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
-      {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); run(); }} />}
+      {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); keepLeft(board); run(); }} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} tab={panelTab} onTab={setPanelTab} tabs={[
         { id: 'game', label: 'Game', body: <>

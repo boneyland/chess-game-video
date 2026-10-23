@@ -222,6 +222,7 @@ function GameInfo({ board }) {
       <React.Fragment>
         {heading(from)}
         {note('Two players at one board. It turns after each move, so the side to move plays from the bottom. Take back, Offer a draw and Resign are in the Game box.')}
+        {note('A threefold repetition or fifty moves without a capture or pawn move let the side to move claim a draw there; the game is drawn by itself at a fivefold repetition or after 75 such moves.')}
         {note(t ? `Each side has ${t.base / 60000} minutes${t.inc ? `, and ${t.inc / 1000} seconds more per move` : ''}. The clocks start with the first move.` : 'No clocks.')}
         {note('No engine and no hints: Stockfish is off until the game ends.')}
       </React.Fragment>
@@ -271,6 +272,7 @@ function GameInfo({ board }) {
 
 // The Analysis box in a game: whose move it is, with Take back, Offer a draw and Resign (the last two asked twice: a draw is
 // offered by the side to move and accepted by the other; against Stockfish there is no draw offer, and the player resigns),
+// and Claim a draw when the side to move can (vs human: a threefold repetition or the fifty-move rule),
 // or the result with Play again beside it and Analyse on the free board below. down: why Stockfish can't answer, if so
 function GameStatus({ board, onChange, down }) {
   const P = window.PlayCore, G = board.game, last = board.steps.length ? board.steps[board.steps.length - 1] : null;
@@ -300,9 +302,8 @@ function GameStatus({ board, onChange, down }) {
     );
   }
   const check = last && last.checkSq;
-  const paused = G.clock && G.clock.since == null && board.steps.length > 0;
   const now = () => Date.now();
-  const clockNote = G.clock && !board.steps.length ? 'The clocks start with the first move' : paused ? 'Clocks paused by the reload · they run again from the next move' : ' ';
+  const clockNote = G.clock && !board.steps.length ? 'The clocks start with the first move' : ' ';
   if (sfGame) {
     const mine = turn === G.you;
     const trouble = down === 'unavailable' ? 'Stockfish can’t run here' : down === 'stopped' ? 'Stockfish stopped · Take back or Resign' : null;
@@ -323,19 +324,22 @@ function GameStatus({ board, onChange, down }) {
       </React.Fragment>
     );
   }
+  const claim = P.claimable(board);
+  const claimNote = claim && `${claim === 'repetition' ? 'Threefold repetition' : 'Fifty moves'}: claim a draw`;
   return (
     <React.Fragment>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {big(`${side} to move`, C.last)}
-        {small(check ? 'Check' : clockNote, check ? C.blunder : C.dim)}
+        {small(check ? 'Check' : claimNote || clockNote, check ? C.blunder : claim ? C.last : C.dim)}
       </div>
       {ask ? row(<React.Fragment>
         <span style={{ font: `600 18px ${SANS}`, color: C.ink }}>{ask === 'resign' ? `Resign as ${side}?` : `${side} offers a draw. ${side === 'White' ? 'Black' : 'White'}, accept?`}</span>
         <FrameButton color={ask === 'resign' ? C.blunder : C.last} onClick={() => onChange(ask === 'resign' ? P.resign(board, now()) : P.agreeDraw(board, now()))}>{ask === 'resign' ? 'Resign' : 'Accept'}</FrameButton>
         <FrameButton color={C.dim} onClick={() => setAsk(null)}>{ask === 'resign' ? 'Keep playing' : 'Decline'}</FrameButton>
       </React.Fragment>) : row(<React.Fragment>
+        {claim && <FrameButton color={C.last} onClick={() => onChange(P.claimDraw(board, now()))}>Claim a draw</FrameButton>}
         {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => onChange(P.takeback(board, now()))}>Take back</FrameButton>}
-        {board.steps.length > 0 && <FrameButton color={C.dim} onClick={() => setAsk('draw')}>Offer a draw</FrameButton>}
+        {board.steps.length > 0 && !claim && <FrameButton color={C.dim} onClick={() => setAsk('draw')}>Offer a draw</FrameButton>}
         <FrameButton color={C.dim} onClick={() => setAsk('resign')}>Resign as {side}</FrameButton>
       </React.Fragment>)}
     </React.Fragment>
