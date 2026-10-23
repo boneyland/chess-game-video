@@ -412,13 +412,14 @@ function GameApp() {
   const SFL = window.AnalysisCore.SEARCH_LIMITS, SF_KEYS = ['sfDepth', 'sfTime', 'sfOwnDepth', 'sfOwnTime', 'sfHash'];
   const sfChanged = JSON.stringify(ES) !== JSON.stringify(window.AnalysisCore.engineSettings(window.TWEAK_DEFAULTS));
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
-  // landscape: the Queen panel opens centred over its button in the transport bar, kept on screen
+  // the Queen panel opens centred over its button in the transport bar, or over the menu button when the dock is folded
+  // into a menu (a phone frame, or a window under 900 px), kept on screen
   const queenBtn = React.useRef(null);
   const [queenLeft, setQueenLeft] = React.useState(null);
   React.useLayoutEffect(() => {
-    if (!queenOpen || tall) { setQueenLeft(null); return; }
+    if (!queenOpen) { setQueenLeft(null); return; }
     const place = () => {
-      const b = queenBtn.current && queenBtn.current.getBoundingClientRect();
+      const btn = tall ? menuBtn.current : queenBtn.current, b = btn && btn.getBoundingClientRect();
       if (!b) return;
       const w = Math.min(400, window.innerWidth - 32);
       setQueenLeft(Math.round(Math.max(16, Math.min(b.left + b.width / 2 - w / 2, window.innerWidth - 16 - w))));
