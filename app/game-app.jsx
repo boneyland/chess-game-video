@@ -268,6 +268,16 @@ function GameApp() {
     const ok = commit({ board: saved });
     if (b.game && !(prev && prev.game === b.game && prev.steps === b.steps)) updateGames((list) => window.GamesCore.keep(list, b, Date.now()), ok ? 'This game couldn’t be kept in My games: the browser’s storage is full.' : null);
   };
+  // a game left (for another board, a loaded game, or by closing the page) is kept with its clock charged up to then, so
+  // Resume goes on from there; the stored board keeps its running clock, which a reload charges for the time away
+  const keepLeft = (b) => { if (b && window.PlayCore.inProgress(b) && b.steps.length) updateGames((list) => window.GamesCore.keep(list, window.PlayCore.pause(b, Date.now()), Date.now()), null); };
+  const boardRef = React.useRef(board);
+  boardRef.current = board;
+  React.useEffect(() => {
+    const hide = () => keepLeft(boardRef.current);
+    window.addEventListener('pagehide', hide);
+    return () => window.removeEventListener('pagehide', hide);
+  }, []);
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
   const playIn = (mode) => () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(mode)); };
@@ -522,7 +532,7 @@ function GameApp() {
       {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
       {playOpen && <PlayDialog key={playOpen} mode={playOpen} setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} side={t.playSide} onStart={playStart} onClose={closePlay} />}
       {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
-      {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); run(); }} />}
+      {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); keepLeft(board); run(); }} />}
       {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} tab={panelTab} onTab={setPanelTab} tabs={[
         { id: 'game', label: 'Game', body: <>

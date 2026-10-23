@@ -303,6 +303,12 @@ test('a reload charges the running clock for the time away; a game opened from M
   assert.equal(opened.game.clock.since, 50000);
   assert.equal(P.timeLeft(opened, 'w', 52000), 300000 - 2000, 'the time away isn\'t charged, the time since is');
   assert.equal(P.runClock(opened, 60000), opened, 'a running clock is left alone');
+  // left for another board: charged up to then and stopped, so Resume goes on from there
+  const left = P.pause(g, 9000);
+  assert.deepEqual(left.game.clock.left, { w: 300000 - 5000, b: 297000 }); assert.equal(left.game.clock.since, null);
+  assert.equal(P.timeLeft(P.runClock(left, 99999), 'w', 99999 + 1000), 300000 - 6000);
+  assert.equal(P.pause(left, 10000), left, 'a stopped clock is left alone');
+  assert.equal(P.pause(g, 4000 + 300001).game.result.reason, 'time', 'a flag that fell before leaving');
   const fresh = P.start(B.fromFen(), '5+0');
   assert.equal(P.runClock(fresh, 1), fresh, 'no moves: the clocks wait for the first');
   const done = B.restore(JSON.parse(JSON.stringify(B.save(P.resign(g, 5000)))), 9000);

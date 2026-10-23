@@ -1057,8 +1057,12 @@ for (const name of BROWSERS) for (const site of SITES) {
       await menuItem('Starting position');
       const leave = p.getByRole('dialog', { name: 'Leave this game?' });
       assert.match(await leave.innerText(), /stays in My games/);
+      await p.waitForTimeout(1200);
       await leave.getByRole('button', { name: 'Leave the game' }).click();
       await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
+      // it's kept as it was left: Black's time thinking so far used, the clock stopped
+      const leftClock = await p.evaluate(() => JSON.parse(localStorage.getItem('chess-video.games.v1'))[0].board.game.clock);
+      assert.ok(leftClock.since === null && leftClock.left.b <= 600000 - 1200 && leftClock.left.w === 600000, JSON.stringify(leftClock));
       // kept through a reload: Resume brings the game back on the board, Black to move, Black's clock running from then
       await p.reload({ waitUntil: 'load' });
       await loadedOn(p);

@@ -247,6 +247,14 @@
     return { score, why };
   }
 
+  // The game as it is left at `now` (for My games): the side to move charged up to then and its clock stopped, or its flag
+  // fallen; the board as it was when no clock runs
+  function pause(b, now) {
+    if (!inProgress(b) || !b.game.clock || b.game.clock.since == null) return b;
+    const flagged = flag(b, now);
+    return flagged !== b ? flagged : withGame(b, { clock: charged(b, now) });
+  }
+
   // The side to move's clock running from `now` (a game opened from My games), in a game in progress with moves whose
   // clocks are stopped; the board as it was otherwise
   function runClock(b, now) {
@@ -306,6 +314,6 @@
 
   window.PlayCore = {
     canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
-    resign, agreeDraw, claimable, claimDraw, flag, runClock, timeLeft, resultText, resume, pgn,
+    resign, agreeDraw, claimable, claimDraw, flag, pause, runClock, timeLeft, resultText, resume, pgn,
   };
 })();
