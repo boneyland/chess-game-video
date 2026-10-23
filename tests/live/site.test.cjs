@@ -1059,7 +1059,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.match(await leave.innerText(), /stays in My games/);
       await leave.getByRole('button', { name: 'Leave the game' }).click();
       await assert.doesNotReject(label.filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
-      // kept through a reload: Resume brings the game back on the board, Black to move, its clock paused
+      // kept through a reload: Resume brings the game back on the board, Black to move, Black's clock running from then
       await p.reload({ waitUntil: 'load' });
       await loadedOn(p);
       await menuItem('My games…');
@@ -1069,7 +1069,9 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 3000 }));
       await assert.doesNotReject(label.filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
       assert.match(await panel('Game'), /Black to move/);
-      assert.deepEqual(await p.locator('.game-clock').allInnerTexts(), ['10:00', '10:00']);
+      await p.waitForTimeout(1500);
+      const clocks = await p.locator('.game-clock').allInnerTexts();
+      assert.ok(clocks.includes('10:00') && clocks.some((c) => /^9:5\d$/.test(c)), `White's clock still, Black's running: ${clocks}`);
       // Replay from a game in progress asks first; the finished game opens in the replay, with Save PGN and export
       await menuItem('My games…');
       await rows.nth(1).getByRole('button', { name: 'Replay' }).click();

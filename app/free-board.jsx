@@ -302,9 +302,8 @@ function GameStatus({ board, onChange, down }) {
     );
   }
   const check = last && last.checkSq;
-  const paused = G.clock && G.clock.since == null && board.steps.length > 0;
   const now = () => Date.now();
-  const clockNote = G.clock && !board.steps.length ? 'The clocks start with the first move' : paused ? 'Clocks paused · they run again from the next move' : ' ';
+  const clockNote = G.clock && !board.steps.length ? 'The clocks start with the first move' : ' ';
   if (sfGame) {
     const mine = turn === G.you;
     const trouble = down === 'unavailable' ? 'Stockfish can’t run here' : down === 'stopped' ? 'Stockfish stopped · Take back or Resign' : null;

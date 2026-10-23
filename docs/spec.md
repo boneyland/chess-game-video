@@ -97,7 +97,7 @@ A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, st
 - Two players at one screen, from the starting position or the board's set-up position. The board turns to the side to move after each move. No eval, arrows, verdicts, engine replies or book moves; Stockfish starts no search.
 - Ends on checkmate, stalemate, insufficient material, resignation (asks first), a draw by agreement or a claimed draw, with the result in the Analysis box and Play again / Analyse there. As in FIDE's rules, a threefold repetition or fifty moves without a capture or pawn move let the side to move **Claim a draw** (the button replaces Offer a draw); a fivefold repetition or 75 moves end the game by themselves.
 - **Take back** is a button by Resign; no limit, nothing recorded. Both clocks go back to where they stood before the move: the mover's to its time when its turn began, the other side's time since not charged.
-- **Time control** (optional, off by default): 5+3, 10+0, 15+10, 30+0, shown in the player bars; a flag fall loses unless the opponent has no mating material (draw). A reload charges the running clock for the time away (a flag can fall meanwhile); a game resumed from My games has its clocks paused until the next move.
+- **Time control** (optional, off by default): 5+3, 10+0, 15+10, 30+0, shown in the player bars; a flag fall loses unless the opponent has no mating material (draw). A reload charges the running clock for the time away (a flag can fall meanwhile); a game resumed from My games has the side to move's clock running from when it opens (the time away isn't charged).
 - Rules and clocks live in `PlayCore` (`app/play-core.js`); the game record is `board.game`, stored with the board.
 - Leaving a game in progress asks first (and says the game is kept).
 
@@ -268,5 +268,5 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - 2026-10-20: Maia3, typed commentary and player names added to the roadmap.
 - 2026-10-21, after the vs-Stockfish PR: the Clock row is Time control; 5+0 became 5+3 (a game stored at 5+0 keeps its clock).
 - 2026-10-23: Lichess data and threads planned: explorer sign-in by Lichess OAuth (PKCE) with a pasted token fallback; cloud eval and explorer default off; Threads default half the cores up to 4; COEP `require-corp`.
-- 2026-10-23: vs human, threefold repetition and the fifty-move rule are claimed (fivefold and 75 moves automatic); a reload charges the running clock; a takeback restores both clocks. Against Stockfish they stay automatic.
+- 2026-10-23: vs human, threefold repetition and the fifty-move rule are claimed (fivefold and 75 moves automatic); a reload charges the running clock; a game resumed from My games runs its clock from then; a takeback restores both clocks. Against Stockfish they stay automatic.
 - 2026-10-23: specs merged into this file. Background music added: plays on the replay (also paused), free board and games; not in exports; bundled tracks plus the viewer's own file.

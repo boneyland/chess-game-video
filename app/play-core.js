@@ -247,9 +247,17 @@
     return { score, why };
   }
 
+  // The side to move's clock running from `now` (a game opened from My games), in a game in progress with moves whose
+  // clocks are stopped; the board as it was otherwise
+  function runClock(b, now) {
+    const c = b && b.game && b.game.clock;
+    if (!inProgress(b) || !c || c.since != null || !b.steps.length) return b;
+    return withGame(b, { clock: { ...c, since: now } });
+  }
+
   // A stored game back on its board (BoardCore.restore): whatever localStorage held, a game that plays on. Given `now` (a
   // reload) the side to move's clock runs on from its stored start, so the time away is charged (and its flag may have
-  // fallen meanwhile); without (a game opened from My games) the clocks are paused, running again from the next move. clk
+  // fallen meanwhile), or from `now` when the stored start isn't one to trust; without, the clocks are stopped. clk
   // fits the moves, and the result comes from the moves unless it was a resignation, a flag fall, an agreed draw or a
   // claimed draw the moves still allow. A game stored without an id gets one
   function resume(board, g, now) {
@@ -258,8 +266,8 @@
     let clock = null;
     if (t) {
       const c = g.clock || {}, ms = (x) => (Number.isFinite(x) ? Math.max(0, x) : t.base);
-      const running = Number.isFinite(now) && Number.isFinite(c.since) && c.since > 0 && c.since <= now && n > 0;
-      clock = { left: { w: ms(c.left && c.left.w), b: ms(c.left && c.left.b) }, since: running ? c.since : null, clk: (Array.isArray(c.clk) ? c.clk : []).filter(Number.isFinite).slice(0, n) };
+      const since = !Number.isFinite(now) || !n ? null : Number.isFinite(c.since) && c.since > 0 && c.since <= now ? c.since : now;
+      clock = { left: { w: ms(c.left && c.left.w), b: ms(c.left && c.left.b) }, since, clk: (Array.isArray(c.clk) ? c.clk : []).filter(Number.isFinite).slice(0, n) };
     }
     const human = g.mode === 'human', claimed = human && { ...board, game: { mode: 'human' } };
     const r = g.result, kept = !r ? null : r.reason === 'agreement' && r.result === '1/2-1/2' ? { result: r.result, reason: r.reason }
@@ -298,6 +306,6 @@
 
   window.PlayCore = {
     canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
-    resign, agreeDraw, claimable, claimDraw, flag, timeLeft, resultText, resume, pgn,
+    resign, agreeDraw, claimable, claimDraw, flag, runClock, timeLeft, resultText, resume, pgn,
   };
 })();

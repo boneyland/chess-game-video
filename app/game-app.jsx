@@ -283,9 +283,10 @@ function GameApp() {
   const closePlay = React.useCallback(() => setPlayOpen(null), []);
   const myGames = () => { setNewMenu(false); setMenu(false); setPanel(false); setGamesOpen(readGames()); };
   const closeGames = React.useCallback(() => setGamesOpen(null), []);
-  // a finished game replays as a loaded game; one in progress goes back on the board
+  // a finished game replays as a loaded game; one in progress goes back on the board, the side to move's clock running
+  // from now (the time away isn't charged)
   const replayGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commit({ pgn: window.PlayCore.pgn(b), pgnName: `my-game-${b.game.date}.pgn`, gameIndex: 0 }); }); };
-  const resumeGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commitBoard(b); }); };
+  const resumeGame = (e) => { setGamesOpen(null); guard(() => { const b = window.BoardCore.restore(e.board); if (!b) return; setQueenOpen(false); commitBoard(window.PlayCore.runClock(b, Date.now())); }); };
   const deleteGame = (id) => { const next = updateGames((list) => window.GamesCore.remove(list, id), 'The game couldn’t be deleted: the browser’s storage is full.'); if (next) setGamesOpen(next); };
   const loadGame = () => guard(() => inputRef.current.click());
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };

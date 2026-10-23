@@ -289,7 +289,7 @@ test('a Stockfish game\'s PGN names the players', () => {
   assert.match(b, /\[White "Stockfish 19"\]\n\[Black "You"\]/);
   assert.equal(CC.buildGame({ pgn: b }).plies.length, 1);
 });
-test('a reload charges the running clock for the time away; My games (no now) pauses it', () => {
+test('a reload charges the running clock for the time away; a game opened from My games runs from then', () => {
   const g = game('5+0', [['e2e4', 1000], ['e7e5', 4000]]);
   const saved = JSON.parse(JSON.stringify(B.save(g)));
   const back = B.restore(saved, 10000);
@@ -297,8 +297,14 @@ test('a reload charges the running clock for the time away; My games (no now) pa
   assert.equal(P.timeLeft(back, 'w', 10000), 300000 - 6000);
   const late = B.restore(saved, 4000 + 300001);
   assert.equal(P.flag(late, 4000 + 300001).game.result.reason, 'time', 'a flag that fell while away');
-  assert.equal(B.restore(saved).game.clock.since, null);
-  assert.equal(B.restore(saved, 3000).game.clock.since, null, 'a start after now is not trusted');
+  assert.equal(B.restore(saved).game.clock.since, null, 'without now, stopped');
+  assert.equal(B.restore(saved, 3000).game.clock.since, 3000, 'a start after now is not trusted: it runs from now');
+  const opened = P.runClock(B.restore(saved), 50000);
+  assert.equal(opened.game.clock.since, 50000);
+  assert.equal(P.timeLeft(opened, 'w', 52000), 300000 - 2000, 'the time away isn\'t charged, the time since is');
+  assert.equal(P.runClock(opened, 60000), opened, 'a running clock is left alone');
+  const fresh = P.start(B.fromFen(), '5+0');
+  assert.equal(P.runClock(fresh, 1), fresh, 'no moves: the clocks wait for the first');
   const done = B.restore(JSON.parse(JSON.stringify(B.save(P.resign(g, 5000)))), 9000);
   assert.equal(done.game.clock.since, null);
 });
