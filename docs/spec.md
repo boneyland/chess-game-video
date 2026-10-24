@@ -7,7 +7,7 @@ The one spec for the app: what it does now, what is planned, and the decisions b
 ## Contents
 
 - [Principles](#principles)
-- [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish, full Stockfish download, lines (MultiPV)
+- [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish, full Stockfish download, lines (MultiPV), endgame tablebase
 - [Roadmap](#roadmap): Lichess data and multi-threaded Stockfish, player names, Chess960, typed commentary, Maia3, dead positions, background music
 - [Known gaps](#known-gaps)
 - [Decisions log](#decisions-log)
@@ -137,6 +137,18 @@ Settings › Engine › **Your moves: lines**, 1 to 5 (`sfLines`, default 1), fo
 - On the phone a line's moves take two rows, and the Analysis panel scrolls to the later lines (a row cut off at the panel's edge hid moves there).
 - Tests: fake worker (option sent once per change and before the position, lines by rank, a lagging line dropped, White's point of view), settings range, real Stockfish giving 3 different first moves at the start, live: Lines 3 on the free board shows three rows and three arrows.
 
+### Endgame tablebase
+
+Positions of 7 pieces or fewer get Lichess's Syzygy tablebase (`https://tablebase.lichess.ovh/standard?fen=<FEN>`, no auth): the result with best play, its distances and every move ranked by result.
+
+- `LichessCore` (`app/lichess-core.js`): the URL, the parser (`category`, `dtz`, `dtm`, `checkmate`, `stalemate`, `insufficient_material`, `moves[]` with `uci`, `san`, `category`, `dtz`, `dtm`, `zeroing`, as verified against the service), Lichess's verdicts, the eval bar's value and the moves grouped by result. Its client caches 300 answers by FEN, sends one request at a time, backs off 60 s after an HTTP 429 and gives up after 10 s; an error, a 429 or being offline answers null ("Not available"), never an error screen. The FEN carries the position's real castling rights and en passant square (`fenOf`).
+- `app/tablebase.jsx`: `useTablebase(pos, on)` asks 300 ms after the last position change (a cached position shows at once), only at 7 pieces or fewer.
+- Where: the Analysis panel's **Tablebase** block, under the engine lines (the panel scrolls to it where it doesn't fit, as on the phone): the verdict in Lichess's words (White wins, Draw, Cursed win for White · drawn by the 50-move rule, Blessed loss…, the uncertain "maybe" ones too) with DTZ and DTM, then the moves in one line per result (Win, Draw, Loss), best first, each a button that plays it (in the replay as the viewer's own move, on the free board as a drag would) with its distances in its tooltip. The eval bar shows the result instead of the eval, tagged TB: a win as a mate in DTM/2 moves (`TB M28`, `TB 1-0` without DTM), a draw, cursed win or blessed loss as `TB 0.00`; an uncertain result leaves the engine's eval.
+- When: the replay while paused (never in playback or the video export), and the free board; never during a game (vs human or Stockfish). The stored analysis, ratings and graph are left alone.
+- Settings › Engine › **Online data** › **Endgame tablebase** (`TWEAK_DEFAULTS.tablebase = true`, as it fires only at 7 pieces or fewer); off sends nothing. `sw.js` never keeps its answers (live data, not in `KEEP_HOSTS`).
+- Not done from the plan: no arrow colour for winning moves (the Stockfish arrow already points at a best move, and a second one crowded the board); cutting batch searches short stays a later option.
+- Tests: `tests/lichess-core.test.cjs` (real answers in `tests/fixtures/tb-*.json`: a win, a draw, a cursed win, a mate; the piece-count gate, the cache, errors not cached, the 429 back-off, one request at a time), live: KBN v K on the free board shows the verdict and `TB M28`, a tablebase move plays, 8 pieces and the setting off send nothing.
+
 ## Roadmap
 
 Planned, roughly in this order; each item gets its own PR(s) on a `claude/<topic>` branch. Items marked *needs design* have open questions to settle with the user before a plan.
@@ -148,7 +160,7 @@ Unverified facts are marked **verify**.
 | # | PR | Depends on | Risk |
 |---|----|-----------|------|
 | 1 | `claude/multipv`: Lines setting, multi-line engine panel and arrows (built, see Lines (MultiPV)) | none | low |
-| 2 | `claude/tablebase`: endgame tablebase | none | low |
+| 2 | `claude/tablebase`: endgame tablebase (built, see Endgame tablebase) | none | low |
 | 3 | `claude/cloud-eval`: Lichess cloud evaluation | 1 | low |
 | 4 | `claude/lichess-explorer`: opening explorer and Lichess sign-in | none | medium |
 | 5 | `claude/threads`: cross-origin isolation, multi-thread engine, Threads setting | 1 | high |
@@ -171,7 +183,7 @@ Ship 1 to 4 first; 5 last and alone, since its headers affect every external loa
 - Engine panel lists all lines (eval, first moves in SAN, depth); arrows: line 1 as now, others thinner and fainter; clicking a line plays or previews it; a note that more lines search slower. Never during Play vs Stockfish; the opponent always searches 1 line.
 - Tests: fake-worker (option sent once on change, lines per k, stale depths dropped), parser and settings range, real Stockfish with 3 distinct first moves at the start, live test with Lines 3.
 
-**PR 2: Endgame tablebase.** `https://tablebase.lichess.ovh/standard?fen=<FEN>` (no auth, ≤ 7 pieces) **verify** fields (`category`, `dtz`, `dtm`, `moves[]` with `uci`, `san`, `category`, `dtz`).
+**PR 2: Endgame tablebase.** Built 2026-10-24, see Endgame tablebase; the plan as it was: `https://tablebase.lichess.ovh/standard?fen=<FEN>` (no auth, ≤ 7 pieces) **verify** fields (`category`, `dtz`, `dtm`, `moves[]` with `uci`, `san`, `category`, `dtz`).
 
 - `LichessCore.tablebase(fen)` → `{ category, dtz, dtm, moves }` or `null`; never called above 7 pieces.
 - Engine panel (replay and free board, not in a Stockfish game): a Tablebase block with the verdict in Lichess's words (win, draw, loss, cursed win, blessed loss), DTZ/DTM, moves ranked by result; winning moves may get their own arrow colour.
@@ -287,6 +299,11 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - Settings still shows the "Your moves" sliders during a Stockfish game, where they don't apply.
 - No draw offers against Stockfish; the player can resign while Stockfish thinks.
 
+**Endgame tablebase** (2026-10-24)
+- On the phone the Tablebase block sits below the engine lines, so the Analysis panel has to be scrolled to it.
+- A cursed win's moves are all listed as draws; which keep the cursed win shows only in a move's tooltip.
+- The live test asks the real service: a Lichess outage fails it.
+
 **Full Stockfish download** (2026-10-24)
 - The time estimate for Full starts from the lite engine's model until a run with Full has timed enough positions; the benchmarks behind the limits were not redone for Full.
 - A cancelled or failed download starts over (no resume), and the whole 99 MB is held in memory while it is checked.
@@ -311,3 +328,4 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - 2026-10-24: the Engine time limit sliders run 1–20 s (were 0.5–10 s in half seconds): whole seconds to 10, then every 2 s; a saved value snaps to the nearest stop, one under 1 s falls back to the default.
 - 2026-10-24, after reviewing PRs 37 and 38: the full engine is checked by SHA-256 only at download, then trusted (re-hashing 99 MB on every page load cost a few hundred MB of memory, too much for a phone); the position before the viewer's move searches one line whatever Lines says, as its lines are never shown and it is what the move is rated against.
 - 2026-10-24: the claude.ai artifact dropped, with what only it used: Claude-written commentary (the `sample` capability), saving through `downloads`, Queen through the Hugging Face connector, the inline engine.
+- 2026-10-24: tablebase draws never end a game: a tablebase "draw" is a draw with best play (KR v KR is one), not a dead position; dead positions stay `PlayCore`'s, a helpmate search being the open idea (Dead positions).

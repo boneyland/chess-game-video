@@ -2,13 +2,14 @@
 
 ![The sample chess game playing: move rating, best line, commentary and eval graph](media/preview.webp)
 
-A browser app for replaying and playing chess games, at https://chess-replay.onrender.com/. Everything runs in the browser, Stockfish included, and keeps working offline.
+A browser app for replaying and playing chess games, at https://chess-replay.onrender.com/. Everything runs in the browser, Stockfish included, and keeps working offline; only Ask Queen and the endgame tablebase go online.
 
 ## Features
 
 - **Replay a game**: load a PGN (a `[FEN]` start position too; Chess960 not yet) and step through it on an animated board, with an evaluation graph, a rating for every move, the best line and the opening name
 - **Analysis in the browser**: Stockfish 19 analyses games that come without evals; drag a piece to try your own move from any position. The 1.8 MB lite engine runs by default; Settings › Engine offers the full engine (99 MB, downloaded once and kept in the browser)
 - **Opening explorer**: the book moves from each position (Lichess's opening tables)
+- **Endgame tablebase**: with 7 pieces or fewer, the result with best play and every move ranked by it, from Lichess's tablebase (needs a connection; Settings › Engine › Online data turns it off)
 - **Play/Explore**: an empty board from the starting position or a pasted FEN, where Stockfish rates every move
 - **Play vs human**: a game for two at one screen, from the starting position or a pasted one. The board turns to the side to move, moves can be taken back, and the game ends on mate, a draw by the rules or by agreement, or resignation, with optional clocks. Stockfish stays off until it ends
 - **Play vs Stockfish**: a game against Stockfish at full strength, as White, Black or a random side, with Take back and optional clocks. Nothing hints at a move; Stockfish quietly flags inaccuracies, mistakes and blunders, and the better move shows once the game is over
@@ -20,6 +21,10 @@ A browser app for replaying and playing chess games, at https://chess-replay.onr
 - **Offline**: a service worker keeps the page, the engine and everything they load
 
 https://github.com/user-attachments/assets/d15445d0-b356-4954-b791-e700a717ab14
+
+## Lichess data
+
+With Settings › Engine › Online data › Endgame tablebase on (the default), the position on the board, as a FEN and nothing else (no account, no game), goes to Lichess's tablebase at `https://tablebase.lichess.ovh/standard` whenever it has 7 pieces or fewer: while a replay is paused, and on the free board, never during a game. Answers are kept in memory for the page's lifetime only.
 
 ## Build
 
