@@ -93,21 +93,17 @@ function StartAnalysis({ board, ev, status, onLine }) {
   return (
     <React.Fragment>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ font: `700 38px ${MONO}`, color: C.last }}>Start</span>
-          <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.last }}>
-            {turn} to move · {down ? (status === 'unavailable' ? 'Stockfish can’t run here' : 'Stockfish stopped · play a move to restart it') : !after || after.partial ? 'Stockfish is thinking…' : 'Stockfish’s eval'}
-          </span>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', minHeight: 30 }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={ev} /></span>
-          <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{down && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
-        </div>
+        <span style={{ font: `700 38px ${MONO}`, color: C.last }}>Start</span>
+        <span style={{ marginLeft: 'auto', font: `700 38px ${MONO}`, color: C.ink }}>{down && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
+      </div>
+      {/* under the move and the eval, spanning the panel, as in OwnMoveAnalysis */}
+      <div style={{ marginTop: 6, font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.last }}>
+        {turn} to move{down ? ` · ${status === 'unavailable' ? 'Stockfish can’t run here' : 'Stockfish stopped · play a move to restart it'}` : !after || after.partial ? ' · Thinking…' : ''}
       </div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {after && after.lines && after.lines.length > 1 ? <EngineLines lines={after.lines} pos={board.start.pos} ply0={board.start.ply0} c={0} onPick={onLine} />
           : line.length > 0
-          ? <LineChips name="Stockfish’s best line" nameColor={C.ink} accent={C.best} moves={line.map((m) => m.san)} ply0={board.start.ply0} c={0} legal={line.length} sel={null} onPick={(j) => onLine(line.slice(0, j + 1))} />
+          ? <LineChips name={null} tip="stockfish’s best line" accent={C.best} moves={line.map((m) => m.san)} ply0={board.start.ply0} c={0} legal={line.length} sel={null} onPick={(j) => onLine(line.slice(0, j + 1))} />
           : <span> </span>}
         <span style={{ ...NO_SELECT, font: `500 15px ${MONO}` }}>Drag a piece to play a move, for either side; Stockfish rates every move.</span>
       </div>
@@ -445,7 +441,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
       {L.header && <Header M={HM} a={1} />}
       <MoveList M={MV} T={upto + 0.999} S={S} a={1} paused onPick={live ? () => {} : go} />
       {G ? <GameInfo board={board} /> : <OpeningExplorer board={board} book={book} onPlay={onBook} />}
-      <Panel box={L.analysis} a={1} style={G && NO_SELECT} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(sf.game.name, ev.after)}>
+      <Panel box={L.analysis} a={1} style={G && NO_SELECT} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(sf.game.name, ev.after)} extra={!G && <DeeperButton ev={ev} />}>
         {G ? <GameStatus board={board} onChange={onChange} down={opponent.down} />
           : upto < 0
           ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />

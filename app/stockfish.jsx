@@ -303,14 +303,14 @@ function useMoveEval(engine, before, after, own, fen, stored) {
   return { ...out, deeper, deeperTo: deeper ? next : null };
 }
 
-// Go deeper: the small + by an eval that has finished; the EVAL line above an eval keeps its height (minHeight: 30)
-// whether or not it shows, so the panel doesn't jump as moves change
+// Go deeper: the small + after the search's stats in the Analysis heading, once an eval has finished; sized in em to
+// the heading, its negative margins keep the heading's height whether or not it shows, so the panel doesn't jump
 function DeeperButton({ ev }) {
   if (!ev || !ev.deeper) return null;
   const t = ev.deeperTo, tip = `Go deeper: depth ${t.depth}, up to ${t.time_limit} s`;
   return (
     <button type="button" aria-label={tip} title={tip} onClick={(e) => { e.stopPropagation(); ev.deeper(); }} onPointerDown={(e) => e.stopPropagation()}
-      style={{ ...NO_SELECT, width: 30, height: 30, padding: 0, marginLeft: 10, verticalAlign: 'middle', borderRadius: 5, cursor: 'pointer', border: `1.5px solid ${C.best}`, background: 'transparent', color: C.best, font: `700 24px/1 ${MONO}` }}>+</button>
+      style={{ ...NO_SELECT, flex: 'none', width: '1.5em', height: '1.5em', padding: 0, margin: '-0.25em 0 -0.25em -0.4em', borderRadius: 5, cursor: 'pointer', border: `1.5px solid ${C.best}`, background: 'transparent', color: C.best, font: `700 1.2em/1 ${MONO}`, letterSpacing: 0 }}>+</button>
   );
 }
 
@@ -369,19 +369,15 @@ function OwnMoveAnalysis({ M, vline, own, status, onReply }) {
   return (
     <React.Fragment>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ font: `700 38px ${MONO}`, color: col }}>{lineLabel(M, vline.at, vline.upto, step.san)}</span>
-          <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{who} · {bad ? CLASS_LABEL[rated.classification] + ' · ' : ''}{verdict}</span>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', minHeight: 30 }}>EVAL{after && after.partial ? ` · DEPTH ${after.depth}` : ''}<DeeperButton ev={own} /></span>
-          <span style={{ font: `700 38px ${MONO}`, color: C.ink }}>{(status === 'unavailable' || status === 'stopped') && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
-        </div>
+        <span style={{ font: `700 38px ${MONO}`, color: col }}>{lineLabel(M, vline.at, vline.upto, step.san)}</span>
+        <span style={{ marginLeft: 'auto', font: `700 38px ${MONO}`, color: C.ink }}>{(status === 'unavailable' || status === 'stopped') && !(after && !after.partial) ? '—' : fmtSf(after && after.cp)}</span>
       </div>
+      {/* the verdict spans the panel, under the move and the eval, so it fits on one line in the phone layout */}
+      <div style={{ marginTop: 6, font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>{who} · {bad ? CLASS_LABEL[rated.classification] + ' · ' : ''}{verdict}</div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {many ? <EngineLines lines={after.lines} pos={step.pos} ply0={M.ply0} c={ply + 1} onPick={onReply} />
           : replies.length > 0
-          ? <LineChips name="Stockfish replies" nameColor={C.ink} accent={C.best} moves={replies.map((r) => r.san)} ply0={M.ply0} c={ply + 1} legal={replies.length} sel={null} onPick={(j) => onReply(replies.slice(0, j + 1))} />
+          ? <LineChips name={null} tip="Stockfish’s reply" accent={C.best} moves={replies.map((r) => r.san)} ply0={M.ply0} c={ply + 1} legal={replies.length} sel={null} onPick={(j) => onReply(replies.slice(0, j + 1))} />
           : <span>{step.san.endsWith('#') ? 'Checkmate.' : ' '}</span>}
       </div>
     </React.Fragment>
