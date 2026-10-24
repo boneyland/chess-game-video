@@ -57,10 +57,11 @@ async function open(browser, viewport, opts) {
   });
   const page = await ctx.newPage();
   const errors = [];
-  // where an error came from, so a failure in CI says which file. WebKit reports a reload that cuts off the engine
-  // worker's download of its wasm as two errors (a fetch "due to access control checks", and an unhandled "Load failed"
-  // in stockfish.js); the page did nothing wrong, and an engine that really can't load fails the tests of its verdicts
-  const cutOff = (m) => browser.browserType().name() === 'webkit' && (/^Fetch API cannot load \S+\/stockfish-[\w-]+\.wasm due to access control checks\.$/.test(m.text()) || (m.text() === 'Unhandled Promise Rejection: TypeError: Load failed' && /\/stockfish-[\w-]+\.js$/.test(m.location().url)));
+  // where an error came from, so a failure in CI says which file. WebKit reports a reload that cuts off an engine worker
+  // still loading as errors: the wasm fetch "due to access control checks", and unhandled rejections raised in
+  // stockfish.js's glue, whose wording varies ("Load failed", "Maximum call stack size exceeded"). Those are left out
+  // there: the page did nothing wrong, and an engine that really can't load fails the tests of its verdicts
+  const cutOff = (m) => browser.browserType().name() === 'webkit' && (/^Fetch API cannot load \S+\/stockfish-[\w-]+\.wasm due to access control checks\.$/.test(m.text()) || (/^Unhandled Promise Rejection: /.test(m.text()) && /\/stockfish-[\w-]+\.js$/.test(m.location().url)));
   page.on('console', (m) => { if (m.type() === 'error' && !cutOff(m)) errors.push(m.text() + (m.location().url ? ` (${m.location().url}:${m.location().lineNumber})` : '')); });
   page.on('pageerror', (e) => errors.push(e.message + (e.stack ? ' ' + e.stack.split('\n').slice(0, 3).join(' | ') : '')));
   return { ctx, page, errors };
