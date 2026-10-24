@@ -21,6 +21,88 @@
     return !(own.length === 1 && (own[0] === 'n' || own[0] === 'b') && all.length === 1);
   }
 
+  // Whether the position is dead behind locked pawns: proven only for kings, pawns and bishops all on squares of one colour
+  // (any other piece, or bishops on both colours, and it isn't), when no pawn can ever move or capture, no bishop can ever
+  // reach an enemy pawn, and neither king can ever reach an enemy pawn to take it. Then the pawns never change and a king
+  // can't step where a pawn would check it. A king's reach is a flood fill over the squares neither its own pawns hold nor
+  // enemy pawns guard, a bishop's over diagonal steps the pawns don't block (other pieces could always step aside, so they
+  // block nothing). A king no enemy bishop can reach is never checked; where one can, it's still no mate while the kings'
+  // reaches never touch (one king can't cover the other's squares) and each such square has a neighbour of the other
+  // colour in the king's reach, which no bishop, pawn or king can take from it. Positions this can't prove play on
+  function lockedDead(pos) {
+    const b = pos.b, pawns = [], bishops = { w: [], b: [] };
+    for (let i = 0; i < 64; i++) {
+      const p = b[i];
+      if (!p) continue;
+      const t = p.toLowerCase();
+      if (t === 'p') pawns.push(i);
+      else if (t === 'b') bishops[colorOf(p)].push(i);
+      else if (t !== 'k') return false;
+    }
+    if (!pawns.length) return false;
+    const shades = new Set(bishops.w.concat(bishops.b).map(sqColor));
+    if (shades.size > 1) return false;
+    const shade = shades.size ? [...shades][0] : null;
+    // squares a pawn of each colour attacks: a8 is 0, so White's pawns take towards lower indexes
+    const guard = { w: new Set(), b: new Set() };
+    for (const i of pawns) {
+      const c = colorOf(b[i]), f = i % 8, row = c === 'w' ? i - 8 : i + 8;
+      // every pawn blocked by a pawn straight ahead (no pushes ever, so no double step and no en passant)
+      if (row < 0 || row > 63 || !b[row] || b[row].toLowerCase() !== 'p') return false;
+      for (const df of [-1, 1]) {
+        if (f + df < 0 || f + df > 7) continue;
+        const t = row + df, x = b[t];
+        // a capture now: the pawn structure could change
+        if (x && x.toLowerCase() === 'p' && colorOf(x) !== c) return false;
+        guard[c].add(t);
+      }
+    }
+    const near = (i) => {
+      const out = [];
+      for (let dr = -1; dr <= 1; dr++) for (let df = -1; df <= 1; df++) {
+        const r = Math.floor(i / 8) + dr, f = (i % 8) + df;
+        if ((dr || df) && r >= 0 && r <= 7 && f >= 0 && f <= 7) out.push(r * 8 + f);
+      }
+      return out;
+    };
+    const reach = {};
+    for (const c of ['w', 'b']) {
+      const king = b.indexOf(c === 'w' ? 'K' : 'k'), foe = other(c);
+      if (king < 0) return false;
+      const seen = new Set([king]), todo = [king];
+      while (todo.length) {
+        for (const j of near(todo.pop())) {
+          if (seen.has(j) || guard[foe].has(j)) continue;
+          const x = b[j];
+          if (x && x.toLowerCase() === 'p') { if (colorOf(x) === c) continue; return false; } // an enemy pawn it could take
+          seen.add(j); todo.push(j);
+        }
+      }
+      reach[c] = seen;
+    }
+    if (shade == null) return true;
+    // each side's bishops' squares; a diagonal step onto an enemy pawn is a capture that could change the pawns
+    const sweep = {};
+    for (const c of ['w', 'b']) {
+      const seen = new Set(bishops[c]), todo = [...bishops[c]];
+      while (todo.length) {
+        const i = todo.pop();
+        for (const j of near(i)) {
+          if (j % 8 === i % 8 || Math.floor(j / 8) === Math.floor(i / 8) || seen.has(j)) continue;
+          const x = b[j];
+          if (x && x.toLowerCase() === 'p') { if (colorOf(x) === c) continue; return false; }
+          seen.add(j); todo.push(j);
+        }
+      }
+      sweep[c] = seen;
+    }
+    const checks = { w: [...reach.w].filter((i) => sweep.b.has(i)), b: [...reach.b].filter((i) => sweep.w.has(i)) };
+    if (!checks.w.length && !checks.b.length) return true;
+    for (const i of reach.w) if (reach.b.has(i) || near(i).some((j) => reach.b.has(j))) return false;
+    for (const c of ['w', 'b']) for (const i of checks[c]) if (!near(i).some((j) => sqColor(j) !== shade && reach[c].has(j))) return false;
+    return true;
+  }
+
   // A position for repetition: the pieces, the side to move, the castling rights, and the en-passant square only when a
   // pawn of the side to move can take there
   function positionKey(pos) {
@@ -56,6 +138,7 @@
     }
     const draw = (reason) => ({ result: '1/2-1/2', reason });
     if (!canMate(pos, 'w') && !canMate(pos, 'b')) return draw('material');
+    if (lockedDead(pos)) return draw('dead');
     const { half, seen } = drawCounts(board);
     if (claim) return half >= 150 ? draw('seventyfive') : seen >= 5 ? draw('fivefold') : null;
     if (half >= 100) return draw('fifty');
@@ -238,7 +321,7 @@
     const why = {
       checkmate: 'Checkmate', stalemate: 'Stalemate', repetition: 'Draw by threefold repetition', fifty: 'Draw by the fifty-move rule',
       fivefold: 'Draw by fivefold repetition', seventyfive: 'Draw by the 75-move rule',
-      material: 'Draw: neither side can mate', agreement: 'Draw by agreement', resign: `${NAME[r.side]} resigned`,
+      material: 'Draw: neither side can mate', dead: 'Draw: dead position, the pawns are locked', agreement: 'Draw by agreement', resign: `${NAME[r.side]} resigned`,
       time: r.result === '1/2-1/2' ? `${NAME[r.side]}’s flag fell, but ${NAME[other(r.side)]} can’t mate` : `${NAME[r.side]}’s flag fell`,
     }[r.reason];
     return { score, why };
@@ -310,7 +393,7 @@
   }
 
   window.PlayCore = {
-    canMate, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
+    canMate, lockedDead, positionKey, outcome, TIME_CONTROLS, parseTc, start, inProgress, move, canTakeback, takeback, thinkMs, addCritique, critiqueText,
     resign, agreeDraw, claimable, claimDraw, flag, pause, runClock, timeLeft, resultText, resume, pgn,
   };
 })();
