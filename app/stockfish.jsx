@@ -10,29 +10,36 @@ const sfFilesPresent = () => (window.SF_MAKE_WORKER ? Promise.resolve(true)
   : fetch(SF_FILE + '.wasm', { method: 'HEAD', cache: 'no-store' }).then((r) => r.ok, () => false));
 
 // kind: 'lite' (next to the page) or 'full' (the viewer's download, sf-full.js); a change quits the engine running, and
-// the next use starts the other. onBroken: the full engine's kept copy turned out missing or damaged (it is dropped)
+// the next use starts the other. onBroken: the full engine's kept copy turned out missing (it is dropped)
 function useEngine(hashMB, kind = 'lite', onBroken) {
-  const ref = React.useRef(null), hash = React.useRef(hashMB), kindRef = React.useRef(kind), broken = React.useRef(onBroken);
+  const ref = React.useRef(null), hash = React.useRef(hashMB), want = React.useRef(kind), has = React.useRef(kind), broken = React.useRef(onBroken);
   hash.current = hashMB;
+  // set while rendering, not in an effect: the panels' effects run before this one and must not get the engine being replaced
+  want.current = kind;
   broken.current = onBroken;
   React.useEffect(() => { if (ref.current) ref.current.then((eng) => eng.setHash(hashMB), () => {}); }, [hashMB]);
   const [status, setStatus] = React.useState('idle');
-  React.useEffect(() => {
-    if (kindRef.current === kind) return;
-    kindRef.current = kind;
+  // the engine of the other kind, quit (its running search answers null)
+  const drop = React.useCallback(() => {
+    if (has.current === want.current) return false;
+    has.current = want.current;
     const old = ref.current;
     ref.current = null;
-    setStatus('idle');
     if (old) old.then((eng) => eng.quit(), () => {});
-  }, [kind]);
+    return true;
+  }, []);
+  // a change no panel asks for at once still frees the old engine (the full one holds about 100 MB)
+  React.useEffect(() => { if (drop()) setStatus('idle'); }, [kind]);
   const get = React.useCallback(() => {
+    drop();
     if (!ref.current) {
       setStatus('loading');
       // an engine that dies later is dropped too: the panels say so, and the next use starts a new one
       let mine = null;
+      const k = has.current;
       const start = async () => {
         let make = sfMakeWorker;
-        if (kindRef.current === 'full') {
+        if (k === 'full') {
           try { make = await window.SFFull.start(); } catch (e) { if (broken.current) broken.current(); throw e; }
         } else if (!(await sfFilesPresent())) throw new Error('The Stockfish files are missing next to this page');
         const eng = window.SFEngine.create(make, { hashMB: hash.current, onFail: () => { if (ref.current === mine) { ref.current = null; setStatus('stopped'); } } });
