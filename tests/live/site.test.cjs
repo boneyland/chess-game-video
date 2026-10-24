@@ -1291,9 +1291,23 @@ for (const name of BROWSERS) for (const site of SITES) {
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
       // Firefox has no mobile emulation in Playwright: there it is a narrow window with touch
       const ph = await open(browser, { width: 390, height: 844 }, phone({ hasTouch: true }));
+      // every frame from the first is checked for sideways overflow: the dock's buttons once showed unfolded for a frame
+      // or two before the phone layout folded them, wider than the screen
+      await ph.page.addInitScript(() => {
+        window.__wide = [];
+        const t0 = performance.now();
+        const tick = () => {
+          const d = document.documentElement;
+          if (d && d.scrollWidth > window.innerWidth) window.__wide.push(`${Math.round(performance.now() - t0)} ms: ${d.scrollWidth} px`);
+          if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
       await ph.page.goto(base, { waitUntil: 'load' });
       const menu = ph.page.getByRole('button', { name: 'Menu' });
       await menu.waitFor();
+      await ph.page.waitForTimeout(3000);
+      assert.deepEqual(await ph.page.evaluate(() => window.__wide), [], 'frames wider than the window');
       assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
       assert.equal((await boardBox(ph.page)).n, 32);
       await ph.page.screenshot({ path: path.join(OUT, host + '-phone.png') });
