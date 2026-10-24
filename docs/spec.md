@@ -70,7 +70,7 @@ Every setting flags all of game 2's blunders; none finds 30.Qf8?! or 35.Kg1?! (t
 
 Hash re-checked with no depth limit (2026-10-25, Node 22 on this laptop, one search per fresh engine, `go movetime`, hashfull as Stockfish reports it; two made-up middlegames, one roughly ±6, and KBN v K `7k/8/8/8/8/8/8/KBN5 w`):
 
-| Search | Engine | 32 MB | 64 MB | 128 MB | 256 MB |
+| Search (middlegames) | Engine | 32 MB | 64 MB | 128 MB | 256 MB |
 |---|---|---|---|---|---|
 | 3 s (game analysis default) | lite | 30–36% | 16–18% | 9% | 4–5% |
 | | full | 16–17% | 8% | 4% | 2% |
