@@ -88,8 +88,7 @@ function OpeningExplorer({ board, book, onPlay }) {
 // on the board when picked (as its replies do after a move)
 function StartAnalysis({ board, ev, status, onLine }) {
   const after = ev.after, down = status === 'unavailable' || status === 'stopped';
-  const line = [];
-  if (after && after.pv) { let p = board.start.pos; for (const u of after.pv.slice(0, 8)) { const st = window.ChessCore.stepFromUci(p, u); if (!st) break; line.push({ ...st, byEngine: true }); p = st.pos; } }
+  const line = engineSteps(board.start.pos, after && after.pv);
   const turn = board.start.pos.turn === 'w' ? 'White' : 'Black';
   return (
     <React.Fragment>
@@ -106,7 +105,8 @@ function StartAnalysis({ board, ev, status, onLine }) {
         </div>
       </div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {line.length > 0
+        {after && after.lines && after.lines.length > 1 ? <EngineLines lines={after.lines} pos={board.start.pos} ply0={board.start.ply0} c={0} onPick={onLine} />
+          : line.length > 0
           ? <LineChips name="Stockfish’s best line" nameColor={C.ink} accent={C.best} moves={line.map((m) => m.san)} ply0={board.start.ply0} c={0} legal={line.length} sel={null} onPick={(j) => onLine(line.slice(0, j + 1))} />
           : <span> </span>}
         <span style={{ ...NO_SELECT, font: `500 15px ${MONO}` }}>Drag a piece to play a move, for either side; Stockfish rates every move.</span>
@@ -439,7 +439,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
     <div style={{ position: 'absolute', inset: 0, background: C.bg, overflow: 'hidden' }}>
       {!G && <EvalBarView cp={cp == null ? 0 : cp} txt={cp == null ? (down ? '' : '…') : fmtSf(cp)} a={1} />}
       <FreeBar pos={pos} side="b" a={1} clock={clockOf('b')} name={G ? playerName(G, 'b') : null} />
-      <LineBoard a={1} sq={boardSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} />
+      <LineBoard a={1} sq={boardSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} arrows={!G && tw.bestArrows !== false ? lineArrows(ev.after) : null} />
       <BoardTouch pos={pos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...(still ? NO_INPUT : input.handlers)} />
       <FreeBar pos={pos} side="w" a={1} clock={clockOf('w')} name={G ? playerName(G, 'w') : null} />
       {L.header && <Header M={HM} a={1} />}
