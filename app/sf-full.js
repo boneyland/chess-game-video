@@ -27,20 +27,36 @@
     } catch (e) { return false; }
   }
 
-  // One file into memory as it arrives, no bigger than its pinned size; onBytes(n) for each chunk
+  // One file into memory as it arrives, no bigger than its pinned size; onBytes(n) for each chunk. A connection that
+  // sends nothing for limits.stallMs (before the answer or between chunks) is given up, else the download waits forever
+  const limits = { stallMs: 30000 };
   async function fetchFile(f, signal, onBytes) {
-    const r = await fetch(urlOf(f), { mode: 'cors', cache: 'no-store', signal });
-    if (!r.ok) throw new Error(`unpkg.com answered ${r.status} for ${f.name}`);
+    const ctl = new AbortController(), stop = () => ctl.abort();
+    let stalled = false, timer = null;
+    const wait = () => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; stop(); }, limits.stallMs); };
+    if (signal) { if (signal.aborted) stop(); else signal.addEventListener('abort', stop); }
     const out = new Uint8Array(f.size);
     let at = 0;
-    const reader = r.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (at + value.length > f.size) { reader.cancel().catch(() => {}); throw new Error(f.name + ' is bigger than expected'); }
-      out.set(value, at);
-      at += value.length;
-      onBytes(value.length);
+    try {
+      wait();
+      const r = await fetch(urlOf(f), { mode: 'cors', cache: 'no-store', signal: ctl.signal });
+      if (!r.ok) throw new Error(`unpkg.com answered ${r.status} for ${f.name}`);
+      const reader = r.body.getReader();
+      for (;;) {
+        wait();
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (at + value.length > f.size) { reader.cancel().catch(() => {}); throw new Error(f.name + ' is bigger than expected'); }
+        out.set(value, at);
+        at += value.length;
+        onBytes(value.length);
+      }
+    } catch (e) {
+      if (stalled) throw new Error(`unpkg.com stopped sending ${f.name}`);
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', stop);
     }
     if (at !== f.size) throw new Error(f.name + ' arrived incomplete');
     if ((await sha256(out)) !== f.sha256) throw new Error(f.name + ' does not match its pinned checksum');
@@ -101,5 +117,5 @@
     return caches.delete(CACHE);
   }
 
-  window.SFFull = { BASE, FILES, CACHE, TOTAL, supported, present, download, start, remove };
+  window.SFFull = { BASE, FILES, CACHE, TOTAL, limits, supported, present, download, start, remove };
 })();

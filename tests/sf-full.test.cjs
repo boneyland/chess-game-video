@@ -44,6 +44,8 @@ globalThis.fetch = async (url, opts = {}) => {
   return new Response(new ReadableStream({
     pull(c) {
       if (opts.signal && opts.signal.aborted) { c.error(new DOMException('aborted', 'AbortError')); return; }
+      // a connection that stops sending: nothing more until the download gives up
+      if (globalThis.stallAt != null && at >= globalThis.stallAt) return new Promise((res) => opts.signal.addEventListener('abort', () => { c.error(new DOMException('aborted', 'AbortError')); res(); }));
       if (at >= b.length) { c.close(); return; }
       c.enqueue(b.slice(at, at + 1024)); at += 1024;
     },
@@ -51,7 +53,8 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 function reset() {
-  store.clear(); workers.length = 0; fetched.length = 0; storage.quota = 1e9; storage.persisted = 0; globalThis.putFails = null;
+  store.clear(); workers.length = 0; fetched.length = 0; storage.quota = 1e9; storage.persisted = 0; globalThis.putFails = null; globalThis.stallAt = null;
+  F.limits.stallMs = 30000;
   F.remove();
   Object.assign(F.FILES[0], { size: GLUE.length, sha256: hex(GLUE) });
   Object.assign(F.FILES[1], { size: WASM.length, sha256: hex(WASM) });
@@ -116,6 +119,17 @@ test('download: too little storage stops it before fetching; a refused put keeps
   globalThis.putFails = Object.assign(new Error('full'), { name: 'QuotaExceededError' });
   await assert.rejects(F.download(), /Not enough storage space/);
   assert.equal(await F.present(), false);
+});
+
+test('download: a connection that stops sending is given up, and nothing is kept', async () => {
+  reset();
+  F.limits.stallMs = 50;
+  globalThis.stallAt = 2048;
+  await assert.rejects(F.download(), /unpkg\.com stopped sending stockfish-19-single\.wasm/);
+  assert.equal(await F.present(), false);
+  globalThis.stallAt = null;
+  await F.download(); // a retry goes through
+  assert.equal(await F.present(), true);
 });
 
 test('download: cancelling rejects it and keeps nothing', async () => {
