@@ -126,13 +126,17 @@ test('download: cancelling rejects it and keeps nothing', async () => {
   assert.equal(await F.present(), false);
 });
 
-test('start: a damaged or partial copy is dropped and refused', async () => {
+test('start: the kept copy is trusted, not hashed again; a partial or missing one is dropped and refused', async () => {
   reset();
   await F.download();
-  await (await caches.open(F.CACHE)).put(F.BASE + 'stockfish-19-single.wasm', new Response(bytes(5000, 7)));
-  await assert.rejects(F.start(), /missing or damaged/);
+  await (await caches.open(F.CACHE)).put(F.BASE + 'stockfish-19-single.wasm', new Response(bytes(5000, 7))); // same size, other bytes
+  assert.equal(typeof (await F.start()), 'function');
+  await F.remove();
+  await F.download();
+  await (await caches.open(F.CACHE)).put(F.BASE + 'stockfish-19-single.wasm', new Response(bytes(4000, 2)));
+  await assert.rejects(F.start(), /missing/);
   assert.equal(await F.present(), false);
-  await assert.rejects(F.start(), /missing or damaged/); // a failed start isn't remembered
+  await assert.rejects(F.start(), /missing/); // a failed start isn't remembered
 });
 
 test('remove: the copy goes', async () => {

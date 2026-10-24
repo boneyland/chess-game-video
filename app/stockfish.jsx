@@ -78,7 +78,7 @@ function useFullEngine() {
   };
   const cancel = () => { if (ctl.current) ctl.current.abort(); };
   const remove = async () => { cancel(); await window.SFFull.remove().catch(() => {}); setSt({ state: 'absent', got: 0, err: '' }); };
-  const broken = React.useCallback(() => setSt({ state: 'absent', got: 0, err: 'The downloaded engine was missing or damaged, so Lite is running. Download it again to use Full.' }), []);
+  const broken = React.useCallback(() => setSt({ state: 'absent', got: 0, err: 'The downloaded engine was missing, so Lite is running. Download it again to use Full.' }), []);
   return { offered: SF_FULL_OFFERED, ...st, download, cancel, remove, broken };
 }
 

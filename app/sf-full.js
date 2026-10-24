@@ -17,7 +17,7 @@
   const sha256 = async (bytes) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
   const urlOf = (f) => BASE + f.name;
 
-  // Both files kept (not checked: start() does that)
+  // Both files kept (checked when downloaded)
   async function present() {
     if (!supported()) return false;
     try {
@@ -71,8 +71,9 @@
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   }
 
-  // The kept copy, checked again (a damaged one is dropped) → a makeWorker for SFEngine.create. Read once per page: an
-  // engine started again (a dead one, a new hash size) reuses the Blob URLs rather than holding another 99 MB
+  // The kept copy → a makeWorker for SFEngine.create. It was checked when downloaded, so it is trusted now: only its sizes
+  // are compared (a missing or cut-short copy is dropped), and its Blobs are passed on without reading the 99 MB into the
+  // page. Once per page: an engine started again (a dead one, a new hash size) reuses the Blob URLs
   let started = null, blobs = [];
   const start = () => started || (started = load().catch((e) => { started = null; throw e; }));
   async function load() {
@@ -80,12 +81,13 @@
     const urls = [];
     for (const f of FILES) {
       const r = await cache.match(urlOf(f));
-      const bytes = r && new Uint8Array(await r.arrayBuffer());
-      if (!bytes || bytes.length !== f.size || (await sha256(bytes)) !== f.sha256) {
+      const blob = r && await r.blob();
+      if (!blob || blob.size !== f.size) {
+        urls.forEach((u) => URL.revokeObjectURL(u));
         await caches.delete(CACHE).catch(() => {});
-        throw new Error('The downloaded engine is missing or damaged');
+        throw new Error('The downloaded engine is missing');
       }
-      urls.push(URL.createObjectURL(new Blob([bytes], { type: f.type })));
+      urls.push(URL.createObjectURL(blob.type === f.type ? blob : new Blob([blob], { type: f.type })));
     }
     blobs = urls;
     const [glue, wasm] = urls;
