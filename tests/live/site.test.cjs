@@ -611,6 +611,70 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
     });
+    // Paste PGN: an empty box or a PGN that doesn't build gets a plain message and changes nothing; a good one, loaded
+    // with Ctrl+Enter, is the loaded game, from the free board too
+    await t.test('desktop: Paste PGN loads a game, and says what\'s wrong with a bad one', async () => {
+      const pp = await open(browser, { width: 1440, height: 900 });
+      const p = pp.page, dialog = p.getByRole('dialog', { name: 'Paste PGN' }), field = dialog.getByRole('textbox', { name: 'PGN' });
+      const openIt = async () => {
+        await p.getByRole('button', { name: 'Play/Explore' }).click();
+        await p.getByRole('button', { name: 'Paste PGN…' }).click();
+        await dialog.waitFor({ timeout: 5000 });
+      };
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      // from the free board, so the loaded game is seen to replace it
+      await p.getByRole('button', { name: 'Play/Explore' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      await openIt();
+      assert.equal(await field.evaluate((el) => el === document.activeElement), true, 'the box is focused on open');
+      await dialog.getByRole('button', { name: 'Load' }).click();
+      await assert.doesNotReject(dialog.getByRole('alert').filter({ hasText: /paste a pgn/i }).waitFor({ timeout: 5000 }));
+      // keys typed in the box stay there, Enter included (a new line, not Load)
+      await field.pressSequentially('1. e4 e5 2. Qh9\n');
+      await p.keyboard.press('ControlOrMeta+Enter');
+      await assert.doesNotReject(dialog.getByRole('alert').filter({ hasText: /\S/ }).waitFor({ timeout: 5000 }));
+      assert.equal(await dialog.isVisible(), true, 'a bad PGN keeps the dialog open');
+      assert.equal(await field.inputValue(), '1. e4 e5 2. Qh9\n', 'and its text, the new line in it');
+      assert.equal(await p.getByRole('button', { name: 'Play (space)' }).count(), 0, 'still the free board');
+      await p.screenshot({ path: path.join(OUT, host + '-pgn-dialog.png') });
+      // Tab goes round the box, Cancel and Load
+      for (let i = 0; i < 3; i++) {
+        await p.keyboard.press('Tab');
+        assert.equal(await p.evaluate(() => !!document.activeElement.closest('[role="dialog"]')), true, `focus stays in the dialog after ${i + 1} Tab${i ? 's' : ''}`);
+      }
+      await p.keyboard.press('Escape');
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
+      assert.equal(await p.evaluate(() => document.activeElement.textContent), 'Play/Explore', 'focus back on Play/Explore');
+      await openIt();
+      await field.click();
+      await field.pressSequentially('[White "Alpha Tester"]\n[Black "Beta Tester"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *');
+      await p.keyboard.press('ControlOrMeta+Enter');
+      await assert.doesNotReject(dialog.waitFor({ state: 'detached', timeout: 5000 }));
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ timeout: 5000 }));
+      await p.waitForFunction(() => /Alpha Tester/.test(document.body.innerText) && /Beta Tester/.test(document.body.innerText), null, { timeout: 5000 });
+      assert.deepEqual(pp.errors, []);
+      await pp.ctx.close();
+      // the phone: the item is in the folded menu, the dialog fits the width
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
+      await ph.page.goto(base, { waitUntil: 'load' });
+      await loadedOn(ph.page);
+      await ph.page.getByRole('button', { name: 'Menu' }).click();
+      await ph.page.getByRole('button', { name: 'Paste PGN…' }).click();
+      const pd = ph.page.getByRole('dialog', { name: 'Paste PGN' });
+      await assert.doesNotReject(pd.waitFor({ timeout: 5000 }));
+      await pd.getByRole('textbox', { name: 'PGN' }).pressSequentially('[White "Alpha Tester"]\n\n1. d4 d5 *');
+      assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
+      const box = await pd.boundingBox();
+      assert.ok(box.x >= 8 && box.x + box.width <= 390 - 8 && box.y >= 0 && box.y + box.height <= 844, 'the dialog fits the screen');
+      await ph.page.screenshot({ path: path.join(OUT, host + '-pgn-dialog-phone.png') });
+      await pd.getByRole('button', { name: 'Load' }).click();
+      await assert.doesNotReject(pd.waitFor({ state: 'detached', timeout: 5000 }));
+      await ph.page.waitForFunction(() => /Alpha Tester/.test(document.body.innerText), null, { timeout: 5000 });
+      assert.deepEqual(ph.errors, []);
+      await ph.ctx.close();
+    });
     // the endgame tablebase (Lichess, the real service): at 7 pieces or fewer the Analysis panel and the eval bar show its
     // result, a move from it plays on the board; more pieces, or the setting off, and nothing is sent
     await t.test('desktop: the tablebase rates an endgame on the free board, and sends nothing above 7 pieces or when off', async () => {
