@@ -161,7 +161,8 @@ function GameApp() {
   const net = useOnline();
   const [queenOpen, setQueenOpen] = React.useState(false);
   const [queenArrow, setQueenArrow] = React.useState(null);
-  // the phone layouts (portrait, or a narrow one held sideways) fold the dock's buttons into a menu in the transport bar; it closes on a pick, an outside tap or Esc
+  // the phone layouts (portrait, or a narrow one held sideways) fold the dock's buttons into a menu in the transport bar; it closes on a pick, an outside tap or Esc,
+  // and opening it closes Settings or Queen, which would otherwise cover it
   const [tall, setTall] = React.useState(false), [frameW, setFrameW] = React.useState(1920);
   const onLayout = React.useCallback((phone, w) => { setTall(phone); setFrameW(w); }, []);
   const [menu, setMenu] = React.useState(false);
@@ -515,7 +516,7 @@ function GameApp() {
   );
   const menuEl = (
     <div ref={dockRef} className={'pmenu' + (shownErr ? ' pmenu-err' : '') + (menu ? ' pmenu-open' : '')}>
-      <button ref={menuBtn} type="button" className="pbtn dock-menu" aria-label="Menu" aria-expanded={menu} aria-controls="dock-items" onClick={() => setMenu((m) => !m)}>
+      <button ref={menuBtn} type="button" className="pbtn dock-menu" aria-label="Menu" aria-expanded={menu} aria-controls="dock-items" onClick={() => { setMenu((m) => !m); setPanel(false); setQueenOpen(false); }}>
         <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
           {menu
             ? <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
