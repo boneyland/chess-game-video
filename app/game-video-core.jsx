@@ -920,24 +920,30 @@ function useBoardInput({ pos, onPick, onMiss, onMove }) {
 }
 
 function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
-  const { T, CUES, authoredTotal, playing: live } = useComposition();
+  const { T: T0, CUES, authoredTotal, playing: live } = useComposition();
   // the export steps through a paused player; its frames look like playback (no paused-only hints or buttons)
   const playing = live || !!tw.exporting;
   setLayout(useFrame()); // before the children render, which read the layout
   setOrient(orient);
   const S = useSchedule(M, CUES, d);
-  // When the schedule changes (a Queen answer lengthens a move's hold), keep the board on the same move
+  // When the schedule changes (a Queen answer lengthens a move's hold, a commentary source is turned off), keep the
+  // board on the same move. The time is moved in this render, not after it: the old time on the new schedule is
+  // another move, which the board would draw (and slide its pieces back from) for a frame
   const tl = useTimeline();
   const prevS = React.useRef(S);
-  React.useEffect(() => {
-    const p = prevS.current; prevS.current = S;
-    if (p === S || !tl.setTime) return;
-    const c = lastPly(T, p);
-    if (c < 0 || c >= S.N) return;
-    const next = c + 1 < S.N ? S.tp[c + 1] - 0.05 : Infinity;
-    const t = Math.min(S.tp[c] + (T - p.tp[c]), next);
-    if (Math.abs(t - T) > 0.01) tl.setTime(t);
-  }, [S]);
+  const shift = React.useRef(null); // { S, from, to } until the timeline holds `to`
+  if (prevS.current !== S) {
+    const p = prevS.current, c = lastPly(T0, p);
+    prevS.current = S; shift.current = null;
+    if (c >= 0 && c < S.N) {
+      const next = c + 1 < S.N ? S.tp[c + 1] - 0.05 : Infinity;
+      const t = Math.min(S.tp[c] + (T0 - p.tp[c]), next);
+      if (Math.abs(t - T0) > 0.01) shift.current = { S, from: T0, to: t };
+    }
+  }
+  const sh = shift.current && shift.current.S === S && shift.current.from === T0 ? shift.current : null;
+  const T = sh ? sh.to : T0;
+  React.useLayoutEffect(() => { if (sh && tl.setTime) tl.setTime(sh.to); }, [sh]);
   const [vline, setVline] = React.useState(null); // { c, src, moves, upto } while a line is shown on the board
   const cNow = lastPly(T, S);
   React.useEffect(() => { if (vline && (playing || cNow !== vline.c)) setVline(null); }, [playing, cNow]);
