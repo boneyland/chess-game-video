@@ -3,7 +3,9 @@
 //   node --test tests/live/site.test.cjs
 // LIVE_URLS: comma-separated sites to test (default: the Render site); `local` builds this checkout and serves
 // out/site the way render.yaml has Render serve it (serve.cjs), which is what GitHub Actions tests.
-// LIVE_BROWSERS: chromium, firefox or both (the default), run one after the other.
+// LIVE_BROWSERS: any of chromium, firefox (the two are the default) and webkit, run one after the other. WebKit is
+// Playwright's own build (`npx playwright install --with-deps webkit`), the engine of iPhone Safari: its phone tests
+// get the iPhone 13's user agent, pixel ratio and touch.
 // CHROMIUM_PATH / CHROMIUM_CHANNEL pick the Chromium (default: the ungoogled-chromium flatpak where it is installed,
 // else Playwright's own); FIREFOX_PATH the Firefox (default: Firefox Developer Edition, else /usr/bin/firefox),
 // driven over WebDriver BiDi, so any stock Firefox works without a Playwright build of it; FIREFOX_PATH=playwright
@@ -20,6 +22,7 @@ const { execFileSync, execSync } = require('child_process');
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const pw = (() => { try { return require('playwright'); } catch (e) { return require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); } })();
 const { serve } = require('./serve.cjs');
+const { loadedOn, boardBox, square } = require('./board.cjs');
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'tests', 'out', 'live');
@@ -32,7 +35,9 @@ const firstFile = (...files) => files.find((f) => f && fs.existsSync(f));
 const LAUNCH = {
   chromium: () => pw.chromium.launch({ channel: process.env.CHROMIUM_CHANNEL, executablePath: process.env.CHROMIUM_PATH || firstFile('/var/lib/flatpak/exports/bin/io.github.ungoogled_software.ungoogled_chromium') }),
   firefox: () => process.env.FIREFOX_PATH === 'playwright' ? pw.firefox.launch() : pw.firefox.launch({ channel: 'moz-firefox', executablePath: process.env.FIREFOX_PATH || firstFile('/usr/bin/firefox-devedition', '/usr/bin/firefox') }),
+  webkit: () => pw.webkit.launch(),
 };
+const IPHONE = { userAgent: pw.devices['iPhone 13'].userAgent, deviceScaleFactor: pw.devices['iPhone 13'].deviceScaleFactor };
 
 let built, local = null;
 test.before(async () => {
@@ -56,23 +61,6 @@ async function open(browser, viewport, opts) {
   page.on('pageerror', (e) => errors.push(e.message));
   return { ctx, page, errors };
 }
-// the page has rendered and the board has its pieces
-const loadedOn = async (page) => { await page.locator('.dock-primary').waitFor({ state: 'attached' }); await page.waitForFunction(() => document.querySelectorAll('img').length >= 32); };
-
-// The board is where the 32 pieces stand at the start: the union of the piece images' boxes
-async function boardBox(page) {
-  return page.evaluate(() => {
-    const imgs = [...document.querySelectorAll('img')].map((i) => i.getBoundingClientRect()).filter((r) => r.width > 10);
-    const w = imgs.map((r) => Math.round(r.width)).sort((a, b) => a - b)[Math.floor(imgs.length / 2)];
-    const pcs = imgs.filter((r) => Math.abs(r.width - w) < 2);
-    const x0 = Math.min(...pcs.map((r) => r.left)), y0 = Math.min(...pcs.map((r) => r.top));
-    const x1 = Math.max(...pcs.map((r) => r.right)), y1 = Math.max(...pcs.map((r) => r.bottom));
-    return { n: pcs.length, x0, y0, sq: (x1 - x0) / 8, h: y1 - y0 };
-  });
-}
-const square = (b, name, flipped) => (flipped
-  ? { x: b.x0 + (7 - (name.charCodeAt(0) - 97) + 0.5) * b.sq, y: b.y0 + (+name[1] - 1 + 0.5) * b.sq }
-  : { x: b.x0 + (name.charCodeAt(0) - 97 + 0.5) * b.sq, y: b.y0 + (8 - +name[1] + 0.5) * b.sq });
 // A FEN typed into the Paste FEN field with the keyboard, as a person would: with locator.fill(), Set up left the dialog
 // open in GitHub Actions' stock Firefox (WebDriver BiDi), as if the page never saw the text
 async function typeFen(field, fen) {
@@ -86,6 +74,8 @@ async function typeFen(field, fen) {
 for (const name of BROWSERS) for (const site of SITES) {
   test(`${name} · ${site === 'local' ? 'local build' : new URL(site).host}`, async (t) => {
     const base = site === 'local' ? local.url : site, host = name + '-' + (site === 'local' ? 'local' : new URL(site).host);
+    // a phone's context options: Firefox has no mobile emulation in Playwright, so there it gets `other`
+    const phone = (other) => (name === 'firefox' ? other : { isMobile: true, hasTouch: true, ...(name === 'webkit' ? IPHONE : {}) });
     // one browser at a time, closed before the next starts
     const browser = await LAUNCH[name]();
     t.after(() => browser.close());
@@ -381,7 +371,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await fl.ctx.close();
     });
     await t.test('phone: a flipped board fits the width', async () => {
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : { hasTouch: true });
+      const ph = await open(browser, { width: 390, height: 844 }, phone({ hasTouch: true }));
       await ph.page.addInitScript(() => { try { localStorage.setItem('chess-video.tweaks.v1', JSON.stringify({ flip: true })); } catch (e) {} });
       await ph.page.goto(base, { waitUntil: 'load' });
       await ph.page.getByRole('button', { name: 'Menu' }).waitFor();
@@ -500,7 +490,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await nb.ctx.close();
       // the phone: Play/Explore's items sit in the folded menu under a label (Playwright's Firefox, given touch, drops
       // the mouse's drags, the replay's too; there it is a narrow window)
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
       await ph.page.goto(base, { waitUntil: 'load' });
       await ph.page.getByRole('button', { name: 'Menu' }).click();
       const start = ph.page.getByRole('button', { name: 'Starting position' });
@@ -587,7 +577,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(pf.errors, []);
       await pf.ctx.close();
       // the phone: the item is in the folded menu, the dialog fits the width, Esc cancels
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
       await ph.page.goto(base, { waitUntil: 'load' });
       await loadedOn(ph.page);
       await ph.page.getByRole('button', { name: 'Menu' }).click();
@@ -688,7 +678,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(ex.errors, []);
       await ex.ctx.close();
       // the phone: the explorer under the board, its rows tapped (no drags: Playwright's Firefox drops them with touch)
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
       await ph.page.goto(base, { waitUntil: 'load' });
       await loadedOn(ph.page);
       await ph.page.getByRole('button', { name: 'Menu' }).click();
@@ -861,7 +851,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await g.ctx.close();
       // the phone: Play vs human from the folded menu, the clocks in the bars (Playwright's Firefox, given touch, drops
       // the mouse's drags; there it is a narrow window)
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
       const pp = ph.page;
       await pp.goto(base, { waitUntil: 'load' });
       await loadedOn(pp);
@@ -1016,7 +1006,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(g.errors, []);
       await g.ctx.close();
       // the phone: the dialog from the folded menu, and the game with its critique, back after a reload
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
       const pp = ph.page;
       await pp.goto(base, { waitUntil: 'load' });
       await loadedOn(pp);
@@ -1135,7 +1125,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.deepEqual(g.errors, []);
       await g.ctx.close();
       // the phone: My games from the folded menu
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : {});
+      const ph = await open(browser, { width: 390, height: 844 }, phone({}));
       const pp = ph.page;
       await pp.goto(base, { waitUntil: 'load' });
       await loadedOn(pp);
@@ -1282,7 +1272,7 @@ for (const name of BROWSERS) for (const site of SITES) {
 
     await t.test('phone: the layout fits the width and folds the buttons into a menu', async () => {
       // Firefox has no mobile emulation in Playwright: there it is a narrow window with touch
-      const ph = await open(browser, { width: 390, height: 844 }, name === 'chromium' ? { isMobile: true, hasTouch: true } : { hasTouch: true });
+      const ph = await open(browser, { width: 390, height: 844 }, phone({ hasTouch: true }));
       await ph.page.goto(base, { waitUntil: 'load' });
       const menu = ph.page.getByRole('button', { name: 'Menu' });
       await menu.waitFor();

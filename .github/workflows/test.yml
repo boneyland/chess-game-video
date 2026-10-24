@@ -1,4 +1,5 @@
-# Build the page and run the JS tests on every push and pull request, and the browser smoke tests against the build.
+# Build the page and run the JS tests on every push and pull request, and the browser smoke tests against the build:
+# desktop and phone layouts in Chrome, Firefox and WebKit (iPhone Safari's engine), and real Chrome on an Android emulator.
 # The Python cross-check (tests/check_browser_json.py) is left out: it imports chess-animator, which needs Manim.
 name: test
 on: [push, pull_request]
@@ -38,4 +39,52 @@ jobs:
         if: always()
         with:
           name: screenshots
+          path: tests/out/live/
+  # The same smoke tests in Playwright's WebKit, the engine of iPhone Safari (its phone tests get the iPhone 13 profile)
+  webkit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright@1.63.0
+      - run: npx playwright install --with-deps webkit
+      - run: node --test tests/live/site.test.cjs
+        env:
+          LIVE_URLS: local
+          LIVE_BROWSERS: webkit
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: webkit-screenshots
+          path: tests/out/live/
+  # tests/live/android.test.cjs: Chrome on an Android emulator (KVM on the runner). The google_apis image has Chrome
+  # and is debuggable, so Playwright can give Chrome its command line without chrome://flags
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright@1.63.0
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: node --test tests/live/android.test.cjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: android-screenshots
           path: tests/out/live/
