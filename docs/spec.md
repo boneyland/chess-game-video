@@ -132,9 +132,9 @@ Some viewers want the strongest engine, as Lichess offers for local analysis. Se
 Settings › Engine › **Your moves: lines**, 1 to 5 (`sfLines`, default 1), for the searches of the viewer's own moves (the replay's own line and the free board), on the site and the artifact.
 
 - `SFEngine.search({ lines })` sends `setoption name MultiPV value N` between searches, only when it changes; every other search (a game's analysis, the Stockfish opponent and its "before" search, Go deeper on a stored move) asks for 1, so the analysis JSON is unchanged (`lines: 1`). Results gain `lines: [{ k, cp, depth, pv }]`, by rank; `cp`, `pv` and `best` stay line 1's. A line more than one depth behind line 1 has stopped being reported and is dropped.
-- With more than one line the Analysis panel lists them, one row each (eval, a dim `d17` when a line is shallower than line 1, its first moves in SAN, cut off at the panel's edge rather than wrapped); a move plays the line on the board up to it, as Stockfish's replies did. The board shows an arrow per line's first move: line 1 as the best-move arrow, the others thinner and fainter (Settings › Best-move arrows turns them off). One line looks as before.
+- With more than one line the Analysis panel lists them, one row each (eval, a dim `d17` when a line is shallower than line 1, its first moves in SAN, wrapping under each other beside the eval column); a move plays the line on the board up to it, as Stockfish's replies did. The board shows an arrow per line's first move: line 1 as the best-move arrow, the others thinner and fainter (Settings › Best-move arrows turns them off). One line looks as before.
 - The own-move eval cache keys a search of several lines apart from one of one line. A note in Settings says each line gets a share of the search, so goes less deep in the same time.
-- On the phone the Analysis panel scrolls to the lines beyond the first two.
+- On the phone a line's moves take two rows, and the Analysis panel scrolls to the later lines (a row cut off at the panel's edge hid moves there).
 - Tests: fake worker (option sent once per change and before the position, lines by rank, a lagging line dropped, White's point of view), settings range, real Stockfish giving 3 different first moves at the start, live: Lines 3 on the free board shows three rows and three arrows.
 
 ## Roadmap
