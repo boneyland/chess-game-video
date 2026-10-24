@@ -354,6 +354,12 @@ test('a dead position behind locked pawns ends the game; one a king can break in
   assert.deepEqual(sfGame('w', null, [['g3g4', 0]], '8/8/1k6/p1p1p1p1/P1P1P3/6P1/4K3/8 w - - 0 1').game.result.reason, 'dead');
   // and stays ended through a reload
   assert.deepEqual(B.restore(JSON.parse(JSON.stringify(B.save(g)))).game.result, g.game.result);
+  // a double step that locks the last pair but can be taken en passant: hxg3 e.p. opens the h-file, so play goes on
+  const ep = game(null, [['g2g4', 0]], '8/8/1k6/p1p1p1p1/P1P1P2p/7P/4K1P1/8 w - - 0 1');
+  assert.equal(ep.game.result, null);
+  assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1Pp/7P/4K3/8 b - g3 0 1'), false);
+  // an en-passant square no pawn can take on changes nothing (a2a4 just played, no black pawn beside it)
+  assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1P1/8/4K3/8 b - a3 0 1'), true);
 });
 test('a dead position with bishops of one colour: none can take a pawn, and the king they face always has a square', () => {
   const dead = (fen) => P.lockedDead(CC.parseFen(fen).pos);
@@ -370,4 +376,7 @@ test('a dead position with bishops of one colour: none can take a pawn, and the 
   assert.equal(dead('4k3/3b4/8/p1p1p1p1/P1P1P1P1/8/7K/8 b - - 0 1'), false);
   // bishops on both colours
   assert.equal(dead('4k3/4b3/8/p1p1p1p1/P1P1P1P1/8/7K/5B2 w - - 0 1'), false);
+  // Black's dark bishop on White's side can check White's king, but it always has a light square to step to and Black's
+  // king can't come to help
+  assert.equal(dead('8/8/1k6/p1p1p1p1/P1P1P1P1/8/4K3/2b5 w - - 0 1'), true);
 });
