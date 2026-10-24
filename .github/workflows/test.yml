@@ -18,7 +18,8 @@ jobs:
       - run: node build.cjs
       - run: node --test --test-concurrency=1 tests/*.test.cjs
   # The smoke tests (tests/live/site.test.cjs) against this commit's build, served the way render.yaml has Render
-  # serve it, in the runner's own Google Chrome and Firefox (Firefox over WebDriver BiDi): no browser download
+  # serve it, in the runner's own Google Chrome and Firefox (Firefox over WebDriver BiDi): no browser download. Failures
+  # are also reported as annotations (@reporters/github), which a token that can't read the job's log can still read
   browsers:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -27,11 +28,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      - run: npm install --no-save --no-package-lock playwright@1.63.0
+      - run: npm install --no-save --no-package-lock playwright@1.63.0 @reporters/github@2.1.4
       - run: |
           google-chrome --version && firefox --version
           echo "FIREFOX_PATH=$(readlink -f "$(command -v firefox)")" >> "$GITHUB_ENV"
-      - run: node --test tests/live/site.test.cjs
+      - run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=@reporters/github --test-reporter-destination=stdout tests/live/site.test.cjs
         env:
           LIVE_URLS: local
           CHROMIUM_CHANNEL: chrome
@@ -49,9 +50,9 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      - run: npm install --no-save --no-package-lock playwright@1.63.0
+      - run: npm install --no-save --no-package-lock playwright@1.63.0 @reporters/github@2.1.4
       - run: npx playwright install --with-deps webkit
-      - run: node --test tests/live/site.test.cjs
+      - run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=@reporters/github --test-reporter-destination=stdout tests/live/site.test.cjs
         env:
           LIVE_URLS: local
           LIVE_BROWSERS: webkit
@@ -70,7 +71,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      - run: npm install --no-save --no-package-lock playwright@1.63.0
+      - run: npm install --no-save --no-package-lock playwright@1.63.0 @reporters/github@2.1.4
       - name: Let the emulator use KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -82,7 +83,7 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: node --test tests/live/android.test.cjs
+          script: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=@reporters/github --test-reporter-destination=stdout tests/live/android.test.cjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
