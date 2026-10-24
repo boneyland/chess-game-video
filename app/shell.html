@@ -235,6 +235,8 @@ body:has(.stage-tall) .twk-panel { bottom: calc(51px + env(safe-area-inset-botto
 .twk-val { color: var(--dim); font: 500 11px var(--mono); font-variant-numeric: tabular-nums; }
 .twk-note { color: var(--dim); }
 .twk-err { color: var(--danger); }
+.twk-progress { height: 6px; border-radius: 3px; background: var(--raise); overflow: hidden; }
+.twk-progress > i { display: block; height: 100%; background: var(--accent); }
 .twk-field { width: 100%; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--raise); color: var(--ink); font: inherit; }
 .twk-slider { width: 100%; margin: 4px 0; accent-color: var(--accent); }
 .twk-seg { position: relative; display: flex; padding: 2px; border-radius: 8px; background: var(--raise); }
@@ -246,6 +248,7 @@ body:has(.stage-tall) .twk-panel { bottom: calc(51px + env(safe-area-inset-botto
 .twk-toggle[data-on="1"] i { transform: translateX(14px); }
 .twk-btn { min-height: 30px; padding: 4px 12px; border: 0; border-radius: 7px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; text-align: center; }
 .twk-btn.secondary { background: var(--raise); color: var(--ink); border: 1px solid var(--line); }
+.twk-btn.danger { background: var(--danger); color: var(--panel); }
 .twk-btn:disabled { opacity: 0.6; cursor: progress; }
 .mv:hover { outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
 .mv:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -330,6 +333,6 @@ body:has(.stage:not(.stage-tall):not(.stage-short)) .net-note { top: calc(64px +
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script>
-window.TWEAK_DEFAULTS = { flip: false, bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 1.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8, exportFormat: 'MP4', webpWidth: 'Half', webpQuality: 75, blunderGlow: true, commentary: true, commentPgn: true, commentClaude: true, commentNotes: true, commentQueen: true, sound: true, soundSet: 'Lichess sfx', soundVolume: 70, sfDepth: 24, sfTime: 3, sfOwnDepth: 24, sfOwnTime: 3, sfHash: 64, playClock: 'Off', playSide: 'w' };
+window.TWEAK_DEFAULTS = { flip: false, bestArrows: true, cameraPush: false, secondsPerMove: 1.6, keyHold: 1.5, fastOpening: false, aiTone: 'Lesson', aiDensity: 'Detailed', aiAudience: 'Beginners', queenInVideo: true, scheme: 'Auto', exportFps: 8, exportFormat: 'MP4', webpWidth: 'Half', webpQuality: 75, blunderGlow: true, commentary: true, commentPgn: true, commentClaude: true, commentNotes: true, commentQueen: true, sound: true, soundSet: 'Lichess sfx', soundVolume: 70, sfDepth: 24, sfTime: 3, sfOwnDepth: 24, sfOwnTime: 3, sfHash: 64, sfEngine: 'Lite', playClock: 'Off', playSide: 'w' };
 </script>
 <!--SCRIPTS-->

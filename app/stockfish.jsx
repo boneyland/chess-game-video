@@ -9,23 +9,37 @@ const sfMakeWorker = () => (window.SF_MAKE_WORKER ? window.SF_MAKE_WORKER() : ne
 const sfFilesPresent = () => (window.SF_MAKE_WORKER ? Promise.resolve(true)
   : fetch(SF_FILE + '.wasm', { method: 'HEAD', cache: 'no-store' }).then((r) => r.ok, () => false));
 
-function useEngine(hashMB) {
-  const ref = React.useRef(null), hash = React.useRef(hashMB);
+// kind: 'lite' (next to the page) or 'full' (the viewer's download, sf-full.js); a change quits the engine running, and
+// the next use starts the other. onBroken: the full engine's kept copy turned out missing or damaged (it is dropped)
+function useEngine(hashMB, kind = 'lite', onBroken) {
+  const ref = React.useRef(null), hash = React.useRef(hashMB), kindRef = React.useRef(kind), broken = React.useRef(onBroken);
   hash.current = hashMB;
+  broken.current = onBroken;
   React.useEffect(() => { if (ref.current) ref.current.then((eng) => eng.setHash(hashMB), () => {}); }, [hashMB]);
   const [status, setStatus] = React.useState('idle');
+  React.useEffect(() => {
+    if (kindRef.current === kind) return;
+    kindRef.current = kind;
+    const old = ref.current;
+    ref.current = null;
+    setStatus('idle');
+    if (old) old.then((eng) => eng.quit(), () => {});
+  }, [kind]);
   const get = React.useCallback(() => {
     if (!ref.current) {
       setStatus('loading');
       // an engine that dies later is dropped too: the panels say so, and the next use starts a new one
       let mine = null;
       const start = async () => {
-        if (!(await sfFilesPresent())) throw new Error('The Stockfish files are missing next to this page');
-        const eng = window.SFEngine.create(sfMakeWorker, { hashMB: hash.current, onFail: () => { if (ref.current === mine) { ref.current = null; setStatus('stopped'); } } });
+        let make = sfMakeWorker;
+        if (kindRef.current === 'full') {
+          try { make = await window.SFFull.start(); } catch (e) { if (broken.current) broken.current(); throw e; }
+        } else if (!(await sfFilesPresent())) throw new Error('The Stockfish files are missing next to this page');
+        const eng = window.SFEngine.create(make, { hashMB: hash.current, onFail: () => { if (ref.current === mine) { ref.current = null; setStatus('stopped'); } } });
         await eng.ready();
         return eng;
       };
-      mine = ref.current = start().then((eng) => { setStatus('ready'); return eng; }, (e) => { setStatus('unavailable'); ref.current = null; throw e; });
+      mine = ref.current = start().then((eng) => { if (ref.current === mine) setStatus('ready'); return eng; }, (e) => { if (ref.current === mine) { setStatus('unavailable'); ref.current = null; } throw e; });
       mine.catch(() => {});
     }
     return ref.current;
@@ -33,8 +47,36 @@ function useEngine(hashMB) {
   return { get, status };
 }
 
+// The full engine's download (Settings › Engine): the site only, as the artifact carries the lite engine inline.
+// state: 'checking', 'absent', 'downloading' (got: bytes so far) or 'ready'; err: why the last download or start failed
+const SF_FULL_OFFERED = !window.SF_MAKE_WORKER && !!(window.SFFull && window.SFFull.supported());
+const sfMB = (bytes) => Math.round(bytes / 1e6);
+function useFullEngine() {
+  const [st, setSt] = React.useState({ state: SF_FULL_OFFERED ? 'checking' : 'absent', got: 0, err: '' });
+  const ctl = React.useRef(null);
+  React.useEffect(() => {
+    if (SF_FULL_OFFERED) window.SFFull.present().then((ok) => setSt((s) => (s.state === 'checking' ? { ...s, state: ok ? 'ready' : 'absent' } : s)));
+  }, []);
+  const download = async () => {
+    if (ctl.current) return;
+    const c = ctl.current = new AbortController();
+    setSt({ state: 'downloading', got: 0, err: '' });
+    try {
+      // a render per megabyte, not per chunk
+      await window.SFFull.download({ signal: c.signal, onProgress: (got) => setSt((s) => (sfMB(got) === sfMB(s.got) ? s : { ...s, got })) });
+      setSt({ state: 'ready', got: 0, err: '' });
+    } catch (e) {
+      setSt({ state: 'absent', got: 0, err: c.signal.aborted ? '' : 'Download failed: ' + ((e && e.message) || e) });
+    } finally { ctl.current = null; }
+  };
+  const cancel = () => { if (ctl.current) ctl.current.abort(); };
+  const remove = async () => { cancel(); await window.SFFull.remove().catch(() => {}); setSt({ state: 'absent', got: 0, err: '' }); };
+  const broken = React.useCallback(() => setSt({ state: 'absent', got: 0, err: 'The downloaded engine was missing or damaged, so Lite is running. Download it again to use Full.' }), []);
+  return { offered: SF_FULL_OFFERED, ...st, download, cancel, remove, broken };
+}
+
 const sfIsBrowserAnalysis = (analysis) => {
-  try { const a = typeof analysis === 'string' ? JSON.parse(analysis) : analysis; return !!(a && a.engine && a.engine.name === window.AnalysisCore.ENGINE.name); } catch (e) { return false; }
+  try { const a = typeof analysis === 'string' ? JSON.parse(analysis) : analysis; return !!(a && a.engine && Object.values(window.AnalysisCore.ENGINE_NAMES).includes(a.engine.name)); } catch (e) { return false; }
 };
 
 // The searches of a run that stopped part-way, kept for one game (the latest) so starting again resumes it; a page
@@ -50,10 +92,12 @@ function writeSfPartial(ucis, settings, searched, fen) {
   try { if (searched) localStorage.setItem(SF_PARTIAL_STORE, JSON.stringify({ key: sfPartialKey(ucis, settings, fen), searched })); else localStorage.removeItem(SF_PARTIAL_STORE); } catch (e) {}
 }
 
-// This device's pace against the model's (AnalysisCore.paceFactor), from the last run that timed enough positions
+// This device's pace against the model's (AnalysisCore.paceFactor), from the last run that timed enough positions, for
+// each engine (name: the settings' engine name; the full engine searches fewer nodes a second)
 const SF_PACE_STORE = 'chess-video.sf-pace.v1', SF_PACE_MIN_POSITIONS = 10;
-function readSfPace() { try { const f = +localStorage.getItem(SF_PACE_STORE); return f > 0 ? f : 1; } catch (e) { return 1; } }
-function writeSfPace(f) { try { localStorage.setItem(SF_PACE_STORE, String(f)); } catch (e) {} }
+const sfPaceKey = (name) => (name === window.AnalysisCore.ENGINE_NAMES.full ? SF_PACE_STORE + '.full' : SF_PACE_STORE);
+function readSfPace(name) { try { const f = +localStorage.getItem(sfPaceKey(name)); return f > 0 ? f : 1; } catch (e) { return 1; } }
+function writeSfPace(name, f) { try { localStorage.setItem(sfPaceKey(name), String(f)); } catch (e) {} }
 
 // The full-game analysis. Loading other files (another game, the sample) abandons a run in progress; its searches
 // so far are kept, and starting it again resumes from them.
@@ -61,7 +105,8 @@ function writeSfPace(f) { try { localStorage.setItem(SF_PACE_STORE, String(f)); 
 // settings: the engine settings for a game (AnalysisCore.engineSettings().game); a run keeps those it started with
 function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
   const A = window.AnalysisCore, setKey = JSON.stringify(settings);
-  const [pace, setPace] = React.useState(readSfPace);
+  const [pace, setPace] = React.useState(() => readSfPace(settings.name));
+  React.useEffect(() => { setPace(readSfPace(settings.name)); }, [settings.name]);
   const perPos = A.secondsPerPosition(settings, pace);
   const idle = { state: 'idle', done: 0, total: 0, etaSec: null, err: '' };
   const [st, setSt] = React.useState(idle);
@@ -103,7 +148,7 @@ function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
       if (!json) { setSt(idle); return; }
       writeSfPartial(ucis, S, null, M.start.fen);
       setResumeAt(0);
-      if (timed.n >= SF_PACE_MIN_POSITIONS) { const f = A.paceFactor(S, timed.sec / timed.n); writeSfPace(f); setPace(f); }
+      if (timed.n >= SF_PACE_MIN_POSITIONS) { const f = A.paceFactor(S, timed.sec / timed.n); writeSfPace(S.name, f); setPace(f); }
       const name = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_') + '_analysis.json';
       setSt(idle);
       commit({ ...getFiles(), analysis: json, analysisName: name, evalSource: null }); // shown, even over PGN evals
@@ -182,7 +227,7 @@ function EngineEmptyState({ M, sf, paused, compact }) {
         {narrow && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim, whiteSpace: 'nowrap' }}>{est}</span>}
       </div>
       {run.resumeAt > 0 && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>{run.resumeAt} of {run.plies} moves analysed so far.</span>}
-      {!compact && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>Stockfish 19 lite runs in your browser.</span>}
+      {!compact && <span style={{ ...NO_SELECT, font: `500 15px ${MONO}`, color: C.dim }}>{engineLabel(sf.game.name)} runs in your browser.</span>}
       {run.err && <span style={{ font: `500 15px ${MONO}`, color: C.blunder }}>{run.err}</span>}
     </div>
   );
@@ -201,7 +246,7 @@ const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the
 // comes from, so presses on one analysis's move don't carry over to another's (or the PGN's) once it is removed
 function useMoveEval(engine, before, after, own, fen, stored) {
   const A = window.AnalysisCore;
-  const keyOf = (s, moves) => (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}:` + moves.join(' ');
+  const keyOf = (s, moves) => (own.name ? own.name + '|' : '') + (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}:` + moves.join(' ');
   const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000 });
   const baseKey = after ? keyOf(toSearch(own), after) + (stored ? '|' + stored.src : '') : '';
   const [, bump] = React.useState(0);
