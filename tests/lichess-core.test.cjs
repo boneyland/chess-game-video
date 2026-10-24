@@ -76,10 +76,22 @@ test('moves are grouped by what they get the mover, best first', () => {
   assert.ok(c[0].moves.some((m) => m.mine === 'cursed-win'));
 });
 
-test('fenOf writes castling rights and the en passant square', () => {
+test('fenOf writes castling rights, the en passant square and the fifty-move count', () => {
   const pos = window.ChessCore.posFromFen('4k3/8/8/3pP3/8/8/8/4K2R w K - 0 1');
   assert.equal(LC.fenOf({ ...pos, ep: window.ChessCore.sqIndex('d6') }), '4k3/8/8/3pP3/8/8/8/4K2R w K d6 0 1');
-  assert.equal(LC.fenOf({ ...pos, castle: '', ep: -1 }), '4k3/8/8/3pP3/8/8/8/4K2R w - - 0 1');
+  assert.equal(LC.fenOf({ ...pos, castle: '', ep: -1 }, 60), '4k3/8/8/3pP3/8/8/8/4K2R w - - 60 1');
+});
+
+test('the fifty-move count is sent and keys the cache; the move number doesn\'t', async () => {
+  // the real service: 8/8/8/4k3/8/8/3KB3/7N w - - 60 … is a cursed win (60 plies gone, DTZ 55)
+  const f = fakeFetch([KBNK, { ...KBNK, category: 'cursed-win' }]);
+  const c = LC.create({ fetchFn: f });
+  assert.equal((await c.tablebase('8/8/8/4k3/8/8/3KB3/7N w - - 0 1')).category, 'win');
+  assert.equal((await c.tablebase('8/8/8/4k3/8/8/3KB3/7N w - - 0 40')).category, 'win');
+  assert.equal(f.calls.length, 1);
+  assert.equal((await c.tablebase('8/8/8/4k3/8/8/3KB3/7N w - - 60 40')).category, 'cursed-win');
+  assert.match(f.calls[1], /%20w%20-%20-%2060%2040$/);
+  assert.equal(c.tablebaseCached('8/8/8/4k3/8/8/3KB3/7N w - - 60 99').category, 'cursed-win');
 });
 
 test('never asks above 7 pieces', async () => {

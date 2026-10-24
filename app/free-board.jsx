@@ -370,7 +370,8 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   const down = sf.status === 'unavailable' || sf.status === 'stopped';
   const cp = ev.after && ev.after.cp != null ? ev.after.cp : null;
   // the endgame tablebase for the position on the board (never in a game): its result replaces the eval in the bar
-  const tb = useTablebase(G ? null : pos, tw.tablebase !== false), tbv = tbBar(tb);
+  const boardFen = () => window.ChessCore.fenAfter(board.fen, steps.slice(0, upto + 1).map((s) => s.san), pos);
+  const tb = useTablebase(G ? null : boardFen(), tw.tablebase !== false), tbv = tbBar(tb);
   // the running clock: redrawn ten times a second, and the game ends when it reaches zero
   const running = live && G.clock && G.clock.since != null;
   const [, tick] = React.useState(0);
@@ -406,7 +407,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
     hasPrev: upto >= 0, hasNext: upto < last, hasLast: upto < last,
     prev: () => go(upto - 1), next: () => go(upto + 1), last: () => go(last), first: () => go(-1),
   };
-  if (nav) nav.current.fen = () => window.ChessCore.fenAfter(board.fen, steps.slice(0, upto + 1).map((s) => s.san), pos);
+  if (nav) nav.current.fen = boardFen;
   const navSig = nav && nav.current ? `${nav.current.label}|${upto}|${last}|${live}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);
   const keyRef = React.useRef(null);

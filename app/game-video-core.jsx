@@ -985,7 +985,8 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
   });
   const playOwn = (step) => setVline((v) => { const b = v || newLine(); const prefix = b.moves.slice(0, b.upto + 1); return { ...b, src: 'you', moves: [...prefix, step], upto: prefix.length }; });
   // the endgame tablebase for the position on the board, while paused (never in the video or its export)
-  const tb = useTablebase(playing ? null : touchPos, tw.tablebase !== false);
+  const shownFen = () => window.ChessCore.fenAfter(M.start.fen, (vline ? M.plies.slice(0, vline.at).concat(vline.moves.slice(0, vline.upto + 1)) : M.plies.slice(0, cNow + 1)).map((p) => p.san), touchPos);
+  const tb = useTablebase(playing ? null : shownFen(), tw.tablebase !== false);
   const onTb = (uci) => { const step = window.ChessCore.stepFromUci(touchPos, uci); if (step) { tl.setPlaying(false); input.clear(); playOwn(step); } };
   React.useEffect(() => { if (!vline) input.clear(); }, [vline]);
   // Stockfish on the viewer's line: the positions before and after the move on the board, as move lists from the start
@@ -1034,8 +1035,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
       hasLast: cc < S.N - 1, last: () => goTo(S.N - 1),
     };
     // the position on the board as a FEN, for the menu's Copy FEN
-    const sans = vline ? M.plies.slice(0, vline.at).concat(vline.moves.slice(0, vline.upto + 1)) : M.plies.slice(0, cc + 1);
-    nav.current.fen = () => window.ChessCore.fenAfter(M.start.fen, sans.map((p) => p.san), touchPos);
+    nav.current.fen = shownFen;
   }
   const navSig = nav && nav.current ? `${nav.current.label}|${nav.current.hasPrev}|${nav.current.hasNext}|${nav.current.hasLast}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);

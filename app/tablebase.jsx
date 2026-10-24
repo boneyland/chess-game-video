@@ -5,11 +5,12 @@
 const TB = window.LichessCore ? window.LichessCore.create() : null;
 const TB_DEBOUNCE_MS = 300; // after the last position change (stepping through moves sends nothing for the ones passed)
 
-// The tablebase's answer for pos (a ChessCore position), or null when it isn't asked (off, more than 7 pieces):
-// { state: 'loading' | 'none' (offline, an error, a back-off) | 'ready', tb, turn }
-function useTablebase(pos, on) {
+// The tablebase's answer for the position on the board, or null when it isn't asked (off, more than 7 pieces):
+// { state: 'loading' | 'none' (offline, an error, a back-off) | 'ready', tb, turn }. fen: its full FEN (ChessCore.fenAfter),
+// whose fifty-move count the answer takes into account; null asks nothing
+function useTablebase(boardFen, on) {
   const LC = window.LichessCore;
-  const fen = on && TB && pos && LC.pieceCount(window.ChessCore.toFen(pos)) <= LC.TB_MAX_PIECES ? LC.fenOf(pos) : null;
+  const fen = on && TB && boardFen && LC.pieceCount(boardFen) <= LC.TB_MAX_PIECES ? boardFen : null;
   const [st, setSt] = React.useState({ fen: null, tb: null });
   const hit = fen ? TB.tablebaseCached(fen) : undefined;
   React.useEffect(() => {
@@ -17,10 +18,11 @@ function useTablebase(pos, on) {
     const ctl = new AbortController();
     const id = setTimeout(() => TB.tablebase(fen, { signal: ctl.signal }).then((tb) => { if (!ctl.signal.aborted) setSt({ fen, tb }); }), TB_DEBOUNCE_MS);
     return () => { clearTimeout(id); ctl.abort(); };
-  }, [fen]);
+  }, [fen && LC.tbKey(fen)]);
   if (!fen) return null;
   const tb = hit || (st.fen === fen ? st.tb : undefined);
-  return tb ? { state: 'ready', tb, turn: pos.turn } : { state: tb === null ? 'none' : 'loading', tb: null, turn: pos.turn };
+  const turn = fen.split(' ')[1] === 'b' ? 'b' : 'w';
+  return tb ? { state: 'ready', tb, turn } : { state: tb === null ? 'none' : 'loading', tb: null, turn };
 }
 
 // what the eval bar shows for the answer ({ cp, txt } from White's side, txt tagged "TB"), or null to keep the engine's

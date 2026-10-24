@@ -8,13 +8,16 @@
 
   // the pieces on a FEN's board, kings included
   const pieceCount = (fen) => (String(fen).split(' ')[0].match(/[pnbrqk]/gi) || []).length;
-  // a ChessCore position as a full FEN: castling rights and en passant square from it (the tables need both); the
-  // move counters don't change the answer
-  function fenOf(pos) {
+  // a ChessCore position as a full FEN: castling rights and en passant square from it (the tables need both) and half,
+  // the plies since the last capture or pawn move, which the answer counts towards the fifty-move rule (a win with DTZ
+  // 55 is a cursed win with 60 already gone)
+  function fenOf(pos, half = 0) {
     const ep = pos.ep >= 0 ? String.fromCharCode(97 + (pos.ep % 8)) + (8 - Math.floor(pos.ep / 8)) : '-';
     const castle = pos.castle == null ? 'KQkq' : pos.castle || '-';
-    return [window.ChessCore.toFen(pos), castle, ep, 0, 1].join(' ');
+    return [window.ChessCore.toFen(pos), castle, ep, half, 1].join(' ');
   }
+  // the cache's key: the FEN without the move number, which doesn't change the answer (the fifty-move count does)
+  const tbKey = (fen) => String(fen).trim().split(/\s+/).slice(0, 5).join(' ');
   const tablebaseUrl = (fen) => TB_URL + '?fen=' + encodeURIComponent(fen);
 
   // The answer for the side to move: { category, dtz, dtm, checkmate, stalemate, insufficient, moves }, each move
@@ -104,12 +107,12 @@
       } finally { done(); }
     }
     return {
-      tablebase: (fen, { signal } = {}) => (pieceCount(fen) > TB_MAX_PIECES ? Promise.resolve(null) : get('tablebase', fen, tablebaseUrl(fen), parseTablebase, signal)),
+      tablebase: (fen, { signal } = {}) => (pieceCount(fen) > TB_MAX_PIECES ? Promise.resolve(null) : get('tablebase', tbKey(fen), tablebaseUrl(fen), parseTablebase, signal)),
       // the cached answer, or undefined (so a position seen before shows at once, without the debounce)
-      tablebaseCached: (fen) => cache.get(fen),
+      tablebaseCached: (fen) => cache.get(tbKey(fen)),
       backedOff: (name) => now() < gate(name).until,
     };
   }
 
-  window.LichessCore = { TB_URL, TB_MAX_PIECES, BACKOFF_MS, pieceCount, fenOf, tablebaseUrl, parseTablebase, flip, outcome, verdict, bar, groups, create };
+  window.LichessCore = { TB_URL, TB_MAX_PIECES, BACKOFF_MS, pieceCount, fenOf, tbKey, tablebaseUrl, parseTablebase, flip, outcome, verdict, bar, groups, create };
 })();

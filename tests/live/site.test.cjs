@@ -644,11 +644,17 @@ for (const name of BROWSERS) for (const site of SITES) {
       await p.keyboard.press('ArrowLeft');
       await p.waitForFunction(() => /DTZ 55/.test(document.body.innerText), null, { timeout: 5000 });
       assert.equal(sent.length, 2);
+      // the fifty-move count goes with the FEN: with 60 plies gone the same win is a cursed one
+      await setUp('8/8/8/4k3/8/8/3KB3/7N w - - 60 80');
+      await p.waitForFunction(() => /Tablebase\s+Cursed win for White/i.test(document.body.innerText), null, { timeout: 20000 });
+      assert.match(await text(), /TB 0\.00/);
+      assert.equal(sent.length, 3);
+      assert.equal(sent[2], '8/8/8/4k3/8/8/3KB3/7N w - - 60 80');
       // 8 pieces: no Tablebase block, nothing sent
       await setUp('8/8/8/3k4/pppp4/8/8/1N1NK3 w - - 0 1');
       await p.waitForTimeout(1500);
       assert.doesNotMatch(await text(), /Tablebase/);
-      assert.equal(sent.length, 2);
+      assert.equal(sent.length, 3);
       // the setting off: a 5-piece position sends nothing
       await p.getByRole('button', { name: 'Settings' }).click();
       await p.getByRole('tab', { name: 'Engine' }).click();
@@ -657,7 +663,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await setUp('4k3/8/8/8/8/8/3RK3/7r w - - 0 1');
       await p.waitForTimeout(1500);
       assert.doesNotMatch(await text(), /Tablebase|TB /);
-      assert.equal(sent.length, 2);
+      assert.equal(sent.length, 3);
       assert.deepEqual(tb.errors, []);
       await tb.ctx.close();
     });
