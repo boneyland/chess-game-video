@@ -8,7 +8,7 @@ The one spec for the app: what it does now, what is planned, and the decisions b
 
 - [Principles](#principles)
 - [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish, full Stockfish download, lines (MultiPV)
-- [Roadmap](#roadmap): Lichess data and multi-threaded Stockfish, player names, Chess960, typed commentary, Maia3, background music
+- [Roadmap](#roadmap): Lichess data and multi-threaded Stockfish, player names, Chess960, typed commentary, Maia3, dead positions, background music
 - [Known gaps](#known-gaps)
 - [Decisions log](#decisions-log)
 
@@ -221,6 +221,10 @@ The user types their own comment on a move. Open: where (replay, free board, a g
 ### Maia3 (*needs design*)
 
 Maia predicts human moves at a chosen rating, unlike Stockfish's best move. Open: what for (an opponent in Play vs Maia, "what a human would play" beside Stockfish, or both); whether it runs in the browser (weights, runtime, size, licence) or would need a server (which the principles rule out without the user's say); which ratings.
+
+### Dead positions (*needs design*)
+
+Games end by themselves in a dead position (no legal sequence of moves mates either side, FIDE 5.2.2), and a flag fall there is a draw (6.9). Today `PlayCore` proves only too little material (`canMate`) and pawns locked with kings and same-coloured bishops (`lockedDead`); a forced line into a dead position (the only legal move takes the last piece), or locks with knights or rooks, plays on, and the flag rule looks at material only. The fix is a helpmate search on the device (both sides cooperating, bounded in depth and nodes), as Miguel Ambrona's Chess Unwinnability Analyzer (CHA) does; Lichess uses a version of it for timeouts **verify**. The endgame tablebase can't help: its "draw" means drawn with best play (KR v KR is one, yet either side can blunder into mate), the same category as a dead position; a TB win only proves a position isn't dead. Open: the search's limits and cost per move (it runs on every move of a game), whether it also decides flag falls ("can the opponent mate by any legal sequence"), whether replays mark a dead position.
 
 ### Background music
 
