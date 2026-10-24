@@ -67,11 +67,12 @@ function TweakRow({ label, value, children }) {
 }
 
 // stops: the only values the slider takes, in order (uneven steps); it then moves through their indices
-function TweakSlider({ id, label, value, min = 0, max = 100, step = 1, stops, unit = '', onChange }) {
-  const at = stops ? Math.max(0, stops.indexOf(value)) : value;
+// format: a value's text, when it isn't just the value and its unit
+function TweakSlider({ id, label, value, min = 0, max = 100, step = 1, stops, unit = '', format, onChange }) {
+  const at = stops ? Math.max(0, stops.indexOf(value)) : value, text = format ? format(value) : `${value}${unit}`;
   return (
-    <TweakRow label={label} value={`${value}${unit}`}>
-      <input id={id} type="range" className="twk-slider" min={stops ? 0 : min} max={stops ? stops.length - 1 : max} step={stops ? 1 : step} value={at} aria-label={label} aria-valuetext={stops ? `${value}${unit}` : undefined} onChange={(e) => onChange(stops ? stops[Number(e.target.value)] : Number(e.target.value))} />
+    <TweakRow label={label} value={text}>
+      <input id={id} type="range" className="twk-slider" min={stops ? 0 : min} max={stops ? stops.length - 1 : max} step={stops ? 1 : step} value={at} aria-label={label} aria-valuetext={stops ? text : undefined} onChange={(e) => onChange(stops ? stops[Number(e.target.value)] : Number(e.target.value))} />
     </TweakRow>
   );
 }
