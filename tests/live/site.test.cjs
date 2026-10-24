@@ -1200,7 +1200,7 @@ for (const name of BROWSERS) for (const site of SITES) {
 
     // Settings › Engine › Full: stockfish.js's full engine (99 MB) from unpkg, kept in its own cache, run from there, removed.
     // The real download (a route can't answer with a body this big: Chromium drops Playwright's connection)
-    await t.test('desktop: the full engine downloads once, runs from its kept copy, and can be removed', { timeout: 300000 }, async () => {
+    await t.test('desktop: the full engine downloads once, runs from its kept copy, and can be removed', { timeout: 420000 }, async (tt) => {
       const fe = await open(browser, { width: 1440, height: 900 });
       const p = fe.page;
       let hits = 0;
@@ -1223,10 +1223,24 @@ for (const name of BROWSERS) for (const site of SITES) {
       assert.match(await p.evaluate(() => document.body.innerText), /Stockfish 19 lite · depth \d+/i);
       await openEngine();
       await p.getByRole('radiogroup', { name: 'Engine' }).getByRole('radio', { name: /^Full · 99 MB/ }).click();
-      await p.getByRole('button', { name: /^Download full Stockfish · 99 MB/ }).click();
-      const remove = p.getByRole('button', { name: /^Remove the full engine download/ });
-      await remove.waitFor({ timeout: 240000 });
-      assert.equal(hits, 2, 'both files fetched once');
+      const remove = p.getByRole('button', { name: /^Remove the full engine download/ }), failed = p.getByText(/^Download failed: /);
+      // unpkg is a third party: a download that fails (a stalled connection is given up after 30 s) is tried once more,
+      // and a failure says how far it got
+      let tries = 0;
+      for (;;) {
+        tries++;
+        await p.getByRole('button', { name: /^Download full Stockfish · 99 MB/ }).click();
+        try { await remove.or(failed).waitFor({ timeout: 180000 }); } catch (e) {
+          throw new Error('the download neither finished nor failed in 180 s: ' + await p.getByText(/^Downloading full Stockfish/).innerText({ timeout: 1000 }).catch(() => '(no progress shown)'));
+        }
+        if (await remove.isVisible()) break;
+        const why = await failed.innerText();
+        if (tries === 2) throw new Error('the download failed twice: ' + why);
+        tt.diagnostic('retrying the download after: ' + why);
+      }
+      // a failed try may have fetched one file or both
+      if (tries === 1) assert.equal(hits, 2, 'both files fetched once');
+      const fetched = hits;
       await assert.doesNotReject(p.getByText(/^Stockfish 19 runs in your browser/).waitFor({ timeout: 3000 }));
       await p.screenshot({ path: path.join(OUT, host + '-engine-full.png') });
       // the same move is searched again by the full engine once it is kept, with no move played and Settings still open
@@ -1240,7 +1254,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await loadedOn(p);
       await openEngine();
       await remove.waitFor({ timeout: 10000 });
-      assert.equal(hits, 2, 'nothing fetched after a reload');
+      assert.equal(hits, fetched, 'nothing fetched after a reload');
       // Remove asks first: Keep leaves the copy, Remove deletes it
       await remove.click();
       await p.getByRole('button', { name: 'Keep', exact: true }).click();
