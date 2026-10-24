@@ -84,7 +84,7 @@ Every setting flags all of game 2's blunders; none finds 30.Qf8?! or 35.Kg1?! (t
 
 ### Free board and explorer
 
-A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, state in `BoardCore`), reached from the dock's **Play/Explore** menu (and the phone menu): Starting position, Paste FEN…, Copy FEN, Play vs human, Play vs Stockfish, My games.
+A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, state in `BoardCore`), reached from the dock's **Play/Explore** menu (and the phone menu), in two labelled groups: Explore (Starting position, Paste FEN…, Copy FEN) and Play (Play vs human, Play vs Stockfish, My games).
 
 - **Explore**: every move by either side gets Stockfish's verdict, as own moves do; the eval bar follows; Stockfish's eval and best line show before the first move too. Moves are numbered correctly from a FEN. Undo/redo with ← →.
 - **Paste FEN**: one text field; the first two fields required, castling, en passant and counters used when present. Malformed or illegal FENs (including the side not to move in check) get a plain message and change nothing.
