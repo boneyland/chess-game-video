@@ -100,8 +100,12 @@
     // takes effect before the next search (the one running keeps its table)
     function setHash(mb) { hashWant = mb; pump(); }
 
+    // the running search answers null too, as a dead engine's would (the page switching engines quits this one mid-search)
     function quit() {
-      queue.splice(0).forEach((q) => q.resolve(null));
+      const pending = (cur ? [cur] : []).concat(queue.splice(0));
+      cur = null;
+      failed = failed || new Error('Stockfish was closed'); // later searches answer null at once
+      pending.forEach((q) => q.resolve(null));
       try { worker.postMessage('quit'); } catch (e) {}
       try { worker.terminate(); } catch (e) {}
     }
