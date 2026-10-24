@@ -151,6 +151,7 @@ body:has(.stage-tall) .twk-panel { bottom: calc(51px + env(safe-area-inset-botto
 }
 .fen-title { font: 600 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
 .fen-box .fen-field { height: 38px; padding: 0 10px; font: 500 13px var(--mono); }
+.fen-box .pgn-field { height: min(40vh, 280px); padding: 8px 10px; resize: vertical; line-height: 1.45; }
 .fen-box .fen-field::placeholder { color: var(--dim); opacity: 0.7; }
 /* 16px stops a phone's browser zooming in on the field */
 @media (pointer: coarse) { .fen-box .fen-field { font-size: 16px; } }

@@ -148,7 +148,7 @@ function GameApp() {
   React.useEffect(() => { if (!tall) setMenu(false); }, [tall]);
   // the dock's Play/Explore menu (landscape); on a phone its items sit in the folded menu instead
   const [newMenu, setNewMenu] = React.useState(false);
-  const [fenOpen, setFenOpen] = React.useState(false);
+  const [fenOpen, setFenOpen] = React.useState(false), [pgnOpen, setPgnOpen] = React.useState(false);
   const [fenNote, setFenNote] = React.useState(null); // { fen, ok } after Copy FEN; a copy that failed stays up to select
 
   // the Play dialog's mode while it is open: 'human' or 'stockfish'
@@ -268,6 +268,7 @@ function GameApp() {
   }, []);
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
+  const pastePgn = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPgnOpen(true)); };
   // the position on the board, whichever view it's in; where the clipboard is refused the note shows it to select
   const copyFen = () => {
     setNewMenu(false); setMenu(false);
@@ -298,10 +299,13 @@ function GameApp() {
   const loadGame = () => guard(() => inputRef.current.click());
   const fenSet = (fen) => { setFenOpen(false); setQueenOpen(false); commitBoard(window.BoardCore.fromFen(fen)); };
   const closeFen = React.useCallback(() => setFenOpen(false), []);
+  // a pasted PGN is a loaded game, as a picked file; the dialog has checked it builds
+  const pgnLoad = (text) => { setPgnOpen(false); setQueenOpen(false); commit({ pgn: text, pgnName: 'pasted.pgn', gameIndex: 0 }); };
+  const closePgn = React.useCallback(() => setPgnOpen(false), []);
   // the board's moves as a loaded game (replay, Analyse with Stockfish, PGN and video export); the board is kept with it, to go back to
   const boardAsGame = () => { commit({ pgn: window.BoardCore.pgn(board), pgnName: 'free-board.pgn', gameIndex: 0, fromBoard: files.board }); };
   // a dialog closed (Esc, Cancel, Set up, Start game): focus goes back to what opened it, Play/Explore or the phone's Menu
-  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || !!playOpen || !!gamesOpen;
+  const newBtn = React.useRef(null), menuBtn = React.useRef(null), fenWasOpen = React.useRef(false), dialogOpen = fenOpen || pgnOpen || !!playOpen || !!gamesOpen;
   React.useEffect(() => {
     if (fenWasOpen.current && !dialogOpen) { const b = tall ? menuBtn.current : newBtn.current; if (b) b.focus(); }
     fenWasOpen.current = dialogOpen;
@@ -431,7 +435,7 @@ function GameApp() {
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newGroups = [{ label: 'Explore', items: [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Copy FEN', run: copyFen }] },
+  const newGroups = [{ label: 'Explore', items: [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Paste PGN…', run: pastePgn }, { label: 'Copy FEN', run: copyFen }] },
     { label: 'Play', items: [{ label: 'Play vs human…', run: playHuman }, { label: 'Play vs Stockfish…', run: playSf }, { label: 'My games…', run: myGames }] }];
   const newItems = newGroups.map((g) => <React.Fragment key={g.label}>
     <span className="dock-menu-label">{g.label}</span>
@@ -514,6 +518,7 @@ function GameApp() {
       )}
       <ExportOverlay x={video} />
       {fenOpen && <FenDialog onSet={fenSet} onClose={closeFen} />}
+      {pgnOpen && <PgnDialog onLoad={pgnLoad} onClose={closePgn} />}
       {playOpen && <PlayDialog key={playOpen} mode={playOpen} setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} side={t.playSide} onStart={playStart} onClose={closePlay} />}
       {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
       {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); keepLeft(board); run(); }} />}

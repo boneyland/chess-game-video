@@ -503,6 +503,32 @@ function FenDialog({ onSet, onClose }) {
   );
 }
 
+// Paste PGN: a box for a whole PGN, Ctrl+Enter (or Load) opens it as a loaded game, Esc cancels. A PGN that doesn't
+// build gets ChessCore's message and changes nothing; Enter in the box is a new line, as in any text area
+function PgnDialog({ onLoad, onClose }) {
+  const [text, setText] = React.useState(''), [msg, setMsg] = React.useState('');
+  const load = () => {
+    if (!text.trim()) { setMsg('Paste a PGN first.'); return; }
+    try { window.ChessCore.buildGame({ pgn: text }); } catch (e) { setMsg((e && e.message) || 'That isn’t a PGN this page can read.'); return; }
+    onLoad(text);
+  };
+  const onKey = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); load(); } };
+  return (
+    <DialogBox label="Paste PGN" onClose={onClose}>
+      <textarea className="twk-field fen-field pgn-field" aria-label="PGN" aria-describedby="pgn-msg" data-autofocus spellCheck={false} autoComplete="off" autoCapitalize="off" autoCorrect="off"
+        placeholder={'[Event "…"]\n\n1. e4 e5 2. Nf3 Nc6 …'} value={text} onKeyDown={onKey} onChange={(e) => { setText(e.target.value); setMsg(''); }} />
+      <div className="fen-info">
+        <div id="pgn-msg" className="fen-msg" role="alert">{msg}</div>
+        {!msg && <div className="fen-note">Opens as a loaded game, as Load game… does: tags, comments, evals and a [FEN] start are read. Ctrl+Enter loads it.</div>}
+      </div>
+      <div className="fen-btns">
+        <button type="button" className="twk-btn secondary" onClick={onClose}>Cancel</button>
+        <button type="button" className="twk-btn" onClick={load}>Load</button>
+      </div>
+    </DialogBox>
+  );
+}
+
 // A small dialog over a scrim, as Paste FEN's: Esc or a press on the scrim closes it, Enter on `enter` runs onEnter,
 // and Tab goes round its controls; keys stop here, so the board's keys never see them
 function DialogBox({ label, onClose, children }) {
@@ -511,14 +537,14 @@ function DialogBox({ label, onClose, children }) {
   const onKey = (e) => {
     e.stopPropagation();
     if (e.key === 'Escape') { e.preventDefault(); onClose(); } else if (e.key === 'Tab') {
-      const stops = [...e.currentTarget.querySelectorAll('input, button')], i = stops.indexOf(document.activeElement);
+      const stops = [...e.currentTarget.querySelectorAll('input, textarea, button')], i = stops.indexOf(document.activeElement);
       e.preventDefault();
       stops[(i + (e.shiftKey ? -1 : 1) + stops.length) % stops.length].focus();
     }
   };
   return (
     <div className="fen-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={box} className="fen-box" role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKey} onMouseDown={(e) => { if (!e.target.closest('input, button')) e.preventDefault(); }}>
+      <div ref={box} className="fen-box" role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKey} onMouseDown={(e) => { if (!e.target.closest('input, textarea, button')) e.preventDefault(); }}>
         <div className="fen-title">{label}</div>
         {children}
       </div>
