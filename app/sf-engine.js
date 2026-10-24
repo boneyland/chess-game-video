@@ -40,7 +40,7 @@
       cur = q;
       if (q.lines !== linesSet) { worker.postMessage(`setoption name MultiPV value ${q.lines}`); linesSet = q.lines; }
       worker.postMessage(positionCommand(q.moves, q.fen));
-      worker.postMessage(`go depth ${q.depth} movetime ${q.movetimeMs}`);
+      worker.postMessage(`go ${q.depth == null ? '' : `depth ${q.depth} `}movetime ${q.movetimeMs}`);
     };
     worker.onmessage = (e) => {
       const line = String(e.data);

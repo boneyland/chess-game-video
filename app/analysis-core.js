@@ -118,29 +118,35 @@
 
   // the browser engines (Settings › Engine): the vendored lite one, or the full one the viewer downloaded (sf-full.js)
   const ENGINE_NAMES = { lite: 'Stockfish 19 lite (browser)', full: 'Stockfish 19 (browser)' };
-  const ENGINE = { name: ENGINE_NAMES.lite, depth: 24, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
+  const ENGINE = { name: ENGINE_NAMES.lite, depth: null, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
   // The engine settings a viewer can change (Settings → Engine), from the saved tweaks, kept in range; anything
   // missing or out of range falls back to the default. game: as ENGINE (written into the analysis JSON); own: the
-  // search of the viewer's own moves. kind: the engine that runs ('lite' or 'full'), whatever the setting asks for
+  // search of the viewer's own moves. kind: the engine that runs ('lite' or 'full'), whatever the setting asks for.
+  // depth null: no depth limit, the search runs for its time limit (a capped depth ends an endgame search in no time,
+  // long before it finds a deep mate)
   const SEARCH_LIMITS = { depth: [16, 30], seconds: [1, 20] }, HASH_MB = [16, 32, 64, 128, 256];
+  // the depth slider's stops: 16 to 30, then no limit
+  const DEPTHS = [...Array(SEARCH_LIMITS.depth[1] - SEARCH_LIMITS.depth[0] + 1).keys()].map((i) => SEARCH_LIMITS.depth[0] + i).concat([null]);
   // the time limit slider's stops: whole seconds to 10, then every 2 s
   const SECONDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20];
   // own.lines: the lines (MultiPV) the viewer's own searches show; a game's analysis always searches one
   const LINES = [1, 2, 3, 4, 5];
-  const OWN = { depth: 24, time_limit: 5, lines: 1 };
+  const OWN = { depth: null, time_limit: 5, lines: 1 };
   function engineSettings(t = {}, kind = 'lite') {
     const pick = (v, [lo, hi], step, dflt) => { const x = +v; return Number.isFinite(x) && x >= lo && x <= hi ? Math.round(x / step) * step : dflt; };
+    const pickDepth = (v, dflt) => (v === null ? null : pick(v, SEARCH_LIMITS.depth, 1, dflt));
     // a time limit in range snaps to the nearest stop
     const pickTime = (v, dflt) => { const x = +v; return Number.isFinite(x) && x >= SECONDS[0] && x <= SECONDS[SECONDS.length - 1] ? SECONDS.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a)) : dflt; };
     const name = ENGINE_NAMES[kind] || ENGINE.name;
     return {
-      game: { ...ENGINE, name, depth: pick(t.sfDepth, SEARCH_LIMITS.depth, 1, ENGINE.depth), time_limit: pickTime(t.sfTime, ENGINE.time_limit), hash_mb: HASH_MB.includes(+t.sfHash) ? +t.sfHash : ENGINE.hash_mb },
-      own: { name, depth: pick(t.sfOwnDepth, SEARCH_LIMITS.depth, 1, OWN.depth), time_limit: pickTime(t.sfOwnTime, OWN.time_limit), lines: LINES.includes(+t.sfLines) ? +t.sfLines : OWN.lines },
+      game: { ...ENGINE, name, depth: pickDepth(t.sfDepth, ENGINE.depth), time_limit: pickTime(t.sfTime, ENGINE.time_limit), hash_mb: HASH_MB.includes(+t.sfHash) ? +t.sfHash : ENGINE.hash_mb },
+      own: { name, depth: pickDepth(t.sfOwnDepth, OWN.depth), time_limit: pickTime(t.sfOwnTime, OWN.time_limit), lines: LINES.includes(+t.sfLines) ? +t.sfLines : OWN.lines },
     };
   }
   // Rough seconds a game position takes: 1.3 s measured on a laptop at depth 22 / 3 s, each depth about 1.45 times
-  // the one before, never more than the time limit. factor: this device's pace against that laptop's (paceFactor)
-  const secondsPerPosition = (g, factor = 1) => Math.min(g.time_limit, factor * 1.3 * Math.pow(1.45, g.depth - 22));
+  // the one before, never more than the time limit (all of it with no depth limit). factor: this device's pace against
+  // that laptop's (paceFactor)
+  const secondsPerPosition = (g, factor = 1) => (g.depth == null ? g.time_limit : Math.min(g.time_limit, factor * 1.3 * Math.pow(1.45, g.depth - 22)));
   // A finished run's seconds per position → its device's factor for secondsPerPosition, within reason
   const paceFactor = (g, sec) => Math.min(4, Math.max(0.25, sec / secondsPerPosition(g)));
   // A running analysis's seconds per position: the estimate before it started, giving way to the run's own pace as it
@@ -148,10 +154,10 @@
   const PACE_PRIOR_WEIGHT = 3;
   const blendPace = (priorSec, sumSec, n) => (priorSec * PACE_PRIOR_WEIGHT + sumSec) / (PACE_PRIOR_WEIGHT + n);
 
-  // Go deeper on one position (the + by the eval): each press adds 4 to the depth and doubles the time, up to the
-  // sliders' caps. own: engineSettings().own; level: presses so far
+  // Go deeper on one position (the + by the eval): each press adds 4 to the depth (none stays none) and doubles the
+  // time, up to the sliders' caps. own: engineSettings().own; level: presses so far
   function deeperSearch(own, level) {
-    return { depth: Math.min(SEARCH_LIMITS.depth[1], own.depth + 4 * level), time_limit: Math.min(SEARCH_LIMITS.seconds[1], own.time_limit * Math.pow(2, level)) };
+    return { depth: own.depth == null ? null : Math.min(SEARCH_LIMITS.depth[1], own.depth + 4 * level), time_limit: Math.min(SEARCH_LIMITS.seconds[1], own.time_limit * Math.pow(2, level)) };
   }
   const canGoDeeper = (own, level) => { const a = deeperSearch(own, level), b = deeperSearch(own, level + 1); return a.depth !== b.depth || a.time_limit !== b.time_limit; };
 
@@ -207,5 +213,5 @@
     return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis, startFen) : null, engine: { ...settings }, startFen });
   }
 
-  window.AnalysisCore = { C, ENGINE, ENGINE_NAMES, SEARCH_LIMITS, SECONDS, HASH_MB, LINES, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
+  window.AnalysisCore = { C, ENGINE, ENGINE_NAMES, SEARCH_LIMITS, DEPTHS, SECONDS, HASH_MB, LINES, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
 })();

@@ -108,11 +108,11 @@ test('runAnalysis stops when aborted and returns null', async () => {
   assert.equal(eng.calls, 2);
 });
 
-test('runAnalysis searches each position at depth 24 / 3 s as game priority', async () => {
+test('runAnalysis searches each position for 3 s, no depth limit, as game priority', async () => {
   const reqs = [];
   await A.runAnalysis({ engine: fakeEngine((r) => reqs.push(r)), ...SCHOLAR, headers: {}, signal: { aborted: false }, onProgress: () => {} });
   assert.equal(reqs.length, 8);
-  assert.deepEqual(reqs.map((r) => [r.depth, r.movetimeMs, r.priority]), Array(8).fill([24, 3000, 'game']));
+  assert.deepEqual(reqs.map((r) => [r.depth, r.movetimeMs, r.priority]), Array(8).fill([null, 3000, 'game']));
   assert.deepEqual(reqs[3].moves, SCHOLAR.ucis.slice(0, 3));
 });
 
@@ -129,7 +129,7 @@ test('runAnalysis with the real engine rates a mating game like Python', { timeo
     assert.equal(last.move_san, 'Qxf7#');
     assert.equal(out.opening_name, "King's Pawn Game: Wayward Queen Attack"); // chess_openings.py's identify() for this line
     assert.equal(out.opening_eco, 'C20');
-    assert.deepEqual(out.engine, { name: 'Stockfish 19 lite (browser)', depth: 24, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 });
+    assert.deepEqual(out.engine, { name: 'Stockfish 19 lite (browser)', depth: null, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 });
     assert.ok(out.moves.every((m) => m.search_depth > 0));
     // the position after Qxf7# is mate: Stockfish reports no search for it
     assert.ok(out.moves.slice(0, -1).every((m) => m.search_time_after_ms > 0 && m.search_nodes_after > 0), 'actual search stats kept for each position after a move');
@@ -173,7 +173,8 @@ test('runAnalysis resumes from earlier searches and reports each search so far',
 test('engineSettings: the defaults, the viewer’s values in range, and the defaults again for anything else', () => {
   const d = A.engineSettings({});
   assert.deepEqual(d.game, A.ENGINE);
-  assert.deepEqual(d.own, { name: A.ENGINE.name, depth: 24, time_limit: 5, lines: 1 });
+  assert.deepEqual(d.own, { name: A.ENGINE.name, depth: null, time_limit: 5, lines: 1 });
+  assert.equal(d.game.depth, null, 'no depth limit by default');
   const s = A.engineSettings({ sfDepth: 16, sfTime: 1, sfOwnDepth: 30, sfOwnTime: 20, sfHash: 256, sfLines: 5 });
   assert.deepEqual([s.game.depth, s.game.time_limit, s.game.hash_mb, s.game.name], [16, 1, 256, A.ENGINE.name]);
   assert.deepEqual(s.own, { name: A.ENGINE.name, depth: 30, time_limit: 20, lines: 5 });
@@ -181,7 +182,10 @@ test('engineSettings: the defaults, the viewer’s values in range, and the defa
   for (const bad of [0, 6, 2.5, 'x', null]) assert.equal(A.engineSettings({ sfLines: bad }).own.lines, 1, String(bad));
   assert.equal(A.engineSettings({ sfLines: '3' }).own.lines, 3);
   const bad = A.engineSettings({ sfDepth: 15, sfTime: 21, sfOwnDepth: 'x', sfOwnTime: null, sfHash: 100 });
-  assert.deepEqual([bad.game.depth, bad.game.time_limit, bad.game.hash_mb, bad.own.depth, bad.own.time_limit], [24, 3, 64, 24, 5]);
+  assert.deepEqual([bad.game.depth, bad.game.time_limit, bad.game.hash_mb, bad.own.depth, bad.own.time_limit], [null, 3, 64, null, 5]);
+  // a viewer who picked a depth keeps it; one who moved back to No limit stores null
+  assert.deepEqual([A.engineSettings({ sfOwnDepth: 24 }).own.depth, A.engineSettings({ sfOwnDepth: null }).own.depth], [24, null]);
+  assert.deepEqual([A.DEPTHS[0], A.DEPTHS[A.DEPTHS.length - 2], A.DEPTHS[A.DEPTHS.length - 1], A.DEPTHS.length], [16, 30, null, 16]);
   assert.equal(A.engineSettings({ sfTime: 0.5 }).game.time_limit, 3); // below the 1 s minimum
   assert.equal(A.engineSettings({ sfTime: 1.3 }).game.time_limit, 1); // snapped to the slider's whole seconds
   assert.equal(A.engineSettings({ sfTime: 12.8 }).game.time_limit, 12); // above 10, every 2 s
@@ -199,9 +203,11 @@ test('engineSettings: the engine that runs names the game and own searches, so t
 
 const MEASURED = { depth: 22, time_limit: 3 }; // what secondsPerPosition's 1.3 s was measured at
 
-test('secondsPerPosition: 1.3 s at depth 22 / 3 s, faster when shallower, near the limit at the default depth 24, never past it', () => {
+test('secondsPerPosition: 1.3 s at depth 22 / 3 s, faster when shallower, near the limit at depth 24, never past it, all of it with no depth limit', () => {
   assert.equal(A.secondsPerPosition(MEASURED), 1.3);
-  assert.ok(A.secondsPerPosition(A.ENGINE) > 2.5 && A.secondsPerPosition(A.ENGINE) < 3);
+  assert.ok(A.secondsPerPosition({ depth: 24, time_limit: 3 }) > 2.5 && A.secondsPerPosition({ depth: 24, time_limit: 3 }) < 3);
+  assert.equal(A.secondsPerPosition(A.ENGINE), 3);
+  assert.equal(A.secondsPerPosition(A.ENGINE, 0.5), 3);
   assert.ok(A.secondsPerPosition({ depth: 16, time_limit: 3 }) < 0.5);
   assert.equal(A.secondsPerPosition({ depth: 30, time_limit: 4 }), 4);
 });
@@ -231,6 +237,9 @@ test('deeperSearch: +4 depth and twice the time per press, up to the sliders\' c
   assert.equal(A.canGoDeeper(own, 3), false);
   assert.equal(A.canGoDeeper({ depth: 30, time_limit: 3 }, 0), true); // the time can still grow
   assert.equal(A.canGoDeeper({ depth: 30, time_limit: 20 }, 0), false);
+  // no depth limit: only the time doubles
+  assert.deepEqual(A.deeperSearch({ depth: null, time_limit: 5 }, 1), { depth: null, time_limit: 10 });
+  assert.equal(A.canGoDeeper({ depth: null, time_limit: 5 }, 2), false);
 });
 
 test('runAnalysis searches and records the settings it is given', async () => {

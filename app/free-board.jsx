@@ -137,10 +137,11 @@ const playerName = (G, side) => (G && G.mode === 'stockfish' ? (side === G.you ?
 
 // Stockfish's reply lands no sooner than this after the player's move, so it reads as a reply rather than a jump
 const REPLY_PAUSE_MS = 600;
-// the search of the position the player is to move in, the "before" of their move: deep enough to rate it, then it stops
+// the search of the position the player is to move in, the "before" of their move: long enough to rate it, then it stops
 // rather than run the CPU (a phone's battery) for as long as they think; their move stops it sooner. A move is rated
-// only when both searches reached MIN_RATED_DEPTH
-const BEFORE_SEARCH = { depth: 24, movetimeMs: 5000 }, REPLY_DEPTH = 30, MIN_RATED_DEPTH = 15;
+// only when both searches reached MIN_RATED_DEPTH. Neither it nor Stockfish's reply has a depth limit: a capped depth
+// ends an endgame search at once, short of a deep mate
+const BEFORE_SEARCH = { depth: null, movetimeMs: 5000 }, MIN_RATED_DEPTH = 15;
 const FLAGGED = ['inaccuracy', 'mistake', 'blunder'];
 
 // Stockfish's side of a game against it. While the player is to move it searches the position at 'own' priority (the
@@ -177,7 +178,7 @@ function useEngineOpponent(board, onChange, sf) {
     (async () => {
       const eng = await engine();
       if (!live || !eng) return;
-      handle = eng.search({ moves, fen, depth: REPLY_DEPTH, movetimeMs: P.thinkMs(latest.current.board, Date.now()), priority: 'play' });
+      handle = eng.search({ moves, fen, depth: null, movetimeMs: P.thinkMs(latest.current.board, Date.now()), priority: 'play' });
       const r = await handle.promise, bf = prior ? await prior : null;
       if (!live) return;
       if (!r || !r.best) { setDown('stopped'); return; }

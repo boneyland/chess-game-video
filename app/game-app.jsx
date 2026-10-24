@@ -407,7 +407,7 @@ function GameApp() {
   const clipSuffix = clipFrom < 0 && clipTo >= NP ? '' : `_${clipFrom < 0 ? 'start' : plyTag(clipFrom)}-${clipTo >= NP ? 'end' : plyTag(clipTo)}`;
   const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run({ start: clipT.start, end: clipT.end, suffix: clipSuffix, audio: t.sound === false || webp ? null
     : () => window.Sfx.renderTrack(window.SFX_DATA || {}, soundSet, window.Sfx.track(MV, clipOpts.S, clipT.start, clipT.end), soundVolume, clipT.end - clipT.start) }); };
-  const SFL = window.AnalysisCore.SEARCH_LIMITS, SF_KEYS = ['sfDepth', 'sfTime', 'sfOwnDepth', 'sfOwnTime', 'sfLines', 'sfHash'];
+  const depthText = (d) => (d == null ? 'No limit' : String(d)), SF_KEYS = ['sfDepth', 'sfTime', 'sfOwnDepth', 'sfOwnTime', 'sfLines', 'sfHash'];
   const sfChanged = JSON.stringify(ES) !== JSON.stringify(window.AnalysisCore.engineSettings(window.TWEAK_DEFAULTS, sfKind));
   const SF_ENGINE_OPTS = ['Lite · 1.8 MB', `Full · ${sfMB(window.SFFull.TOTAL)} MB`];
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
@@ -596,9 +596,9 @@ function GameApp() {
               </> : <TweakButton secondary label={`Remove the full engine download · ${sfMB(window.SFFull.TOTAL)} MB`} onClick={() => setAskRemove(true)} />}
             </>}
           </>}
-          <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
+          <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} stops={window.AnalysisCore.DEPTHS} format={depthText} onChange={(v) => setTweak('sfDepth', v)} />
           <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} stops={window.AnalysisCore.SECONDS} unit="s" onChange={(v) => setTweak('sfTime', v)} />
-          <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />
+          <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} stops={window.AnalysisCore.DEPTHS} format={depthText} onChange={(v) => setTweak('sfOwnDepth', v)} />
           <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} stops={window.AnalysisCore.SECONDS} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
           <TweakSelect id="tw-sf-lines" label="Your moves: lines" value={String(ES.own.lines)} options={window.AnalysisCore.LINES.map(String)} onChange={(v) => setTweak('sfLines', parseInt(v, 10))} />
           {ES.own.lines > 1 && <div className="twk-note">Stockfish shows its {ES.own.lines} best moves with an arrow each. Every line takes its share of the search, so each one goes less deep in the same time.</div>}

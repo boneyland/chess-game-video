@@ -153,7 +153,8 @@ function useGameAnalysis(M, files, getFiles, commit, engine, settings) {
       if (!json) { setSt(idle); return; }
       writeSfPartial(ucis, S, null, M.start.fen);
       setResumeAt(0);
-      if (timed.n >= SF_PACE_MIN_POSITIONS) { const f = A.paceFactor(S, timed.sec / timed.n); writeSfPace(S.name, f); setPace(f); }
+      // with no depth limit every position takes its time limit, which says nothing about this device's pace
+      if (S.depth != null && timed.n >= SF_PACE_MIN_POSITIONS) { const f = A.paceFactor(S, timed.sec / timed.n); writeSfPace(S.name, f); setPace(f); }
       const name = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_') + '_analysis.json';
       setSt(idle);
       commit({ ...getFiles(), analysis: json, analysisName: name, evalSource: null }); // shown, even over PGN evals
@@ -305,7 +306,7 @@ function useMoveEval(engine, before, after, own, fen, stored) {
 // the heading, its negative margins keep the heading's height whether or not it shows, so the panel doesn't jump
 function DeeperButton({ ev }) {
   if (!ev || !ev.deeper) return null;
-  const t = ev.deeperTo, tip = `Go deeper: depth ${t.depth}, up to ${t.time_limit} s`;
+  const t = ev.deeperTo, tip = t.depth == null ? `Go deeper: ${t.time_limit} s` : `Go deeper: depth ${t.depth}, up to ${t.time_limit} s`;
   return (
     <button type="button" aria-label={tip} title={tip} onClick={(e) => { e.stopPropagation(); ev.deeper(); }} onPointerDown={(e) => e.stopPropagation()}
       style={{ ...NO_SELECT, flex: 'none', width: '1.5em', height: '1.5em', padding: 0, margin: '-0.25em 0 -0.25em -0.4em', borderRadius: 5, cursor: 'pointer', border: `1.5px solid ${C.best}`, background: 'transparent', color: C.best, font: `700 1.2em/1 ${MONO}`, letterSpacing: 0 }}>+</button>
