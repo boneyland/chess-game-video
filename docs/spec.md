@@ -7,7 +7,7 @@ The one spec for the app: what it does now, what is planned, and the decisions b
 ## Contents
 
 - [Principles](#principles)
-- [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish, full Stockfish download
+- [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish, full Stockfish download, lines (MultiPV)
 - [Roadmap](#roadmap): Lichess data and multi-threaded Stockfish, player names, Chess960, typed commentary, Maia3, background music
 - [Known gaps](#known-gaps)
 - [Decisions log](#decisions-log)
@@ -127,6 +127,16 @@ Some viewers want the strongest engine, as Lichess offers for local analysis. Se
 - A kept copy shows **Remove the full engine download · 99 MB** (with Lite selected too), which asks first: "Remove the full engine? You'd need to download 99 MB again to use it." with **Remove** and **Keep**.
 - Tests: `tests/sf-full.test.cjs` (fake unpkg, Cache Storage and Worker: checksum, size, quota, cancel, damaged copy, remove); the live suite downloads the real files from unpkg in each browser, rates a move with Full, reloads without fetching again and removes the copy.
 
+### Lines (MultiPV)
+
+Settings › Engine › **Your moves: lines**, 1 to 5 (`sfLines`, default 1), for the searches of the viewer's own moves (the replay's own line and the free board), on the site and the artifact.
+
+- `SFEngine.search({ lines })` sends `setoption name MultiPV value N` between searches, only when it changes; every other search (a game's analysis, the Stockfish opponent and its "before" search, Go deeper on a stored move) asks for 1, so the analysis JSON is unchanged (`lines: 1`). Results gain `lines: [{ k, cp, depth, pv }]`, by rank; `cp`, `pv` and `best` stay line 1's. A line more than one depth behind line 1 has stopped being reported and is dropped.
+- With more than one line the Analysis panel lists them, one row each (eval, a dim `d17` when a line is shallower than line 1, its first moves in SAN, wrapping under each other beside the eval column); a move plays the line on the board up to it, as Stockfish's replies did. The board shows an arrow per line's first move: line 1 as the best-move arrow, the others thinner and fainter (Settings › Best-move arrows turns them off). One line looks as before.
+- The own-move eval cache keys a search of several lines apart from one of one line. A note in Settings says each line gets a share of the search, so goes less deep in the same time.
+- On the phone a line's moves take two rows, and the Analysis panel scrolls to the later lines (a row cut off at the panel's edge hid moves there).
+- Tests: fake worker (option sent once per change and before the position, lines by rank, a lagging line dropped, White's point of view), settings range, real Stockfish giving 3 different first moves at the start, live: Lines 3 on the free board shows three rows and three arrows.
+
 ## Roadmap
 
 Planned, roughly in this order; each item gets its own PR(s) on a `claude/<topic>` branch. Items marked *needs design* have open questions to settle with the user before a plan.
@@ -137,7 +147,7 @@ Site only; the artifact's build is unchanged and the new UI is hidden there (`wi
 
 | # | PR | Depends on | Risk |
 |---|----|-----------|------|
-| 1 | `claude/multipv`: Lines setting, multi-line engine panel and arrows | none | low |
+| 1 | `claude/multipv`: Lines setting, multi-line engine panel and arrows (built, see Lines (MultiPV)) | none | low |
 | 2 | `claude/tablebase`: endgame tablebase | none | low |
 | 3 | `claude/cloud-eval`: Lichess cloud evaluation | 1 | low |
 | 4 | `claude/lichess-explorer`: opening explorer and Lichess sign-in | none | medium |
@@ -153,7 +163,7 @@ Ship 1 to 4 first; 5 last and alone, since its headers affect every external loa
 - `sw.js`: `lichess.org`, `explorer.lichess.ovh`, `tablebase.lichess.ovh` stay out of `KEEP_HOSTS` (live data, never served stale); check they pass through offline.
 - Privacy: the player's positions leave the browser, so each feature is a Settings toggle under a new **Online data** section. Explorer and cloud eval default **off**; tablebase may default on (it only fires at 7 pieces or fewer). README gets a "Lichess data" note (what is sent, endpoints).
 
-**PR 1: Lines (MultiPV).**
+**PR 1: Lines (MultiPV).** Built 2026-10-24 as below, except: the setting is "Your moves: lines" and applies to the artifact too (it needs no isolation); clicking a line plays it, as the replies did.
 
 - `analysis-core.js`: `LINES = [1..5]`, `sfLines` in `engineSettings(t)` for the live engine (`own`); batch analysis keeps `lines: 1`, its JSON unchanged (Python check stays green).
 - `sf-engine.js`: `search({ lines })` sends `setoption name MultiPV value N` only on change, between searches in `pump()` (like `hashWant`/`hashSet`). Parse `multipv k` in `info` (`infoToScore`, `infoStats` get `multipv`, default 1); keep the last complete line per k; results gain `lines: [{ k, cp, depth, pv }]` while `cp`, `pv`, `best` stay line 1. `bestmove` is line 1.
@@ -294,3 +304,4 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - 2026-10-23: dead positions behind locked pawns end the game (both modes), proven by flood fills, not a search: a position it can't prove plays on. Bishops of one colour count too (after a game reached one with a dark bishop walled in behind its own pawns).
 - 2026-10-23: specs merged into this file. Background music added: plays on the replay (also paused), free board and games; not in exports; bundled tracks plus the viewer's own file.
 - 2026-10-24: full Stockfish download approved: Lite stays the default; Full is the single-thread `stockfish-19-single` (the threaded build needs PR 5's isolation, so it would not start today), served by unpkg (not Render, to keep its bandwidth) and checked by SHA-256 in the browser, kept in its own cache; site only.
+- 2026-10-24, after the Lines PR preview: Your moves' time limit defaults to 5 s (was 3 s); engine lines wrap on the phone rather than being cut off.

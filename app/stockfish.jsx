@@ -238,7 +238,7 @@ const SF_EVAL_CACHE = new Map(); // finished searches by settings and move list,
 const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the base settings), for the session
 
 // Evaluates the positions before and after the viewer's move (move lists from the start, or from fen); the score streams in.
-// own: the search settings (AnalysisCore.engineSettings().own); fen: the game's start FEN, omitted for the standard start.
+// own: the search settings (AnalysisCore.engineSettings().own; its lines are searched for both positions); fen: the game's start FEN, omitted for the standard start.
 // deeper(): searches both positions again, deeper (null when the search can't go further or hasn't finished); it counts
 // for that position only, and a deeper search shows the last result until it passes that result's depth.
 // stored: a loaded analysis's result for after (with before the same moves), standing in for the first search, which
@@ -246,8 +246,9 @@ const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the
 // comes from, so presses on one analysis's move don't carry over to another's (or the PGN's) once it is removed
 function useMoveEval(engine, before, after, own, fen, stored) {
   const A = window.AnalysisCore;
-  const keyOf = (s, moves) => (own.name ? own.name + '|' : '') + (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}:` + moves.join(' ');
-  const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000 });
+  // a search of several lines (Settings › Engine › Lines) is cached apart from one of one line
+  const keyOf = (s, moves) => (own.name ? own.name + '|' : '') + (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}${s.lines > 1 ? '/' + s.lines : ''}:` + moves.join(' ');
+  const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000, lines: own.lines || 1 });
   const baseKey = after ? keyOf(toSearch(own), after) + (stored ? '|' + stored.src : '') : '';
   const [, bump] = React.useState(0);
   const level = SF_DEEPER.get(baseKey) || 0;
@@ -301,6 +302,38 @@ function DeeperButton({ ev }) {
   );
 }
 
+// An engine line's moves from pos as steps the board can play, stopping at the first illegal one
+function engineSteps(pos, pv, max = 8) {
+  const out = [];
+  for (const u of (pv || []).slice(0, max)) { const s = window.ChessCore.stepFromUci(pos, u); if (!s) break; out.push({ ...s, byEngine: true }); pos = s.pos; }
+  return out;
+}
+
+// Settings › Engine › Lines above one: each line's eval and first moves, the moves wrapping under each other beside
+// the eval (a narrow panel scrolls to the later lines); a move plays the line on the board up to it. c: the ply the lines start at
+function EngineLines({ lines, pos, ply0, c, onPick }) {
+  const top = lines[0].depth;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {lines.map((l) => {
+        const st = engineSteps(pos, l.pv, 6), ev = fmtSf(l.cp);
+        return (
+          <div key={l.k} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <span style={{ flex: '0 0 auto', width: 100, whiteSpace: 'nowrap', lineHeight: '30px', color: l.k === 1 ? C.ink : C.dim }}>{ev}{l.depth < top && <span style={{ font: `500 13px ${MONO}`, color: C.dim }}> d{l.depth}</span>}</span>
+            <div style={{ flex: '1 1 0', minWidth: 0 }}>
+              <LineChips name={null} tip={`Stockfish's line ${l.k} (${ev})`} accent={l.k === 1 ? C.best : C.line}
+                moves={st.map((m) => m.san)} ply0={ply0} c={c} legal={st.length} sel={null} onPick={(j) => onPick(st.slice(0, j + 1))} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Arrows for the lines' first moves (Lines above one): line 1 as the best-move arrow, the others thinner and fainter
+const lineArrows = (r) => (r && r.lines && r.lines.length > 1 ? r.lines.filter((l) => l.pv[0]).map((l) => ({ uci: l.pv[0], k: l.k })) : null);
+
 const fmtSf = (cp) => {
   if (cp == null) return '…';
   if (Math.abs(cp) >= 9000) { const n = Math.round((10000 - Math.abs(cp)) / 10); return n === 0 ? (cp > 0 ? '1-0' : '0-1') : (cp > 0 ? 'M' : '−M') + n; }
@@ -319,8 +352,8 @@ function OwnMoveAnalysis({ M, vline, own, status, onReply }) {
   const verdict = !rated ? (status === 'unavailable' ? 'Stockfish can’t run here' : status === 'stopped' ? 'Stockfish stopped · play a move to restart it' : 'Stockfish is thinking…')
     : step.uci === before.best ? 'Stockfish’s choice'
     : rated.evalLoss > 0 ? `−${Math.round(rated.evalLoss)} cp vs ${own.bestSan || before.best}` : `as good as ${own.bestSan || before.best}`;
-  const replies = [];
-  if (after && after.pv) { let pos = step.pos; for (const u of after.pv.slice(0, 8)) { const s = window.ChessCore.stepFromUci(pos, u); if (!s) break; replies.push({ ...s, byEngine: true }); pos = s.pos; } }
+  const replies = engineSteps(step.pos, after && after.pv);
+  const many = after && after.lines && after.lines.length > 1;
   return (
     <React.Fragment>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
@@ -334,7 +367,8 @@ function OwnMoveAnalysis({ M, vline, own, status, onReply }) {
         </div>
       </div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {replies.length > 0
+        {many ? <EngineLines lines={after.lines} pos={step.pos} ply0={M.ply0} c={ply + 1} onPick={onReply} />
+          : replies.length > 0
           ? <LineChips name="Stockfish replies" nameColor={C.ink} accent={C.best} moves={replies.map((r) => r.san)} ply0={M.ply0} c={ply + 1} legal={replies.length} sel={null} onPick={(j) => onReply(replies.slice(0, j + 1))} />
           : <span>{step.san.endsWith('#') ? 'Checkmate.' : ' '}</span>}
       </div>

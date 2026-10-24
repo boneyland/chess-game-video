@@ -232,10 +232,11 @@ function Piece({ p, T, S }) {
   );
 }
 
-function Arrow({ from, to, color, a, grow }) {
+// thin: a lesser engine line's arrow
+function Arrow({ from, to, color, a, grow, thin }) {
   const [x1, y1] = sqC(from), [x2, y2] = sqC(to);
   const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
-  const L = (d - 16) * grow, head = 34, sw = 8, hw = 22;
+  const L = (d - 16) * grow, head = thin ? 26 : 34, sw = thin ? 4.5 : 8, hw = thin ? 15 : 22;
   const bx = x1 + ux * (L - head), by = y1 + uy * (L - head), tx = x1 + ux * L, ty = y1 + uy * L;
   const pts = [[x1 + nx * sw, y1 + ny * sw], [bx + nx * sw, by + ny * sw], [bx + nx * hw, by + ny * hw], [tx, ty], [bx - nx * hw, by - ny * hw], [bx - nx * sw, by - ny * sw], [x1 - nx * sw, y1 - ny * sw]].map((p) => p.join(',')).join(' ');
   return <polygon points={pts} fill={color} opacity={0.85 * a} />;
@@ -257,10 +258,11 @@ function boardSquares() {
   return sq;
 }
 
-function Board({ M, T, S, a, arrows, pieces, queen, vline, hide }) {
+// lines: the engine lines' arrows on the viewer's own line (lineArrows)
+function Board({ M, T, S, a, arrows, pieces, queen, vline, hide, lines }) {
   const c = lastPly(T, S);
   const sq = boardSquares();
-  if (vline) return <LineBoard a={a} sq={sq} v={vline} hide={hide} />;
+  if (vline) return <LineBoard a={a} sq={sq} v={vline} hide={hide} arrows={lines} />;
   const over = [];
   let badge = null, best = null;
   if (c >= 0) {
@@ -319,7 +321,8 @@ function searchStats(name, s) {
   return [L.header ? engineLabel(name) : '', 'depth ' + s.depth + (s.maxDepth > s.depth ? ` (${s.maxDepth} unfinished)` : ''), s.timeMs != null ? (s.timeMs / 1000).toFixed(1) + ' s' : '', s.nodes != null ? fmtNodes(s.nodes) : ''].filter(Boolean).join(' · ');
 }
 const lineAccent = (src) => (src === 'queen' ? C.queen : src === 'you' ? C.last : C.best);
-function LineBoard({ a, sq, v, hide }) {
+// arrows: the engine lines' first moves from the position shown ([{ uci, k }], lineArrows), line 1 the strongest
+function LineBoard({ a, sq, v, hide, arrows }) {
   // the ring around the board says whose line it is; its last move gets the same tint as the game's
   const step = v.upto >= 0 ? v.moves[v.upto] : null, accent = v.src === 'queen' ? BOARD.queen : v.src === 'you' ? BOARD.last : BOARD.best;
   const board = step ? step.board : v.base.b;
@@ -340,6 +343,11 @@ function LineBoard({ a, sq, v, hide }) {
     // drawing only: taps and drags go to BoardTouch (without this its pieces sit above it and swallow them)
     <div style={{ ...NO_SELECT, position: 'absolute', left: BX, top: BY, width: BW, height: BW, borderRadius: 4, overflow: 'hidden', boxShadow: `0 0 0 4px ${accent}, 0 4px 12px rgba(0,0,0,0.28)`, opacity: a, pointerEvents: 'none' }}>
       {sq}{over}{pieces}
+      {arrows && (
+        <svg width={BW} height={BW} style={{ position: 'absolute', left: 0, top: 0, zIndex: 6, pointerEvents: 'none' }}>
+          {arrows.slice().reverse().map((r) => <Arrow key={r.k} from={r.uci.slice(0, 2)} to={r.uci.slice(2, 4)} color={BOARD.best} a={r.k === 1 ? 1 : 0.5} grow={1} thin={r.k > 1} />)}
+        </svg>
+      )}
     </div>
   );
 }
@@ -377,16 +385,18 @@ function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCa
 }
 
 // Move chips for a line; legal moves can be clicked to show the line on the board up to that move
-function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick }) {
+// name: null for none (the caller labels the line); tip: what the moves' tooltips call the line (else the name)
+function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick, tip }) {
+  const what = tip || String(name).toLowerCase();
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 6 }}>
-      <span style={{ color: nameColor, marginRight: 8 }}>{name}</span>
+      {name != null && <span style={{ color: nameColor, marginRight: 8 }}>{name}</span>}
       {moves.map((m, j) => {
         const ply = ply0 + c + j, white = ply % 2 === 0, num = Math.floor(ply / 2) + 1, ok = j < legal, on = sel === j;
         return (
           <span key={j} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             {(white || j === 0) && <span style={{ color: C.dim, marginLeft: j ? 6 : 0, font: `500 15px ${MONO}` }}>{num}{white ? '.' : '…'}</span>}
-            <span className={ok ? 'mv' : undefined} role={ok ? 'button' : undefined} title={ok ? `Show ${name.toLowerCase()} on the board up to ${m}` : 'Not a legal move in this line'}
+            <span className={ok ? 'mv' : undefined} role={ok ? 'button' : undefined} title={ok ? `Show ${what} on the board up to ${m}` : 'Not a legal move in this line'}
               onClick={ok ? (e) => { e.stopPropagation(); onPick(j); } : undefined} tabIndex={ok ? 0 : undefined}
               onKeyDown={ok ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onPick(j); } } : undefined}
               style={{ cursor: ok ? 'pointer' : 'default', opacity: ok ? 1 : 0.4, padding: '2px 8px', borderRadius: 4, font: `${j === 0 || on ? 700 : 600} 16px ${MONO}`, background: white ? '#f1ebe1' : '#2a2320', color: white ? '#15100d' : '#efe8de', boxShadow: on ? `0 0 0 3px ${C.last}` : 'none', border: j === 0 ? `2px solid ${accent}` : `1px solid ${white ? 'rgba(60,40,20,0.22)' : 'rgba(255,236,214,0.22)'}` }}>{m}</span>
@@ -1052,7 +1062,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
         <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${cx}px,${cy}px) scale(${sc}) translate(${-cx}px,${-cy}px)` }}>
           <EvalBar M={M} T={T} S={S} a={enter(1)} />
           <PlayerBar M={M} T={T} S={S} side="b" a={enter(1)} pieces={pieces} />
-          <Board M={M} T={T} S={S} a={enter(0)} arrows={tw.bestArrows} pieces={pieces} queen={queen} vline={vline} hide={input.drag && input.drag.moved ? input.drag.from : null} />
+          <Board M={M} T={T} S={S} a={enter(0)} arrows={tw.bestArrows} pieces={pieces} queen={queen} vline={vline} hide={input.drag && input.drag.moved ? input.drag.from : null} lines={tw.bestArrows && own ? lineArrows(own.after) : null} />
           <BoardTouch pos={touchPos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...input.handlers} />
           <PlayerBar M={M} T={T} S={S} side="w" a={enter(1)} pieces={pieces} />
           {L.header && <Header M={M} a={enter(2)} />}

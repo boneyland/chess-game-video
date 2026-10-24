@@ -101,7 +101,7 @@ test('cancelling the running search sends stop and resolves with its last score'
   a.cancel();
   assert.ok(w.posted.includes('stop'));
   w.finish('d2d4', 'info depth 7 score cp 25 pv d2d4 d7d5');
-  assert.deepEqual(await a.promise, { cp: 25, depth: 7, maxDepth: 7, pv: ['d2d4', 'd7d5'], nodes: null, timeMs: null, best: 'd2d4' });
+  assert.deepEqual(await a.promise, { cp: 25, depth: 7, lines: [{ k: 1, cp: 25, depth: 7, pv: ['d2d4', 'd7d5'] }], maxDepth: 7, pv: ['d2d4', 'd7d5'], nodes: null, timeMs: null, best: 'd2d4' });
 });
 
 test('onInfo streams scores from White\'s point of view', async () => {
@@ -257,4 +257,72 @@ test('quit resolves the running and queued searches with null, and later ones at
   assert.equal(await b.promise, null);
   assert.equal(await e.search({ moves: [], depth: 10, movetimeMs: 1000 }).promise, null);
   assert.ok(w.posted.includes('quit'));
+});
+
+test('MultiPV is set before a search that asks for other lines than the last, and only then', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const mpv = () => w.posted.filter((s) => s.startsWith('setoption name MultiPV'));
+  const run = async (lines, best) => { const h = e.search({ moves: [], depth: 5, movetimeMs: 100, lines }); await tick(); w.finish(best); return h.promise; };
+  await run(undefined, 'e2e4');
+  assert.deepEqual(mpv(), [], 'one line is the default: nothing sent');
+  await run(3, 'e2e4'); await run(3, 'e2e4');
+  assert.deepEqual(mpv(), ['setoption name MultiPV value 3']);
+  const i = w.posted.indexOf('setoption name MultiPV value 3');
+  assert.ok(w.posted[i + 1].startsWith('position'), 'between searches, before the position');
+  await run(1, 'e2e4'); // the opponent and a game's analysis search one line
+  assert.deepEqual(mpv(), ['setoption name MultiPV value 3', 'setoption name MultiPV value 1']);
+});
+
+test('a MultiPV search keeps each line by rank; cp, pv and best stay line 1’s; a line left behind is dropped', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const seen = [];
+  const h = e.search({ moves: [], depth: 12, movetimeMs: 1000, lines: 3, onInfo: (s) => seen.push(s) });
+  await tick();
+  const say = (l) => w.onmessage({ data: l });
+  say('info depth 10 multipv 1 score cp 30 nodes 100 pv e2e4 e7e5');
+  say('info depth 10 multipv 2 score cp 25 nodes 200 pv d2d4 d7d5');
+  say('info depth 10 multipv 3 score cp 20 nodes 300 pv g1f3 g8f6');
+  say('info depth 11 multipv 1 score cp 28 nodes 400 pv e2e4 c7c5');
+  say('info depth 11 multipv 2 score cp 26 upperbound nodes 450 pv d2d4');
+  say('info depth 11 multipv 2 score cp 24 nodes 500 pv d2d4 g8f6');
+  // line 3 never reached depth 11, and line 1 went on to 12: line 3 is two depths behind
+  say('info depth 12 multipv 1 score cp 27 nodes 600 pv e2e4 e7e6');
+  say('bestmove e2e4');
+  const r = await h.promise;
+  assert.deepEqual([r.cp, r.pv, r.best, r.depth], [27, ['e2e4', 'e7e6'], 'e2e4', 12]);
+  assert.deepEqual(r.lines, [{ k: 1, cp: 27, depth: 12, pv: ['e2e4', 'e7e6'] }, { k: 2, cp: 24, depth: 11, pv: ['d2d4', 'g8f6'] }]);
+  const at3 = seen.find((s) => s.lines.length === 3);
+  assert.deepEqual(at3.lines.map((l) => l.pv[0]), ['e2e4', 'd2d4', 'g1f3']);
+  assert.equal(at3.cp, 30, 'onInfo carries line 1’s score');
+});
+
+test('lines are from White’s point of view with Black to move, and a one-line search lists its one line', async () => {
+  let w;
+  const e = SF.create(() => (w = fakeWorker()), {});
+  await e.ready();
+  const a = e.search({ moves: ['e2e4'], depth: 5, movetimeMs: 100, lines: 2 });
+  await tick();
+  w.onmessage({ data: 'info depth 5 multipv 1 score cp 10 pv e7e5' });
+  w.onmessage({ data: 'info depth 5 multipv 2 score cp -5 pv c7c5' });
+  w.onmessage({ data: 'bestmove e7e5' });
+  assert.deepEqual((await a.promise).lines.map((l) => l.cp), [-10, 5]);
+  const b = e.search({ moves: [], depth: 5, movetimeMs: 100 });
+  await tick(); w.finish('e2e4');
+  assert.deepEqual((await b.promise).lines, [{ k: 1, cp: 10, depth: 5, pv: ['e2e4'] }]);
+});
+
+test('real engine: three lines at the start begin with three different moves', { timeout: 60000 }, async () => {
+  const e = SF.create(nodeWorker, {});
+  try {
+    await e.ready();
+    const r = await e.search({ moves: [], depth: 12, movetimeMs: 10000, priority: 'own', lines: 3 }).promise;
+    assert.equal(r.lines.length, 3);
+    assert.equal(new Set(r.lines.map((l) => l.pv[0])).size, 3, JSON.stringify(r.lines));
+    assert.equal(r.lines[0].pv[0], r.best);
+    assert.ok(r.lines.every((l) => l.depth >= 11), JSON.stringify(r.lines.map((l) => l.depth)));
+  } finally { e.quit(); }
 });
