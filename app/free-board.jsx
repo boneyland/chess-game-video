@@ -96,7 +96,7 @@ function StartAnalysis({ board, ev, status, onLine }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ font: `700 38px ${MONO}`, color: C.last }}>Start</span>
           <span style={{ font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.last }}>
-            {turn} to move · {down ? (status === 'unavailable' ? 'Stockfish can’t run here' : 'Stockfish stopped · play a move to restart it') : !after || after.partial ? 'Stockfish is thinking…' : 'Stockfish’s eval'}
+            {turn} to move{down ? ` · ${status === 'unavailable' ? 'Stockfish can’t run here' : 'Stockfish stopped · play a move to restart it'}` : !after || after.partial ? ' · Thinking…' : ''}
           </span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
