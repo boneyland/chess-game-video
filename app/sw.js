@@ -1,7 +1,7 @@
 // The site's service worker (build.cjs fills in VERSION, LOCAL and REMOTE): it keeps a copy of the page and everything
-// it loads, so the player, Stockfish and the export work with no connection. Only Ask Queen and Hugging Face sign-in
-// need the network. The page itself comes from the network first, so a deploy shows up at once; the files around it
-// change only with a deploy that changes this file's VERSION, so they come from the copy first.
+// it loads, so the player, Stockfish and the export work with no connection. Only Ask Queen, Hugging Face sign-in and
+// the endgame tablebase need the network. The page itself comes from the network first, so a deploy shows up at once;
+// the files around it change only with a deploy that changes this file's VERSION, so they come from the copy first.
 const VERSION = '__VERSION__';
 const LOCAL = __LOCAL__; // next to the page, the page first
 const REMOTE = __REMOTE__; // pinned CDN files: React, the export's libraries, the fonts' stylesheet
@@ -52,7 +52,7 @@ self.addEventListener('fetch', (e) => {
   if (req.mode === 'navigate' && here) return e.respondWith(page(req));
   if (here) return e.respondWith(cacheFirst(req));
   if (KEEP_HOSTS.includes(url.hostname) && req.method === 'GET') return e.respondWith(cacheFirst(req));
-  // anything else (Hugging Face) goes to the network as usual
+  // anything else (Hugging Face, Lichess's tablebase: live data, never kept) goes to the network as usual
 });
 
 // the page from the network, kept for next time; offline (or too slow), the kept one

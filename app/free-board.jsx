@@ -369,6 +369,8 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
   const onReply = (replies) => { let b = board; for (const s of replies) b = B.play(b, s); onChange(b); };
   const down = sf.status === 'unavailable' || sf.status === 'stopped';
   const cp = ev.after && ev.after.cp != null ? ev.after.cp : null;
+  // the endgame tablebase for the position on the board (never in a game): its result replaces the eval in the bar
+  const tb = useTablebase(G ? null : pos, tw.tablebase !== false), tbv = tbBar(tb);
   // the running clock: redrawn ten times a second, and the game ends when it reaches zero
   const running = live && G.clock && G.clock.since != null;
   const [, tick] = React.useState(0);
@@ -433,7 +435,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
     : { white: { name: 'White' }, black: { name: 'Black' }, event: 'Free board', site: from, eco: named && named.eco, opening: named && named.name };
   return (
     <div style={{ position: 'absolute', inset: 0, background: C.bg, overflow: 'hidden' }}>
-      {!G && <EvalBarView cp={cp == null ? 0 : cp} txt={cp == null ? (down ? '' : '…') : fmtSf(cp)} a={1} />}
+      {!G && (tbv ? <EvalBarView cp={tbv.cp} txt={tbv.txt} a={1} /> : <EvalBarView cp={cp == null ? 0 : cp} txt={cp == null ? (down ? '' : '…') : fmtSf(cp)} a={1} />)}
       <FreeBar pos={pos} side="b" a={1} clock={clockOf('b')} name={G ? playerName(G, 'b') : null} />
       <LineBoard a={1} sq={boardSquares()} v={{ upto, moves: steps, base: board.start.pos, src: 'you' }} hide={input.drag && input.drag.moved ? input.drag.from : null} arrows={!G && tw.bestArrows !== false ? lineArrows(ev.after) : null} />
       <BoardTouch pos={pos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...(still ? NO_INPUT : input.handlers)} />
@@ -441,12 +443,16 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
       {L.header && <Header M={HM} a={1} />}
       <MoveList M={MV} T={upto + 0.999} S={S} a={1} paused onPick={live ? () => {} : go} />
       {G ? <GameInfo board={board} /> : <OpeningExplorer board={board} book={book} onPlay={onBook} />}
-      <Panel box={L.analysis} a={1} style={G && NO_SELECT} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(sf.game.name, ev.after)} extra={!G && <DeeperButton ev={ev} />}>
+      <Panel box={tb ? { ...L.analysis, scroll: true } : L.analysis} a={1} style={G && NO_SELECT} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(sf.game.name, ev.after)} extra={!G && <DeeperButton ev={ev} />}>
         {G ? <GameStatus board={board} onChange={onChange} down={opponent.down} />
           : upto < 0
-          ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />
+          ? <React.Fragment>
+            <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />
+            {tb && <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}><TablebaseBlock t={tb} onPlay={onBook} /></div>}
+          </React.Fragment>
           : <React.Fragment>
             <OwnMoveAnalysis M={MV} vline={{ at: 0, moves: steps, upto, src: 'you' }} own={own} status={sf.status} onReply={onReply} />
+            {tb && <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}><TablebaseBlock t={tb} onPlay={onBook} /></div>}
             <FitOrHide style={{ ...NO_SELECT, display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>← → step · <KeyCap>Home</KeyCap> the start · <KeyCap>End</KeyCap> the last move</FitOrHide>
           </React.Fragment>}
       </Panel>
