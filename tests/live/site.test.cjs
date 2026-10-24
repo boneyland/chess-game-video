@@ -57,11 +57,24 @@ async function open(browser, viewport, opts) {
   });
   const page = await ctx.newPage();
   const errors = [];
-  // where an error came from, so a failure in CI says which file
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text() + (m.location().url ? ` (${m.location().url}:${m.location().lineNumber})` : '')); });
+  // where an error came from, so a failure in CI says which file. WebKit reports a reload that cuts off the engine
+  // worker's download of its wasm as two errors (a fetch "due to access control checks", and an unhandled "Load failed"
+  // in stockfish.js); the page did nothing wrong, and an engine that really can't load fails the tests of its verdicts
+  const cutOff = (m) => browser.browserType().name() === 'webkit' && (/^Fetch API cannot load \S+\/stockfish-[\w-]+\.wasm due to access control checks\.$/.test(m.text()) || (m.text() === 'Unhandled Promise Rejection: TypeError: Load failed' && /\/stockfish-[\w-]+\.js$/.test(m.location().url)));
+  page.on('console', (m) => { if (m.type() === 'error' && !cutOff(m)) errors.push(m.text() + (m.location().url ? ` (${m.location().url}:${m.location().lineNumber})` : '')); });
   page.on('pageerror', (e) => errors.push(e.message + (e.stack ? ' ' + e.stack.split('\n').slice(0, 3).join(' | ') : '')));
   return { ctx, page, errors };
 }
+// the elements reaching past the window's right edge, when the page scrolls sideways (none when it doesn't)
+const wider = (page) => page.evaluate(() => {
+  if (document.documentElement.scrollWidth <= window.innerWidth) return [];
+  const w = window.innerWidth, out = [];
+  for (const el of document.querySelectorAll('body *')) {
+    const r = el.getBoundingClientRect();
+    if (r.right > w + 0.5 && r.width > 0 && !(el.parentElement && el.parentElement.getBoundingClientRect().right > w + 0.5)) out.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} ${Math.round(r.left)}–${Math.round(r.right)}`);
+  }
+  return [`scrollWidth ${document.documentElement.scrollWidth} > ${w}`, ...out.slice(0, 8)];
+});
 // A FEN typed into the Paste FEN field with the keyboard, as a person would: with locator.fill(), Set up left the dialog
 // open in GitHub Actions' stock Firefox (WebDriver BiDi), as if the page never saw the text
 async function typeFen(field, fen) {
@@ -500,7 +513,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await start.click();
       await assert.doesNotReject(ph.page.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
       await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /^Start$/ }).waitFor({ timeout: 5000 }));
-      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
       const pb = await boardBox(ph.page), pf = square(pb, 'e2'), pt = square(pb, 'e4');
       assert.equal(pb.n, 32);
       await ph.page.mouse.move(pf.x, pf.y);
@@ -586,7 +599,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       const pd = ph.page.getByRole('dialog', { name: 'Paste FEN' });
       await assert.doesNotReject(pd.waitFor({ timeout: 5000 }));
       await typeFen(pd.getByRole('textbox', { name: 'FEN' }), '4k3/8/8/8/8/8/4P3/4K3 b - - 0 40');
-      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
       const box = await pd.boundingBox();
       assert.ok(box.x >= 8 && box.x + box.width <= 390 - 8, 'the dialog fits the width');
       await ph.page.screenshot({ path: path.join(OUT, host + '-fen-dialog-phone.png') });
@@ -689,7 +702,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await assert.doesNotReject(ph.page.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
       await row(ph.page, 'c5').click();
       await assert.doesNotReject(ph.page.locator('.book-head').filter({ hasText: /Sicilian Defense/ }).waitFor({ timeout: 5000 }));
-      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
       await ph.page.screenshot({ path: path.join(OUT, host + '-explorer-phone.png') });
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
@@ -869,7 +882,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await pp.mouse.up();
       await assert.doesNotReject(pp.locator('.plabel').filter({ hasText: /1\. e4/ }).waitFor({ timeout: 5000 }));
       await pp.waitForTimeout(1500);
-      assert.equal(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(pp), [], 'no sideways scroll');
       assert.equal(await pp.locator('.game-clock').count(), 2);
       await pp.screenshot({ path: path.join(OUT, host + '-play-phone.png') });
       // the result box fits on the phone: the score with Play again beside it, Analyse below
@@ -1014,14 +1027,14 @@ for (const name of BROWSERS) for (const site of SITES) {
       await pp.getByRole('button', { name: 'Menu' }).click();
       await pp.getByRole('button', { name: 'Play vs Stockfish…' }).click();
       await assert.doesNotReject(pp.getByRole('dialog', { name: 'Play vs Stockfish' }).waitFor({ timeout: 3000 }));
-      assert.equal(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(pp), [], 'no sideways scroll');
       await pp.screenshot({ path: path.join(OUT, host + '-sf-dialog-phone.png') });
       await pp.getByRole('button', { name: 'Cancel' }).click();
       await pp.evaluate((s) => localStorage.setItem('chess-video.files.v1', s), stored);
       await pp.reload({ waitUntil: 'load' });
       await assert.doesNotReject(pp.locator('.plabel').filter({ hasText: /^1… dxc4$/ }).waitFor({ timeout: 5000 }));
       await assert.doesNotReject(pp.getByText(/drops the queen/).waitFor({ timeout: 5000 }));
-      assert.equal(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(pp), [], 'no sideways scroll');
       await pp.screenshot({ path: path.join(OUT, host + '-sf-blunder-phone.png') });
       assert.deepEqual(ph.errors, []);
       await ph.ctx.close();
@@ -1134,7 +1147,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await pp.getByRole('button', { name: 'Menu' }).click();
       await pp.getByRole('button', { name: 'My games…' }).click();
       await assert.doesNotReject(pp.getByRole('dialog', { name: 'My games' }).waitFor({ timeout: 3000 }));
-      assert.equal(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(pp), [], 'no sideways scroll');
       assert.equal(await pp.locator('.games-row').count(), 2);
       await pp.screenshot({ path: path.join(OUT, host + '-my-games-phone.png') });
       assert.deepEqual(ph.errors, []);
@@ -1280,7 +1293,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       await ph.page.goto(base, { waitUntil: 'load' });
       const menu = ph.page.getByRole('button', { name: 'Menu' });
       await menu.waitFor();
-      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
       assert.equal((await boardBox(ph.page)).n, 32);
       await ph.page.screenshot({ path: path.join(OUT, host + '-phone.png') });
       await menu.click();
@@ -1314,7 +1327,7 @@ for (const name of BROWSERS) for (const site of SITES) {
       const ph = await open(browser, { width: 844, height: 390 });
       await ph.page.goto(base, { waitUntil: 'load' });
       await ph.page.getByRole('button', { name: 'Menu' }).waitFor();
-      assert.equal(await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
+      assert.deepEqual(await wider(ph.page), [], 'no sideways scroll');
       const b = await boardBox(ph.page);
       assert.equal(b.n, 32);
       assert.ok(b.h > 260, `board ${Math.round(b.h)} px high`);
