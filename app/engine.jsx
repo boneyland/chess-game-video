@@ -45,7 +45,9 @@ function Stage({ width, height, portrait, square, short, menu, top, onLayout, du
   const passesRef = React.useRef(0);
 
 
-  React.useEffect(() => {
+  // measured before the first paint, so a phone's first frame is already laid out as a phone (after it, the dock's
+  // buttons showed unfolded for a frame or two, wider than the screen)
+  React.useLayoutEffect(() => {
     const el = areaRef.current;
     if (!el) return;
     // Each frame is judged by the room it would get: the stage less that frame's own transport bar and padding (the
@@ -91,7 +93,7 @@ function Stage({ width, height, portrait, square, short, menu, top, onLayout, du
   }, [width, height, portrait && portrait.width, portrait && portrait.minHeight, portrait && portrait.maxHeight, square && square.minHeight, short && short.height]);
   // onLayout(true, w): a phone frame (portrait, or any other under 900 px wide), where the page folds its buttons into a menu; w is the frame's width
   const phone = tall || !!frame.narrow, fw = tall ? portrait.width : frame.square ? square.width : frame.short ? frame.width : width;
-  React.useEffect(() => { if (onLayout) onLayout(phone, fw); }, [phone, fw]);
+  React.useLayoutEffect(() => { if (onLayout) onLayout(phone, fw); }, [phone, fw]);
 
   React.useEffect(() => {
     if (!playing) { lastTsRef.current = null; return; }
