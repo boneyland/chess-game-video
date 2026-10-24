@@ -146,7 +146,7 @@ Positions of 7 pieces or fewer get Lichess's Syzygy tablebase (`https://tablebas
 - Where: the Analysis panel's **Tablebase** block, under the engine lines (the panel scrolls to it where it doesn't fit, as on the phone): the verdict in Lichess's words (White wins, Draw, Cursed win for White · drawn by the 50-move rule, Blessed loss…, the uncertain "maybe" ones too) with DTZ and DTM, then the moves in one line per result (Win, Draw, Loss), best first, each a button that plays it (in the replay as the viewer's own move, on the free board as a drag would) with its distances in its tooltip. The eval bar shows the result instead of the eval, tagged TB: a win as a mate in DTM/2 moves (`TB M28`, `TB 1-0` without DTM), a draw, cursed win or blessed loss as `TB 0.00`; an uncertain result leaves the engine's eval.
 - When: the replay while paused (never in playback or the video export), and the free board; never during a game (vs human or Stockfish). The stored analysis, ratings and graph are left alone.
 - Settings › Engine › **Online data** › **Endgame tablebase** (`TWEAK_DEFAULTS.tablebase = true`, as it fires only at 7 pieces or fewer); off sends nothing. `sw.js` never keeps its answers (live data, not in `KEEP_HOSTS`).
-- Not done from the plan: no arrow colour for winning moves (the Stockfish arrow already points at a best move, and a second one crowded the board); cutting batch searches short stays a later option.
+- Not done from the plan: no arrow colour for winning moves (the Stockfish arrow already points at a best move, and a second one crowded the board); using it in game analysis is PR 2b.
 - Tests: `tests/lichess-core.test.cjs` (real answers in `tests/fixtures/tb-*.json`: a win, a draw, a cursed win, a mate; the piece-count gate, the cache, errors not cached, the 429 back-off, one request at a time), live: KBN v K on the free board shows the verdict and `TB M28`, a tablebase move plays, 8 pieces and the setting off send nothing.
 
 ## Roadmap
@@ -161,11 +161,12 @@ Unverified facts are marked **verify**.
 |---|----|-----------|------|
 | 1 | `claude/multipv`: Lines setting, multi-line engine panel and arrows (built, see Lines (MultiPV)) | none | low |
 | 2 | `claude/tablebase`: endgame tablebase (built, see Endgame tablebase) | none | low |
+| 2b | `claude/tablebase-analysis`: the tablebase in game analysis and move ratings | 2 | medium |
 | 3 | `claude/cloud-eval`: Lichess cloud evaluation | 1 | low |
 | 4 | `claude/lichess-explorer`: opening explorer and Lichess sign-in | none | medium |
 | 5 | `claude/threads`: cross-origin isolation, multi-thread engine, Threads setting | 1 | high |
 
-Ship 1 to 4 first; 5 last and alone, since its headers affect every external load.
+Ship 1 to 4 first (2b right after 2); 5 last and alone, since its headers affect every external load.
 
 **Shared groundwork** (built in PR 2, reused by 3 and 4):
 
@@ -187,8 +188,20 @@ Ship 1 to 4 first; 5 last and alone, since its headers affect every external loa
 
 - `LichessCore.tablebase(fen)` → `{ category, dtz, dtm, moves }` or `null`; never called above 7 pieces.
 - Engine panel (replay and free board, not in a Stockfish game): a Tablebase block with the verdict in Lichess's words (win, draw, loss, cursed win, blessed loss), DTZ/DTM, moves ranked by result; winning moves may get their own arrow colour.
-- The eval bar shows the tablebase result (win as mate-like, draw 0.00) with a "TB" tag; stored analysis untouched. Cutting batch searches short with it is a later option.
+- The eval bar shows the tablebase result (win as mate-like, draw 0.00) with a "TB" tag; stored analysis untouched. Using it in game analysis is PR 2b.
 - Tests: fixtures from real responses (`tests/fixtures/`), piece-count gate, cache hit, 429 back-off with a fake `fetch`.
+
+**PR 2b: The tablebase in game analysis.** Planned 2026-10-24, after PR 2 merges. Why: Stockfish in the browser has no Syzygy files (about 1 GB to 5 pieces, 150 GB to 6, 17 TB to 7), so its endgame evals can be wrong (a cursed win, a draw, read as +0.54) and a move that throws away a tablebase win can still be rated best. With the tablebase, endgame positions get the true result and the ratings follow win/draw/loss.
+
+- "Analyse with Stockfish" (`AnalysisCore.runAnalysis`): with Settings › Online data › Endgame tablebase on, each position of 7 pieces or fewer asks `LichessCore.tablebase` first (the same client: cache, one request at a time, 429 back-off). A certain answer replaces the search: the eval from `LichessCore.bar` (a win as a mate from DTM, a draw, cursed win or blessed loss as 0), the best move the tablebase's first, the best line its DTZ mainline (`/standard/mainline?fen=` **verify** shape and limits). An uncertain answer ("maybe", "unknown"), no answer (offline, an error, a back-off) or the setting off: Stockfish searches as now, so a run never fails or waits on Lichess.
+- Ratings: a move is rated by what it does to the outcome for its side: keeping a win, a draw keeping a draw, or a loss staying a loss loses nothing; win → draw (a cursed win counts as a draw) or draw → loss is a blunder; win → loss too. *Open*: whether a winning move much slower than the best (DTZ far longer, nearing the fifty-move limit) should be an inaccuracy, as Lichess doesn't rate it.
+- Win without DTM (6 and 7 pieces): the eval graph and bar show it as won (±9990, `1-0`/`0-1`) rather than a mate count, as DTZ is not distance to mate.
+- The analysis JSON marks each such position (`source: 'tablebase'`, `tb: { category, dtz, dtm }`, search depth 0) and the engine block records `tablebase: true`; `sfPartialKey` includes the setting, so a stopped run resumes only with the same one. The Analysis panel's header says "Tablebase" for those positions instead of a depth; Go deeper isn't offered on them.
+- The time estimate counts tablebase positions as near-free once the run knows the piece counts (a game's moves give them before it starts).
+- Python check (`tests/check_browser_json.py`): the Python pipeline has no tablebase, so it compares a run made with the tablebase off; a unit test covers a mixed JSON.
+- Never in Play vs Stockfish (its opponent or critique: no tablebase during a game) and never for the free board's own-move ratings, which already show the Tablebase block. *Open*: whether the free board's own-move verdict should also follow the tablebase.
+- Privacy: a game's endgame positions are sent one by one during the run; README's Lichess data note says so.
+- Tests: fake client in `runAnalysis` (tablebase positions skip the engine, an uncertain or null answer searches, the setting off sends nothing), the rating table (win → draw a blunder, same outcome no loss, cursed counted as draw), JSON fields and the partial key, live: analysing a short KBN v K game makes no engine search for its positions and rates a drawing move a blunder.
 
 **PR 3: Cloud evaluation.** `https://lichess.org/api/cloud-eval?fen=<FEN>&multiPv=<N>` (no auth, 404 when never analysed, rate limited) **verify** `variant`, `multiPv` limits and shape (`depth`, `knodes`, `pvs[{ moves, cp | mate }]`).
 
