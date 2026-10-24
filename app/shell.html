@@ -308,6 +308,9 @@ body:has(.stage-tall) .twk-panel { bottom: calc(51px + env(safe-area-inset-botto
 /* the offline note tinted with the warning colour, Back online with the ok one, so each stands out from the page */
 .net-note-off { background: color-mix(in srgb, var(--warn) 18%, var(--panel-glass)); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
 .net-note-on { background: color-mix(in srgb, var(--ok) 16%, var(--panel-glass)); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+/* Copy FEN's note: the FEN wraps anywhere on a phone, and a click selects all of it */
+.fen-note { max-width: min(640px, calc(100% - 32px)); }
+.fen-note-fen { font-family: var(--mono); overflow-wrap: anywhere; user-select: all; }
 /* the offline note reads larger on a desktop's full-size page */
 body:has(.stage:not(.stage-tall):not(.stage-short)) .net-note { top: calc(64px + env(safe-area-inset-top, 0px)); gap: 14px; padding: 14px 12px 14px 20px; border-radius: 12px; font-size: 16px; }
 .net-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }

@@ -288,3 +288,12 @@ test('withCommentary shows only the sources left on, notes file first, then Clau
   assert.deepEqual(CC.withCommentary(M, { pgn: false }).plies.map((p) => p.comment), ['notes 1', '', 'claude 3']);
   assert.deepEqual(CC.commentarySources(CC.buildGame({ pgn: '1. e4 e5 *' })), []);
 });
+
+test('fenAfter gives the six-field FEN: castling, en passant square, half-move clock and move number', () => {
+  const play = (fen, sans) => { let pos = CC.parseFen(fen).pos; for (const san of sans) pos = CC.applySan(pos, san).pos; return CC.fenAfter(fen, sans, pos); };
+  assert.equal(play(CC.START_FEN, []), CC.START_FEN);
+  assert.equal(play(CC.START_FEN, ['e4']), 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+  assert.equal(play(CC.START_FEN, ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6', 'O-O']), 'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4');
+  // counting on from a set-up position's clock and move number, Black to move first
+  assert.equal(play('4k3/8/8/8/8/8/8/R3K3 b Q - 7 30', ['Kd7', 'Ra7+']), '8/R2k4/8/8/8/8/8/4K3 b - - 9 31');
+});

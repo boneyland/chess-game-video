@@ -392,6 +392,16 @@
     };
   }
 
+  // The six-field FEN of the position reached by playing `sans` from `startFen`: pos is that position (castling rights
+  // and en passant square from it), the half-move clock counted on from the start's, the move number from its ply0
+  function fenAfter(startFen, sans, pos) {
+    const s = parseFen(startFen);
+    let half = +s.fen.split(' ')[4];
+    for (const san of sans) half = /^[a-h]/.test(san) || san.includes('x') ? 0 : half + 1;
+    const castle = pos.castle == null ? 'KQkq' : pos.castle || '-';
+    return [toFen(pos), castle, pos.ep >= 0 ? idxSq(pos.ep) : '-', half, Math.floor((s.ply0 + sans.length) / 2) + 1].join(' ');
+  }
+
   const ends = (N) => ({ intro: (N && N.intro) || '', conclusion: (N && (N.conclusion || N.result)) || '' });
   const SAY_ORDER = ['notes', 'claude', 'pgn']; // a notes file wins over Claude, Claude over the PGN's comments
 
@@ -836,5 +846,5 @@
     for (let m = step; 2 * m - ply0 <= N; m += step) if (2 * (m - 1) - ply0 >= 0) ticks.push({ m, at: 2 * (m - 1) - ply0 });
     return ticks;
   }
-  window.ChessCore = { START_FEN, fmtDate, hasLegal, inCheck, evalTicks, parseFen, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, withCommentary, commentarySources, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  window.ChessCore = { START_FEN, fmtDate, hasLegal, inCheck, evalTicks, parseFen, fenAfter, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, withCommentary, commentarySources, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();
