@@ -172,13 +172,22 @@ test('runAnalysis resumes from earlier searches and reports each search so far',
 test('engineSettings: the defaults, the viewer’s values in range, and the defaults again for anything else', () => {
   const d = A.engineSettings({});
   assert.deepEqual(d.game, A.ENGINE);
-  assert.deepEqual(d.own, { depth: 24, time_limit: 3 });
+  assert.deepEqual(d.own, { name: A.ENGINE.name, depth: 24, time_limit: 3 });
   const s = A.engineSettings({ sfDepth: 16, sfTime: 0.5, sfOwnDepth: 30, sfOwnTime: 10, sfHash: 256 });
   assert.deepEqual([s.game.depth, s.game.time_limit, s.game.hash_mb, s.game.name], [16, 0.5, 256, A.ENGINE.name]);
-  assert.deepEqual(s.own, { depth: 30, time_limit: 10 });
+  assert.deepEqual(s.own, { name: A.ENGINE.name, depth: 30, time_limit: 10 });
   const bad = A.engineSettings({ sfDepth: 15, sfTime: 11, sfOwnDepth: 'x', sfOwnTime: null, sfHash: 100 });
   assert.deepEqual([bad.game.depth, bad.game.time_limit, bad.game.hash_mb, bad.own.depth, bad.own.time_limit], [24, 3, 64, 24, 3]);
   assert.equal(A.engineSettings({ sfTime: 1.3 }).game.time_limit, 1.5); // snapped to the slider's half seconds
+});
+
+test('engineSettings: the engine that runs names the game and own searches, so their results never mix', () => {
+  const full = A.engineSettings({ sfDepth: 20 }, 'full');
+  assert.equal(full.game.name, 'Stockfish 19 (browser)');
+  assert.equal(full.own.name, 'Stockfish 19 (browser)');
+  assert.equal(full.game.depth, 20);
+  assert.equal(A.engineSettings({}, 'lite').game.name, 'Stockfish 19 lite (browser)');
+  assert.equal(A.engineSettings({}, 'nonsense').game.name, A.ENGINE.name);
 });
 
 const MEASURED = { depth: 22, time_limit: 3 }; // what secondsPerPosition's 1.3 s was measured at
