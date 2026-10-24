@@ -245,7 +245,7 @@ const SF_EVAL_CACHE = new Map(); // finished searches by settings and move list,
 const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the base settings), for the session
 
 // Evaluates the positions before and after the viewer's move (move lists from the start, or from fen); the score streams in.
-// own: the search settings (AnalysisCore.engineSettings().own; its lines are searched for both positions); fen: the game's start FEN, omitted for the standard start.
+// own: the search settings (AnalysisCore.engineSettings().own; its lines are searched for after only); fen: the game's start FEN, omitted for the standard start.
 // deeper(): searches both positions again, deeper (null when the search can't go further or hasn't finished); it counts
 // for that position only, and a deeper search shows the last result until it passes that result's depth.
 // stored: a loaded analysis's result for after (with before the same moves), standing in for the first search, which
@@ -255,7 +255,7 @@ function useMoveEval(engine, before, after, own, fen, stored) {
   const A = window.AnalysisCore;
   // a search of several lines (Settings › Engine › Lines) is cached apart from one of one line
   const keyOf = (s, moves) => (own.name ? own.name + '|' : '') + (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}${s.lines > 1 ? '/' + s.lines : ''}:` + moves.join(' ');
-  const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000, lines: own.lines || 1 });
+  const toSearch = (o, lines = own.lines || 1) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000, lines });
   const baseKey = after ? keyOf(toSearch(own), after) + (stored ? '|' + stored.src : '') : '';
   const [, bump] = React.useState(0);
   const level = SF_DEEPER.get(baseKey) || 0;
@@ -267,25 +267,30 @@ function useMoveEval(engine, before, after, own, fen, stored) {
   React.useEffect(() => {
     if (!after) { setSt(empty); return; }
     let live = true;
-    const at = (lv, m) => (lv === 0 && stored ? stored : SF_EVAL_CACHE.get(keyOf(toSearch(A.deeperSearch(own, lv)), m)) || null);
-    const handles = [], cached = (m) => at(level, m);
+    // only after's lines are shown, so before (what the move is rated against) searches one line, as deep as it can;
+    // the start position is both, and searches after's lines
+    const lines = (which) => (which === 'after' || before.join(' ') === after.join(' ') ? own.lines || 1 : 1);
+    const moves = { after, before };
+    const keyAt = (lv, which) => keyOf(toSearch(A.deeperSearch(own, lv), lines(which)), moves[which]);
+    const at = (lv, which) => (lv === 0 && stored ? stored : SF_EVAL_CACHE.get(keyAt(lv, which)) || null);
+    const handles = [], cached = (which) => at(level, which);
     // the result a press of Go deeper started from, shown until the deeper search passes its depth
-    const prev = (m) => (level > 0 ? at(level - 1, m) : null);
-    const shown = (m) => cached(m) || (prev(m) && { ...prev(m), partial: true });
-    setSt({ key, before: shown(before), after: shown(after), pending: !cached(after) || !cached(before) });
+    const prev = (which) => (level > 0 ? at(level - 1, which) : null);
+    const shown = (which) => cached(which) || (prev(which) && { ...prev(which), partial: true });
+    setSt({ key, before: shown('before'), after: shown('after'), pending: !cached('after') || !cached('before') });
     (async () => {
       let eng;
       try { eng = await engine.get(); } catch (e) { if (live) setSt((s) => ({ ...s, pending: false })); return; }
-      for (const [which, moves] of [['after', after], ['before', before]]) {
+      for (const which of ['after', 'before']) {
         if (!live) return;
         // the start position is both before and after: its second search is the first one's, cached
-        if (cached(moves)) { const c = cached(moves); setSt((s) => ({ ...s, [which]: c })); continue; }
-        const floor = prev(moves) ? prev(moves).depth : 0;
-        const h = eng.search({ moves, fen, ...search, priority: 'own', onInfo: (sc) => { if (live && sc.depth > floor) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
+        if (cached(which)) { const c = cached(which); setSt((s) => ({ ...s, [which]: c })); continue; }
+        const floor = prev(which) ? prev(which).depth : 0;
+        const h = eng.search({ moves: moves[which], fen, ...search, lines: lines(which), priority: 'own', onInfo: (sc) => { if (live && sc.depth > floor) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
         handles.push(h);
         const r = await h.promise;
         if (!live) return;
-        if (r && r.cp != null) { const fin = { ...r, best: A.bestOf(r) }; SF_EVAL_CACHE.set(sfKey(moves), fin); setSt((s) => ({ ...s, [which]: fin })); }
+        if (r && r.cp != null) { const fin = { ...r, best: A.bestOf(r) }; SF_EVAL_CACHE.set(keyAt(level, which), fin); setSt((s) => ({ ...s, [which]: fin })); }
       }
       if (live) setSt((s) => ({ ...s, pending: false }));
     })();
