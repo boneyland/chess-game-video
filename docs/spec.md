@@ -241,8 +241,8 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 
 **Play vs human** (2026-10-19)
 - A draw can only be claimed in the position on the board, not by announcing the move that would make the repetition or the fiftieth move.
-- Dead positions are found only behind locked pawns, with kings, pawns and bishops all on one colour of square (`PlayCore.lockedDead`: every pawn blocked, no capture possible, neither king nor any bishop able to reach an enemy pawn it could take; a king a bishop can reach always has a square of the other colour to step to, and the kings never meet). Knights, rooks, queens, bishops on both colours, a pawn break either king could make, or a position dead for other reasons (a forced line) play on; finding those needs a helpmate search (CHA-style).
-- A flag fall against a side that could only mate through a locked structure still loses: the flag rule looks at material only.
+- Dead positions are found only behind locked pawns (an en-passant capture on offer counts as a pawn break), with kings, pawns and bishops all on one colour of square (`PlayCore.lockedDead`: every pawn blocked, no capture possible, neither king nor any bishop able to reach an enemy pawn it could take; a king a bishop can reach always has a square of the other colour to step to, and the kings never meet). Knights, rooks, queens, bishops on both colours, a pawn break either king could make, or a position dead for other reasons (a forced line) play on; finding those needs a helpmate search (CHA-style).
+- A flag fall in a dead position the check can't prove (see above) still loses: the flag rule looks at material only. Positions it proves dead have already ended the game.
 - Play again and Analyse in the Analysis box scale with the frame on the phone.
 
 **My games** (2026-10-20)

@@ -21,6 +21,14 @@
     return !(own.length === 1 && (own[0] === 'n' || own[0] === 'b') && all.length === 1);
   }
 
+  // Whether a pawn of the side to move can take en passant now
+  function epCapture(pos) {
+    if (pos.ep < 0) return false;
+    const pawn = pos.turn === 'w' ? 'P' : 'p';
+    for (let i = 0; i < 64; i++) if (pos.b[i] === pawn && CC().legalTargets(pos, i).includes(pos.ep)) return true;
+    return false;
+  }
+
   // Whether the position is dead behind locked pawns: proven only for kings, pawns and bishops all on squares of one colour
   // (any other piece, or bishops on both colours, and it isn't), when no pawn can ever move or capture, no bishop can ever
   // reach an enemy pawn, and neither king can ever reach an enemy pawn to take it. Then the pawns never change and a king
@@ -39,7 +47,8 @@
       else if (t === 'b') bishops[colorOf(p)].push(i);
       else if (t !== 'k') return false;
     }
-    if (!pawns.length) return false;
+    // the move just played may have been a double step past an enemy pawn, which can take it en passant
+    if (!pawns.length || epCapture(pos)) return false;
     const shades = new Set(bishops.w.concat(bishops.b).map(sqColor));
     if (shades.size > 1) return false;
     const shade = shades.size ? [...shades][0] : null;
@@ -47,7 +56,7 @@
     const guard = { w: new Set(), b: new Set() };
     for (const i of pawns) {
       const c = colorOf(b[i]), f = i % 8, row = c === 'w' ? i - 8 : i + 8;
-      // every pawn blocked by a pawn straight ahead (no pushes ever, so no double step and no en passant)
+      // every pawn blocked by a pawn straight ahead (no pushes from here on, so no double step and no further en passant)
       if (row < 0 || row > 63 || !b[row] || b[row].toLowerCase() !== 'p') return false;
       for (const df of [-1, 1]) {
         if (f + df < 0 || f + df > 7) continue;
@@ -106,12 +115,7 @@
   // A position for repetition: the pieces, the side to move, the castling rights, and the en-passant square only when a
   // pawn of the side to move can take there
   function positionKey(pos) {
-    let ep = '-';
-    if (pos.ep >= 0) {
-      const pawn = pos.turn === 'w' ? 'P' : 'p';
-      for (let i = 0; i < 64 && ep === '-'; i++) if (pos.b[i] === pawn && CC().legalTargets(pos, i).includes(pos.ep)) ep = String(pos.ep);
-    }
-    return CC().toFen(pos) + ' ' + (pos.castle || '-') + ' ' + ep;
+    return CC().toFen(pos) + ' ' + (pos.castle || '-') + ' ' + (epCapture(pos) ? String(pos.ep) : '-');
   }
 
   const lastPos = (board) => (board.steps.length ? board.steps[board.steps.length - 1].pos : board.start.pos);
