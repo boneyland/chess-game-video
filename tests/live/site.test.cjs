@@ -415,6 +415,31 @@ for (const name of BROWSERS) for (const site of SITES) {
       await fp.ctx.close();
     });
     // Play/Explore → Starting position: no game, every move (either side's) rated by Stockfish; it survives a reload
+    // Settings › Engine › Lines 3: the free board's Analysis lists three lines, each with its arrow
+    await t.test('desktop: Lines 3 shows three engine lines and three arrows on the free board', async () => {
+      const nb = await open(browser, { width: 1440, height: 900 });
+      const p = nb.page;
+      await p.addInitScript(() => { try { localStorage.setItem('chess-video.tweaks.v1', JSON.stringify({ sfLines: 3, sfOwnTime: 1.5 })); } catch (e) {} });
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      await p.getByRole('button', { name: 'Play/Explore' }).click();
+      await p.getByRole('button', { name: 'Starting position' }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: 'Play (space)' }).waitFor({ state: 'detached', timeout: 5000 }));
+      const b = await boardBox(p);
+      const f = square(b, 'e2'), tt = square(b, 'e4');
+      await p.mouse.move(f.x, f.y); await p.mouse.down(); await p.mouse.move(tt.x, tt.y, { steps: 8 }); await p.mouse.up();
+      // three rows, each an eval then Black's first move; and the arrows of the three first moves
+      const rows = () => p.evaluate(() => (document.body.innerText.match(/^[+−]?\d+\.\d\d( d\d+)?\s+1…/gm) || []).length);
+      await p.waitForFunction(() => (document.body.innerText.match(/^[+−]?\d+\.\d\d( d\d+)?\s+1…/gm) || []).length === 3 && document.querySelectorAll('svg polygon').length === 3, null, { timeout: 45000 });
+      assert.equal(await rows(), 3);
+      await p.screenshot({ path: path.join(OUT, host + '-board-lines.png') });
+      await p.getByRole('button', { name: 'Settings' }).click();
+      await p.getByRole('tab', { name: 'Engine' }).click();
+      assert.equal(await p.locator('#tw-sf-lines').inputValue(), '3');
+      assert.deepEqual(nb.errors, []);
+      await nb.ctx.close();
+    });
+
     await t.test('desktop: the free board sets up the starting position and rates both sides\' moves', async () => {
       const nb = await open(browser, { width: 1440, height: 900 });
       const p = nb.page, label = p.locator('.plabel');
