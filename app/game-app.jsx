@@ -592,9 +592,9 @@ function GameApp() {
             </>}
           </>}
           <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
-          <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
+          <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} stops={window.AnalysisCore.SECONDS} unit="s" onChange={(v) => setTweak('sfTime', v)} />
           <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />
-          <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
+          <TweakSlider id="tw-sf-otime" label="Your moves: time limit per position" value={ES.own.time_limit} stops={window.AnalysisCore.SECONDS} unit="s" onChange={(v) => setTweak('sfOwnTime', v)} />
           <TweakSelect id="tw-sf-lines" label="Your moves: lines" value={String(ES.own.lines)} options={window.AnalysisCore.LINES.map(String)} onChange={(v) => setTweak('sfLines', parseInt(v, 10))} />
           {ES.own.lines > 1 && <div className="twk-note">Stockfish shows its {ES.own.lines} best moves with an arrow each. Every line takes its share of the search, so each one goes less deep in the same time.</div>}
           <TweakSelect id="tw-sf-hash" label="Hash table (helps long searches; a phone may run out of memory)" value={ES.game.hash_mb + ' MB'} options={window.AnalysisCore.HASH_MB.map((x) => x + ' MB')} onChange={(v) => setTweak('sfHash', parseInt(v, 10))} />
