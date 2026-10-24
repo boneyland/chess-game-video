@@ -408,7 +408,9 @@ function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick
   );
 }
 
-function EvalBar({ M, T, S, a }) {
+// tb: the endgame tablebase's result for the position shown ({ cp, txt }, tbBar), drawn instead of the evals
+function EvalBar({ M, T, S, a, tb }) {
+  if (tb) return <EvalBarView cp={tb.cp} txt={tb.txt} a={a} />;
   const { c, cp } = evalNow(M, T, S);
   const shown = c >= 0 ? M.plies[c] : null;
   const txt = !M.hasEval ? '' : shown && shown.checkmate && T > S.tp[c] + 1 ? fmtEval(shown) : shown && shown.mate != null ? fmtEval(shown) : fmtEval({ cp });
@@ -655,8 +657,12 @@ function Commentary({ M, T, S, a, book, line }) {
   );
 }
 
-function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep }) {
+// tb: the endgame tablebase's answer for the position on the board (useTablebase); onTb plays one of its moves
+function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep, tb, onTb }) {
   const c = lastPly(T, S);
+  // the Tablebase block goes under the lines; the panel scrolls to it where it doesn't fit
+  const box = tb ? { ...L.analysis, scroll: true } : L.analysis;
+  const tbEl = tb && <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}><TablebaseBlock t={tb} onPlay={onTb} /></div>;
   // Go deeper's search of this move, once it has passed the analysis's (deep: useMoveEval's)
   const deeper = paused && deep && deep.after && !deep.after.stored ? deep.after : null;
   // this move's own search when the analysis recorded it, else the engine settings
@@ -664,8 +670,9 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
   const right = deeper ? searchStats(sfName, deeper) : c >= 0 && M.plies[c].search ? searchStats(M.engineName, M.plies[c].search) : M.engine;
   if (own && vline && vline.src === 'you' && vline.upto >= 0) {
     return (
-      <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(sfName, own.after)} extra={<DeeperButton ev={own} />}>
+      <Panel box={box} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(sfName, own.after)} extra={<DeeperButton ev={own} />}>
         <OwnMoveAnalysis M={M} vline={vline} own={own} status={sf ? sf.status : 'idle'} onReply={onReply} />
+        {tbEl}
         <span style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>
           <span style={{ color: lineAccent('you') }}>Your moves: {vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (M.ply0 + vline.at + j) % 2 === 0 ? lineLabel(M, vline.at, j, m.san) : m.san)).join(' ')}</span> · ← → step · Esc returns to the game
         </span>
@@ -673,12 +680,13 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
     );
   }
   if (!M.hasEval && !M.plies.some((p) => p.best)) {
-    return <Panel box={L.analysis} a={a} title="Analysis" right={right}>{sf ? <EngineEmptyState M={M} sf={sf} paused={paused} /> : <span style={{ font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis loaded.</span>}</Panel>;
+    return <Panel box={box} a={a} title="Analysis" right={right}>{sf ? <EngineEmptyState M={M} sf={sf} paused={paused} /> : <span style={{ font: `400 26px ${SERIF}`, color: C.dim, fontStyle: 'italic' }}>No engine analysis loaded.</span>}{tbEl}</Panel>;
   }
   if (c < 0) return (
-    <Panel box={L.analysis} a={a} title="Analysis" right={right}>
+    <Panel box={box} a={a} title="Analysis" right={right}>
       {paused && <span style={{ ...NO_SELECT, font: `500 17px ${MONO}`, color: C.dim }}>Press play to watch the game, or drag a piece to try your own move.</span>}
       {sf && !M.hasAnalysis && (sf.run.state === 'running' || paused) && <div style={{ marginTop: 16 }}><EngineEmptyState M={M} sf={sf} paused={paused} compact /></div>}
+      {tbEl}
     </Panel>
   );
   const P = M.plies[c], cls = P.cls;
@@ -698,7 +706,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
   const qLine = Qp.before && Qp.before.line ? Qp.before.line.split(/\s+/).filter((x) => x && !/^\d+\.+$/.test(x) && !/^\d+\.\.\.$/.test(x)).map((x) => x.replace(/^\d+\.+/, '')).filter(Boolean).slice(0, 6) : [];
   const qLegal = qLine.length ? playLineCached(M, c, qLine) : [];
   return (
-    <Panel box={L.analysis} a={a} title="Analysis" right={right} extra={M.hasEval && paused && <DeeperButton ev={deep} />}>
+    <Panel box={box} a={a} title="Analysis" right={right} extra={M.hasEval && paused && <DeeperButton ev={deep} />}>
       <div style={{ opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
           <span style={{ font: `700 ${big}px ${MONO}`, color: col }}>{label(M, c)}</span>
@@ -723,6 +731,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
             sel={vline && vline.src === 'queen' ? vline.upto : null} onPick={(j) => onLine('queen', qLegal, j)} />
         )}
         {P.advice && <span style={{ color: C.inaccuracy }}>{P.advice}</span>}
+        {tb && <div style={{ paddingTop: 8, borderTop: `1px solid ${C.line}` }}><TablebaseBlock t={tb} onPlay={onTb} /></div>}
         {vline && (
           <span style={{ font: `500 15px ${MONO}`, color: C.dim }}>
             <span style={{ color: lineAccent(vline.src) }}>
@@ -972,8 +981,13 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
   const touchPos = curPos();
   const input = useBoardInput({
     pos: touchPos, onPick: explore, onMiss: leaveIfEmpty,
-    onMove: (step) => setVline((v) => { const b = v || newLine(); const prefix = b.moves.slice(0, b.upto + 1); return { ...b, src: 'you', moves: [...prefix, step], upto: prefix.length }; }),
+    onMove: (step) => playOwn(step),
   });
+  const playOwn = (step) => setVline((v) => { const b = v || newLine(); const prefix = b.moves.slice(0, b.upto + 1); return { ...b, src: 'you', moves: [...prefix, step], upto: prefix.length }; });
+  // the endgame tablebase for the position on the board, while paused (never in the video or its export)
+  const shownFen = () => window.ChessCore.fenAfter(M.start.fen, (vline ? M.plies.slice(0, vline.at).concat(vline.moves.slice(0, vline.upto + 1)) : M.plies.slice(0, cNow + 1)).map((p) => p.san), touchPos);
+  const tb = useTablebase(playing ? null : shownFen(), tw.tablebase !== false);
+  const onTb = (uci) => { const step = window.ChessCore.stepFromUci(touchPos, uci); if (step) { tl.setPlaying(false); input.clear(); playOwn(step); } };
   React.useEffect(() => { if (!vline) input.clear(); }, [vline]);
   // Stockfish on the viewer's line: the positions before and after the move on the board, as move lists from the start
   const ownOn = !!(sf && vline && vline.src === 'you' && vline.upto >= 0);
@@ -1021,8 +1035,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
       hasLast: cc < S.N - 1, last: () => goTo(S.N - 1),
     };
     // the position on the board as a FEN, for the menu's Copy FEN
-    const sans = vline ? M.plies.slice(0, vline.at).concat(vline.moves.slice(0, vline.upto + 1)) : M.plies.slice(0, cc + 1);
-    nav.current.fen = () => window.ChessCore.fenAfter(M.start.fen, sans.map((p) => p.san), touchPos);
+    nav.current.fen = shownFen;
   }
   const navSig = nav && nav.current ? `${nav.current.label}|${nav.current.hasPrev}|${nav.current.hasNext}|${nav.current.hasLast}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);
@@ -1058,7 +1071,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
     <div data-screen-label={'t=' + Math.floor(T) + 's'} style={{ position: 'absolute', inset: 0, background: C.bg, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, opacity: fade }}>
         <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${cx}px,${cy}px) scale(${sc}) translate(${-cx}px,${-cy}px)` }}>
-          <EvalBar M={M} T={T} S={S} a={enter(1)} />
+          <EvalBar M={M} T={T} S={S} a={enter(1)} tb={tbBar(tb)} />
           <PlayerBar M={M} T={T} S={S} side="b" a={enter(1)} pieces={pieces} />
           <Board M={M} T={T} S={S} a={enter(0)} arrows={tw.bestArrows} pieces={pieces} queen={queen} vline={vline} hide={input.drag && input.drag.moved ? input.drag.from : null} lines={tw.bestArrows && own ? lineArrows(own.after) : null} />
           <BoardTouch pos={touchPos} sel={input.sel} targets={input.targets} drag={input.drag} promo={input.promo} {...input.handlers} />
@@ -1066,7 +1079,7 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
           {L.header && <Header M={M} a={enter(2)} />}
           <MoveList M={M} T={T} S={S} a={enter(3)} paused={!playing} onPick={goTo} />
           <Commentary M={M} T={T} S={S} a={enter(4)} book={sf ? sf.book : null} line={lineKey ? { book: lineBook } : null} />
-          <Analysis M={M} T={T} S={S} a={enter(5)} vline={vline} onLine={onLine} paused={!playing} sf={sf} own={own} onReply={onReply} deep={gameEval} />
+          <Analysis M={M} T={T} S={S} a={enter(5)} vline={vline} onLine={onLine} paused={!playing} sf={sf} own={own} onReply={onReply} deep={gameEval} tb={tb} onTb={onTb} />
           {L.plot && <EvalPlot M={M} T={T} S={S} a={enter(6)} paused={!playing} onPick={goTo} />}
         </div>
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 220px rgba(228,85,63,${0.55 * flash})` }} />

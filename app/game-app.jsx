@@ -608,6 +608,10 @@ function GameApp() {
           {!board && analysis.err && <div className="twk-note twk-err">{analysis.err}</div>}
           {!board && files.analysis && analysis.state !== 'running' && <TweakButton secondary label="Remove analysis" onClick={() => commit({ ...files, analysis: null, analysisName: null, evalSource: null })} />}
           <div className="twk-note">{board && board.game ? (board.game.mode === 'stockfish' ? 'Stockfish 19 plays the other side at full strength (there is no strength setting) and quietly rates your moves; Analyse on the free board shows its eval once the game ends.' : 'Stockfish is off during a game; Analyse on the free board brings it back once the game ends.') : board ? 'On the free board every move is rated with the “Your moves” settings.' : <>New settings apply to the next analysis{files.analysis ? ', which replaces this one' : ''}; a stopped analysis resumes with its original settings.</>} Stockfish is free software under the GPL-3.0; <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">source</a>.</div>
+          <TweakSection label="Online data">
+            <TweakToggle id="tw-tablebase" label="Endgame tablebase (7 pieces or fewer)" value={t.tablebase !== false} onChange={(v) => setTweak('tablebase', v)} />
+            <div className="twk-note">Positions with 7 pieces or fewer go to Lichess’s tablebase (tablebase.lichess.ovh) for the result with best play and every move ranked by it: in the Analysis panel and the eval bar (tagged TB), while the replay is paused and on the free board, never during a game. Nothing is sent with this off.</div>
+          </TweakSection>
         </> },
         !board && { id: 'commentary', label: 'Commentary', body: <>
           <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
