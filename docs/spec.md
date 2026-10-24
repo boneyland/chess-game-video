@@ -84,10 +84,11 @@ Every setting flags all of game 2's blunders; none finds 30.Qf8?! or 35.Kg1?! (t
 
 ### Free board and explorer
 
-A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, state in `BoardCore`), reached from the dock's **Play/Explore** menu (and the phone menu): Starting position, Paste FEN…, Play vs human, Play vs Stockfish, My games.
+A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, state in `BoardCore`), reached from the dock's **Play/Explore** menu (and the phone menu): Starting position, Paste FEN…, Copy FEN, Play vs human, Play vs Stockfish, My games.
 
 - **Explore**: every move by either side gets Stockfish's verdict, as own moves do; the eval bar follows; Stockfish's eval and best line show before the first move too. Moves are numbered correctly from a FEN. Undo/redo with ← →.
 - **Paste FEN**: one text field; the first two fields required, castling, en passant and counters used when present. Malformed or illegal FENs (including the side not to move in check) get a plain message and change nothing.
+- **Copy FEN**: copies the six-field FEN of the position on the board, in the replay (a line being shown included) or on the free board; the half-move clock and move number count on from the start's. A note shows the FEN for 4 s; where the clipboard is refused it stays up, the FEN selectable with one click.
 - **Opening explorer** in the Commentary box: the opening's name and the book moves that continue from the position (`openings-core.js` continuations), each clickable; a short note once out of book. No win rates or game counts (that is the Lichess explorer on the roadmap).
 - **Replay these moves as a game** (Settings) opens the board's moves as a loaded game for replay, analysis and MP4/WebP export, with "Back to the free board" to return.
 - The board (start FEN, moves, position in the line) survives a reload: `{ board: { fen, moves, upto } }` in the stored files.

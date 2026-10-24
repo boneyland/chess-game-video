@@ -1011,6 +1011,9 @@ function GameVideo({ M, tw, d, probe, queen, nav, scheme, sf, orient }) {
       hasPrev: cc >= 0, hasNext: cc < S.N - 1, prev: () => goTo(cc - 1), next: () => goTo(cc + 1),
       hasLast: cc < S.N - 1, last: () => goTo(S.N - 1),
     };
+    // the position on the board as a FEN, for the menu's Copy FEN
+    const sans = vline ? M.plies.slice(0, vline.at).concat(vline.moves.slice(0, vline.upto + 1)) : M.plies.slice(0, cc + 1);
+    nav.current.fen = () => window.ChessCore.fenAfter(M.start.fen, sans.map((p) => p.san), touchPos);
   }
   const navSig = nav && nav.current ? `${nav.current.label}|${nav.current.hasPrev}|${nav.current.hasNext}|${nav.current.hasLast}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);

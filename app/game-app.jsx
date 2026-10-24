@@ -169,6 +169,8 @@ function GameApp() {
   // the dock's Play/Explore menu (landscape); on a phone its items sit in the folded menu instead
   const [newMenu, setNewMenu] = React.useState(false);
   const [fenOpen, setFenOpen] = React.useState(false);
+  const [fenNote, setFenNote] = React.useState(null); // { fen, ok } after Copy FEN; a copy that failed stays up to select
+
   // the Play dialog's mode while it is open: 'human' or 'stockfish'
   const [playOpen, setPlayOpen] = React.useState(null);
   // My games' list while its dialog is open
@@ -280,6 +282,15 @@ function GameApp() {
   }, []);
   const newBoard = () => { setNewMenu(false); setMenu(false); guard(() => { setQueenOpen(false); commitBoard(window.BoardCore.fromFen()); }); };
   const pasteFen = () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setFenOpen(true)); };
+  // the position on the board, whichever view it's in; where the clipboard is refused the note shows it to select
+  const copyFen = () => {
+    setNewMenu(false); setMenu(false);
+    const fen = nav.current && nav.current.fen && nav.current.fen();
+    if (!fen) return;
+    const shown = (ok) => setFenNote({ fen, ok });
+    try { navigator.clipboard.writeText(fen).then(() => shown(true), () => shown(false)); } catch (e) { shown(false); }
+  };
+  React.useEffect(() => { if (fenNote && fenNote.ok) { const id = setTimeout(() => setFenNote(null), 4000); return () => clearTimeout(id); } }, [fenNote]);
   const playIn = (mode) => () => { setNewMenu(false); setMenu(false); setPanel(false); guard(() => setPlayOpen(mode)); };
   const playHuman = playIn('human'), playSf = playIn('stockfish');
   // against Stockfish the side is remembered as picked, and Random resolved here, for this game
@@ -454,7 +465,7 @@ function GameApp() {
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Play vs human…', run: playHuman }, { label: 'Play vs Stockfish…', run: playSf },
+  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Copy FEN', run: copyFen }, { label: 'Play vs human…', run: playHuman }, { label: 'Play vs Stockfish…', run: playSf },
     { label: 'My games…', run: myGames }];
   const fsLabel = fullscreen.on ? 'Exit full screen' : 'Full screen';
   const dockItems = (
@@ -520,7 +531,13 @@ function GameApp() {
       {hf.note && (
         <div className="signin-note" role="status">{hf.note}<button type="button" className="twk-x" aria-label="Dismiss" onClick={hf.clearNote}>✕</button></div>
       )}
-      {net.note && !hf.note && (
+      {fenNote && !hf.note && (
+        <div className="signin-note net-note fen-note" role="status">
+          <span>{fenNote.ok ? 'FEN copied' : 'Copy this FEN'}: <span className="fen-note-fen">{fenNote.fen}</span></span>
+          <button type="button" className="twk-x" aria-label="Dismiss" onClick={() => setFenNote(null)}>✕</button>
+        </div>
+      )}
+      {net.note && !hf.note && !fenNote && (
         <div className={'signin-note net-note ' + (net.online ? 'net-note-on' : 'net-note-off')} role="status">{net.note}<button type="button" className="twk-x" aria-label="Dismiss" onClick={net.clearNote}>✕</button></div>
       )}
       {drag && (

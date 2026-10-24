@@ -408,6 +408,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
     hasPrev: upto >= 0, hasNext: upto < last, hasLast: upto < last,
     prev: () => go(upto - 1), next: () => go(upto + 1), last: () => go(last), first: () => go(-1),
   };
+  if (nav) nav.current.fen = () => window.ChessCore.fenAfter(board.fen, steps.slice(0, upto + 1).map((s) => s.san), pos);
   const navSig = nav && nav.current ? `${nav.current.label}|${upto}|${last}|${live}` : '';
   React.useEffect(() => { if (nav && nav.listen) nav.listen(); }, [navSig]);
   const keyRef = React.useRef(null);
