@@ -19,22 +19,25 @@ const PORT = 8767; // the same port on the device, through adb reverse
 const VERDICT = /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i;
 
 test('android · chrome · local build', async (t) => {
+  // undone last first: t.after hooks run in the order they were added, which closed the device before Chrome
+  const undo = [];
+  t.after(async () => { for (const f of undo.reverse()) await f(); });
   fs.mkdirSync(OUT, { recursive: true });
   execFileSync(process.execPath, [path.join(ROOT, 'build.cjs')], { cwd: ROOT });
   const local = await serve(path.join(ROOT, 'out', 'site'), PORT);
-  t.after(() => local.close());
+  undo.push(() => local.close());
 
   const [device] = await pw._android.devices();
   assert.ok(device, 'no adb device');
-  t.after(() => device.close());
+  undo.push(() => device.close());
   const sh = async (cmd) => (await device.shell(cmd)).toString().trim();
   assert.match(await sh('pm list packages com.android.chrome'), /com\.android\.chrome/, 'Chrome is not installed on the device');
   t.diagnostic(`${device.model()} · Android ${await sh('getprop ro.build.version.release')} · ${(await sh('dumpsys package com.android.chrome | grep versionName')).split('\n')[0]}`);
   execFileSync('adb', ['-s', device.serial(), 'reverse', `tcp:${PORT}`, `tcp:${PORT}`]);
-  t.after(() => execFileSync('adb', ['-s', device.serial(), 'reverse', '--remove', `tcp:${PORT}`]));
+  undo.push(() => execFileSync('adb', ['-s', device.serial(), 'reverse', '--remove', `tcp:${PORT}`]));
 
   const ctx = await device.launchBrowser({ hasTouch: true }); // Playwright's taps need it set, though the phone has touch anyway
-  t.after(() => ctx.close());
+  undo.push(() => ctx.close());
   const page = ctx.pages()[0] || (await ctx.newPage());
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

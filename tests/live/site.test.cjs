@@ -57,8 +57,9 @@ async function open(browser, viewport, opts) {
   });
   const page = await ctx.newPage();
   const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  page.on('pageerror', (e) => errors.push(e.message));
+  // where an error came from, so a failure in CI says which file
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text() + (m.location().url ? ` (${m.location().url}:${m.location().lineNumber})` : '')); });
+  page.on('pageerror', (e) => errors.push(e.message + (e.stack ? ' ' + e.stack.split('\n').slice(0, 3).join(' | ') : '')));
   return { ctx, page, errors };
 }
 // A FEN typed into the Paste FEN field with the keyboard, as a person would: with locator.fill(), Set up left the dialog
@@ -1164,6 +1165,9 @@ for (const name of BROWSERS) for (const site of SITES) {
       await off.ctx.setOffline(true);
       await assert.doesNotReject(p.locator('.net-note').filter({ hasText: /offline/ }).waitFor({ timeout: 5000 }));
       await p.evaluate(() => document.fonts.ready);
+      // Playwright's WebKit fails an offline reload itself ("WebKit encountered an internal error"), before the service
+      // worker can answer it, so the rest is left to Chromium and Firefox
+      if (name === 'webkit') { assert.deepEqual(off.errors, []); await off.ctx.close(); return; }
       await p.reload({ waitUntil: 'load' });
       await loadedOn(p);
       await assert.doesNotReject(p.locator('.net-chip').waitFor({ timeout: 5000 }));
@@ -1281,7 +1285,14 @@ for (const name of BROWSERS) for (const site of SITES) {
       await ph.page.screenshot({ path: path.join(OUT, host + '-phone.png') });
       await menu.click();
       await assert.doesNotReject(ph.page.getByRole('button', { name: 'Ask Queen' }).waitFor({ state: 'visible', timeout: 3000 }));
-      // both browsers support element full screen, so the menu offers it; the label follows fullscreenchange
+      // WebKit with the iPhone profile has no element full screen, as iPhone Safari: the menu leaves the item out
+      if (!(await ph.page.evaluate(() => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled)))) {
+        assert.equal(await ph.page.getByRole('button', { name: 'Full screen', exact: true }).count(), 0, 'Full screen offered without full screen');
+        assert.deepEqual(ph.errors, []);
+        await ph.ctx.close();
+        return;
+      }
+      // Chromium and Firefox support element full screen, so the menu offers it; the label follows fullscreenchange
       const fsOn = () => ph.page.evaluate(() => !!document.fullscreenElement);
       await ph.page.getByRole('button', { name: 'Full screen', exact: true }).click();
       await ph.page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 });
