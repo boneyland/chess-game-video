@@ -40,7 +40,13 @@ test('android · chrome · local build', async (t) => {
   undo.push(() => ctx.close());
   const page = ctx.pages()[0] || (await ctx.newPage());
   const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // Chrome downloads a manifest icon in the background (to check the page can be installed), and a reload that cuts
+  // it off logs this as an error though the icon is fine; the first test downloads and decodes every icon instead
+  const ICON_CUT = /^Error while trying to use the following icon from the Manifest: /;
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    if (ICON_CUT.test(m.text())) t.diagnostic(m.text()); else errors.push(m.text());
+  });
   page.on('pageerror', (e) => errors.push(e.message));
   // a phone kept from an earlier run starts from the defaults. The reload that follows waits for Chrome's download of
   // the manifest: a reload cutting it off once had Chrome report "Manifest: Line: 1, column: 1, Syntax error." Chrome
@@ -61,6 +67,16 @@ test('android · chrome · local build', async (t) => {
     assert.ok(b.x0 >= 0 && b.x0 + 8 * b.sq <= w + 1, `the board (${Math.round(8 * b.sq)} px) fits the ${w} px width`);
     await page.screenshot({ path: path.join(OUT, 'android-phone.png') });
     assert.deepEqual(errors, []);
+    // each manifest icon downloads and decodes at its stated size
+    const bad = await page.evaluate(async () => {
+      const m = await (await fetch('manifest.webmanifest', { cache: 'no-store' })).json(), out = [];
+      for (const ic of m.icons) {
+        try { const im = await createImageBitmap(await (await fetch(ic.src, { cache: 'no-store' })).blob()); if (`${im.width}x${im.height}` !== ic.sizes) out.push(`${ic.src}: ${im.width}x${im.height}`); }
+        catch (e) { out.push(`${ic.src}: ${e.message}`); }
+      }
+      return out;
+    });
+    assert.deepEqual(bad, [], 'manifest icons');
   });
 
   await t.test('a tap-tap move gets a Stockfish verdict', async () => {
