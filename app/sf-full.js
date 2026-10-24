@@ -17,7 +17,7 @@
   const sha256 = async (bytes) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
   const urlOf = (f) => BASE + f.name;
 
-  // Both files kept (not checked: start() does that)
+  // Both files kept (checked when downloaded)
   async function present() {
     if (!supported()) return false;
     try {
@@ -27,20 +27,36 @@
     } catch (e) { return false; }
   }
 
-  // One file into memory as it arrives, no bigger than its pinned size; onBytes(n) for each chunk
+  // One file into memory as it arrives, no bigger than its pinned size; onBytes(n) for each chunk. A connection that
+  // sends nothing for limits.stallMs (before the answer or between chunks) is given up, else the download waits forever
+  const limits = { stallMs: 30000 };
   async function fetchFile(f, signal, onBytes) {
-    const r = await fetch(urlOf(f), { mode: 'cors', cache: 'no-store', signal });
-    if (!r.ok) throw new Error(`unpkg.com answered ${r.status} for ${f.name}`);
+    const ctl = new AbortController(), stop = () => ctl.abort();
+    let stalled = false, timer = null;
+    const wait = () => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; stop(); }, limits.stallMs); };
+    if (signal) { if (signal.aborted) stop(); else signal.addEventListener('abort', stop); }
     const out = new Uint8Array(f.size);
     let at = 0;
-    const reader = r.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (at + value.length > f.size) { reader.cancel().catch(() => {}); throw new Error(f.name + ' is bigger than expected'); }
-      out.set(value, at);
-      at += value.length;
-      onBytes(value.length);
+    try {
+      wait();
+      const r = await fetch(urlOf(f), { mode: 'cors', cache: 'no-store', signal: ctl.signal });
+      if (!r.ok) throw new Error(`unpkg.com answered ${r.status} for ${f.name}`);
+      const reader = r.body.getReader();
+      for (;;) {
+        wait();
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (at + value.length > f.size) { reader.cancel().catch(() => {}); throw new Error(f.name + ' is bigger than expected'); }
+        out.set(value, at);
+        at += value.length;
+        onBytes(value.length);
+      }
+    } catch (e) {
+      if (stalled) throw new Error(`unpkg.com stopped sending ${f.name}`);
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', stop);
     }
     if (at !== f.size) throw new Error(f.name + ' arrived incomplete');
     if ((await sha256(out)) !== f.sha256) throw new Error(f.name + ' does not match its pinned checksum');
@@ -71,8 +87,9 @@
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   }
 
-  // The kept copy, checked again (a damaged one is dropped) → a makeWorker for SFEngine.create. Read once per page: an
-  // engine started again (a dead one, a new hash size) reuses the Blob URLs rather than holding another 99 MB
+  // The kept copy → a makeWorker for SFEngine.create. It was checked when downloaded, so it is trusted now: only its sizes
+  // are compared (a missing or cut-short copy is dropped), and its Blobs are passed on without reading the 99 MB into the
+  // page. Once per page: an engine started again (a dead one, a new hash size) reuses the Blob URLs
   let started = null, blobs = [];
   const start = () => started || (started = load().catch((e) => { started = null; throw e; }));
   async function load() {
@@ -80,12 +97,13 @@
     const urls = [];
     for (const f of FILES) {
       const r = await cache.match(urlOf(f));
-      const bytes = r && new Uint8Array(await r.arrayBuffer());
-      if (!bytes || bytes.length !== f.size || (await sha256(bytes)) !== f.sha256) {
+      const blob = r && await r.blob();
+      if (!blob || blob.size !== f.size) {
+        urls.forEach((u) => URL.revokeObjectURL(u));
         await caches.delete(CACHE).catch(() => {});
-        throw new Error('The downloaded engine is missing or damaged');
+        throw new Error('The downloaded engine is missing');
       }
-      urls.push(URL.createObjectURL(new Blob([bytes], { type: f.type })));
+      urls.push(URL.createObjectURL(blob.type === f.type ? blob : new Blob([blob], { type: f.type })));
     }
     blobs = urls;
     const [glue, wasm] = urls;
@@ -99,5 +117,5 @@
     return caches.delete(CACHE);
   }
 
-  window.SFFull = { BASE, FILES, CACHE, TOTAL, supported, present, download, start, remove };
+  window.SFFull = { BASE, FILES, CACHE, TOTAL, limits, supported, present, download, start, remove };
 })();

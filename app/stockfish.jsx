@@ -10,29 +10,36 @@ const sfFilesPresent = () => (window.SF_MAKE_WORKER ? Promise.resolve(true)
   : fetch(SF_FILE + '.wasm', { method: 'HEAD', cache: 'no-store' }).then((r) => r.ok, () => false));
 
 // kind: 'lite' (next to the page) or 'full' (the viewer's download, sf-full.js); a change quits the engine running, and
-// the next use starts the other. onBroken: the full engine's kept copy turned out missing or damaged (it is dropped)
+// the next use starts the other. onBroken: the full engine's kept copy turned out missing (it is dropped)
 function useEngine(hashMB, kind = 'lite', onBroken) {
-  const ref = React.useRef(null), hash = React.useRef(hashMB), kindRef = React.useRef(kind), broken = React.useRef(onBroken);
+  const ref = React.useRef(null), hash = React.useRef(hashMB), want = React.useRef(kind), has = React.useRef(kind), broken = React.useRef(onBroken);
   hash.current = hashMB;
+  // set while rendering, not in an effect: the panels' effects run before this one and must not get the engine being replaced
+  want.current = kind;
   broken.current = onBroken;
   React.useEffect(() => { if (ref.current) ref.current.then((eng) => eng.setHash(hashMB), () => {}); }, [hashMB]);
   const [status, setStatus] = React.useState('idle');
-  React.useEffect(() => {
-    if (kindRef.current === kind) return;
-    kindRef.current = kind;
+  // the engine of the other kind, quit (its running search answers null)
+  const drop = React.useCallback(() => {
+    if (has.current === want.current) return false;
+    has.current = want.current;
     const old = ref.current;
     ref.current = null;
-    setStatus('idle');
     if (old) old.then((eng) => eng.quit(), () => {});
-  }, [kind]);
+    return true;
+  }, []);
+  // a change no panel asks for at once still frees the old engine (the full one holds about 100 MB)
+  React.useEffect(() => { if (drop()) setStatus('idle'); }, [kind]);
   const get = React.useCallback(() => {
+    drop();
     if (!ref.current) {
       setStatus('loading');
       // an engine that dies later is dropped too: the panels say so, and the next use starts a new one
       let mine = null;
+      const k = has.current;
       const start = async () => {
         let make = sfMakeWorker;
-        if (kindRef.current === 'full') {
+        if (k === 'full') {
           try { make = await window.SFFull.start(); } catch (e) { if (broken.current) broken.current(); throw e; }
         } else if (!(await sfFilesPresent())) throw new Error('The Stockfish files are missing next to this page');
         const eng = window.SFEngine.create(make, { hashMB: hash.current, onFail: () => { if (ref.current === mine) { ref.current = null; setStatus('stopped'); } } });
@@ -71,7 +78,7 @@ function useFullEngine() {
   };
   const cancel = () => { if (ctl.current) ctl.current.abort(); };
   const remove = async () => { cancel(); await window.SFFull.remove().catch(() => {}); setSt({ state: 'absent', got: 0, err: '' }); };
-  const broken = React.useCallback(() => setSt({ state: 'absent', got: 0, err: 'The downloaded engine was missing or damaged, so Lite is running. Download it again to use Full.' }), []);
+  const broken = React.useCallback(() => setSt({ state: 'absent', got: 0, err: 'The downloaded engine was missing, so Lite is running. Download it again to use Full.' }), []);
   return { offered: SF_FULL_OFFERED, ...st, download, cancel, remove, broken };
 }
 
@@ -238,7 +245,7 @@ const SF_EVAL_CACHE = new Map(); // finished searches by settings and move list,
 const SF_DEEPER = new Map(); // presses of Go deeper by position (its key at the base settings), for the session
 
 // Evaluates the positions before and after the viewer's move (move lists from the start, or from fen); the score streams in.
-// own: the search settings (AnalysisCore.engineSettings().own; its lines are searched for both positions); fen: the game's start FEN, omitted for the standard start.
+// own: the search settings (AnalysisCore.engineSettings().own; its lines are searched for after only); fen: the game's start FEN, omitted for the standard start.
 // deeper(): searches both positions again, deeper (null when the search can't go further or hasn't finished); it counts
 // for that position only, and a deeper search shows the last result until it passes that result's depth.
 // stored: a loaded analysis's result for after (with before the same moves), standing in for the first search, which
@@ -248,7 +255,7 @@ function useMoveEval(engine, before, after, own, fen, stored) {
   const A = window.AnalysisCore;
   // a search of several lines (Settings › Engine › Lines) is cached apart from one of one line
   const keyOf = (s, moves) => (own.name ? own.name + '|' : '') + (sfStartFen(fen) ? fen + '|' : '') + `${s.depth}/${s.movetimeMs}${s.lines > 1 ? '/' + s.lines : ''}:` + moves.join(' ');
-  const toSearch = (o) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000, lines: own.lines || 1 });
+  const toSearch = (o, lines = own.lines || 1) => ({ depth: o.depth, movetimeMs: o.time_limit * 1000, lines });
   const baseKey = after ? keyOf(toSearch(own), after) + (stored ? '|' + stored.src : '') : '';
   const [, bump] = React.useState(0);
   const level = SF_DEEPER.get(baseKey) || 0;
@@ -260,25 +267,30 @@ function useMoveEval(engine, before, after, own, fen, stored) {
   React.useEffect(() => {
     if (!after) { setSt(empty); return; }
     let live = true;
-    const at = (lv, m) => (lv === 0 && stored ? stored : SF_EVAL_CACHE.get(keyOf(toSearch(A.deeperSearch(own, lv)), m)) || null);
-    const handles = [], cached = (m) => at(level, m);
+    // only after's lines are shown, so before (what the move is rated against) searches one line, as deep as it can;
+    // the start position is both, and searches after's lines
+    const lines = (which) => (which === 'after' || before.join(' ') === after.join(' ') ? own.lines || 1 : 1);
+    const moves = { after, before };
+    const keyAt = (lv, which) => keyOf(toSearch(A.deeperSearch(own, lv), lines(which)), moves[which]);
+    const at = (lv, which) => (lv === 0 && stored ? stored : SF_EVAL_CACHE.get(keyAt(lv, which)) || null);
+    const handles = [], cached = (which) => at(level, which);
     // the result a press of Go deeper started from, shown until the deeper search passes its depth
-    const prev = (m) => (level > 0 ? at(level - 1, m) : null);
-    const shown = (m) => cached(m) || (prev(m) && { ...prev(m), partial: true });
-    setSt({ key, before: shown(before), after: shown(after), pending: !cached(after) || !cached(before) });
+    const prev = (which) => (level > 0 ? at(level - 1, which) : null);
+    const shown = (which) => cached(which) || (prev(which) && { ...prev(which), partial: true });
+    setSt({ key, before: shown('before'), after: shown('after'), pending: !cached('after') || !cached('before') });
     (async () => {
       let eng;
       try { eng = await engine.get(); } catch (e) { if (live) setSt((s) => ({ ...s, pending: false })); return; }
-      for (const [which, moves] of [['after', after], ['before', before]]) {
+      for (const which of ['after', 'before']) {
         if (!live) return;
         // the start position is both before and after: its second search is the first one's, cached
-        if (cached(moves)) { const c = cached(moves); setSt((s) => ({ ...s, [which]: c })); continue; }
-        const floor = prev(moves) ? prev(moves).depth : 0;
-        const h = eng.search({ moves, fen, ...search, priority: 'own', onInfo: (sc) => { if (live && sc.depth > floor) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
+        if (cached(which)) { const c = cached(which); setSt((s) => ({ ...s, [which]: c })); continue; }
+        const floor = prev(which) ? prev(which).depth : 0;
+        const h = eng.search({ moves: moves[which], fen, ...search, lines: lines(which), priority: 'own', onInfo: (sc) => { if (live && sc.depth > floor) setSt((s) => ({ ...s, [which]: { ...sc, best: sc.pv[0] || null, partial: true } })); } });
         handles.push(h);
         const r = await h.promise;
         if (!live) return;
-        if (r && r.cp != null) { const fin = { ...r, best: A.bestOf(r) }; SF_EVAL_CACHE.set(sfKey(moves), fin); setSt((s) => ({ ...s, [which]: fin })); }
+        if (r && r.cp != null) { const fin = { ...r, best: A.bestOf(r) }; SF_EVAL_CACHE.set(keyAt(level, which), fin); setSt((s) => ({ ...s, [which]: fin })); }
       }
       if (live) setSt((s) => ({ ...s, pending: false }));
     })();

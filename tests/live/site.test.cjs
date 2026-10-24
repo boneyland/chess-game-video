@@ -1200,7 +1200,7 @@ for (const name of BROWSERS) for (const site of SITES) {
 
     // Settings › Engine › Full: stockfish.js's full engine (99 MB) from unpkg, kept in its own cache, run from there, removed.
     // The real download (a route can't answer with a body this big: Chromium drops Playwright's connection)
-    await t.test('desktop: the full engine downloads once, runs from its kept copy, and can be removed', { timeout: 300000 }, async () => {
+    await t.test('desktop: the full engine downloads once, runs from its kept copy, and can be removed', { timeout: 420000 }, async (tt) => {
       const fe = await open(browser, { width: 1440, height: 900 });
       const p = fe.page;
       let hits = 0;
@@ -1211,31 +1211,50 @@ for (const name of BROWSERS) for (const site of SITES) {
         await p.getByRole('button', { name: 'Settings' }).click();
         await p.getByRole('tab', { name: 'Engine' }).click();
       };
-      await openEngine();
-      await p.getByRole('radiogroup', { name: 'Engine' }).getByRole('radio', { name: /^Full · 99 MB/ }).click();
-      await p.getByRole('button', { name: /^Download full Stockfish · 99 MB/ }).click();
-      const remove = p.getByRole('button', { name: /^Remove the full engine download/ });
-      await remove.waitFor({ timeout: 240000 });
-      assert.equal(hits, 2, 'both files fetched once');
-      await assert.doesNotReject(p.getByText(/^Stockfish 19 runs in your browser/).waitFor({ timeout: 3000 }));
-      await p.screenshot({ path: path.join(OUT, host + '-engine-full.png') });
-      await p.keyboard.press('Escape');
-      // an own move is rated by the full engine, and the Analysis header names it
+      // an own move, rated by Lite first
       const b = await boardBox(p);
       const from = square(b, 'd2'), to = square(b, 'd4');
       await p.mouse.move(from.x, from.y);
       await p.mouse.down();
       await p.mouse.move(to.x, to.y, { steps: 8 });
       await p.mouse.up();
-      await p.waitForFunction(() => /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i.test(document.body.innerText), null, { timeout: 60000 });
+      const rated = /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i;
+      await p.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), rated.source, { timeout: 60000 });
+      assert.match(await p.evaluate(() => document.body.innerText), /Stockfish 19 lite · depth \d+/i);
+      await openEngine();
+      await p.getByRole('radiogroup', { name: 'Engine' }).getByRole('radio', { name: /^Full · 99 MB/ }).click();
+      const remove = p.getByRole('button', { name: /^Remove the full engine download/ }), failed = p.getByText(/^Download failed: /);
+      // unpkg is a third party: a download that fails (a stalled connection is given up after 30 s) is tried once more,
+      // and a failure says how far it got
+      let tries = 0;
+      for (;;) {
+        tries++;
+        await p.getByRole('button', { name: /^Download full Stockfish · 99 MB/ }).click();
+        try { await remove.or(failed).waitFor({ timeout: 180000 }); } catch (e) {
+          throw new Error('the download neither finished nor failed in 180 s: ' + await p.getByText(/^Downloading full Stockfish/).innerText({ timeout: 1000 }).catch(() => '(no progress shown)'));
+        }
+        if (await remove.isVisible()) break;
+        const why = await failed.innerText();
+        if (tries === 2) throw new Error('the download failed twice: ' + why);
+        tt.diagnostic('retrying the download after: ' + why);
+      }
+      // a failed try may have fetched one file or both
+      if (tries === 1) assert.equal(hits, 2, 'both files fetched once');
+      const fetched = hits;
+      await assert.doesNotReject(p.getByText(/^Stockfish 19 runs in your browser/).waitFor({ timeout: 3000 }));
+      await p.screenshot({ path: path.join(OUT, host + '-engine-full.png') });
+      // the same move is searched again by the full engine once it is kept, with no move played and Settings still open
+      // (Escape would leave the line too): the panels' search once got the lite engine being quit, and stayed on
+      // "thinking". The Analysis header names the engine
+      await p.waitForFunction(() => /Stockfish 19 · depth \d+/i.test(document.body.innerText), null, { timeout: 60000 });
+      await p.waitForFunction((re) => new RegExp(re, 'i').test(document.body.innerText), rated.source, { timeout: 60000 });
       assert.doesNotMatch(await p.getByText(/your move ·/i).innerText(), /can’t run here|stopped/i);
-      assert.match(await p.evaluate(() => document.body.innerText), /Stockfish 19 · depth \d+/i);
       // a reload finds the kept copy: nothing fetched again
       await p.reload({ waitUntil: 'load' });
       await loadedOn(p);
       await openEngine();
       await remove.waitFor({ timeout: 10000 });
-      assert.equal(hits, 2, 'nothing fetched after a reload');
+      assert.equal(hits, fetched, 'nothing fetched after a reload');
       // Remove asks first: Keep leaves the copy, Remove deletes it
       await remove.click();
       await p.getByRole('button', { name: 'Keep', exact: true }).click();
