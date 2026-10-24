@@ -110,8 +110,9 @@ function TweakRadio({ id, label, value, options, onChange }) {
   );
 }
 
-function TweakButton({ label, onClick, secondary = false, disabled = false }) {
-  return <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'} disabled={disabled} onClick={onClick}>{label}</button>;
+// danger: a button that throws something away (after the viewer has been asked)
+function TweakButton({ label, onClick, secondary = false, danger = false, disabled = false }) {
+  return <button type="button" className={secondary ? 'twk-btn secondary' : danger ? 'twk-btn danger' : 'twk-btn'} disabled={disabled} onClick={onClick}>{label}</button>;
 }
 
 Object.assign(window, { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle, TweakRadio, TweakSelect, TweakButton });

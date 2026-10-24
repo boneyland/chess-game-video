@@ -649,10 +649,11 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
   // Go deeper's search of this move, once it has passed the analysis's (deep: useMoveEval's)
   const deeper = paused && deep && deep.after && !deep.after.stored ? deep.after : null;
   // this move's own search when the analysis recorded it, else the engine settings
-  const right = deeper ? searchStats(window.AnalysisCore.ENGINE.name, deeper) : c >= 0 && M.plies[c].search ? searchStats(M.engineName, M.plies[c].search) : M.engine;
+  const sfName = sf ? sf.game.name : window.AnalysisCore.ENGINE.name; // the browser engine running (Settings › Engine)
+  const right = deeper ? searchStats(sfName, deeper) : c >= 0 && M.plies[c].search ? searchStats(M.engineName, M.plies[c].search) : M.engine;
   if (own && vline && vline.src === 'you' && vline.upto >= 0) {
     return (
-      <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(window.AnalysisCore.ENGINE.name, own.after)}>
+      <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(sfName, own.after)}>
         <OwnMoveAnalysis M={M} vline={vline} own={own} status={sf ? sf.status : 'idle'} onReply={onReply} />
         <span style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>
           <span style={{ color: lineAccent('you') }}>Your moves: {vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (M.ply0 + vline.at + j) % 2 === 0 ? lineLabel(M, vline.at, j, m.san) : m.san)).join(' ')}</span> · ← → step · Esc returns to the game

@@ -445,7 +445,7 @@ function FreeBoard({ board, onChange, tw, sf, nav, orient, book }) {
       {L.header && <Header M={HM} a={1} />}
       <MoveList M={MV} T={upto + 0.999} S={S} a={1} paused onPick={live ? () => {} : go} />
       {G ? <GameInfo board={board} /> : <OpeningExplorer board={board} book={book} onPlay={onBook} />}
-      <Panel box={L.analysis} a={1} style={G && NO_SELECT} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(window.AnalysisCore.ENGINE.name, ev.after)}>
+      <Panel box={L.analysis} a={1} style={G && NO_SELECT} title={G ? 'Game' : 'Analysis'} right={G || down ? null : searchStats(sf.game.name, ev.after)}>
         {G ? <GameStatus board={board} onChange={onChange} down={opponent.down} />
           : upto < 0
           ? <StartAnalysis board={board} ev={ev} status={sf.status} onLine={onReply} />

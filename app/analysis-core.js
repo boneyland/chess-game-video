@@ -116,17 +116,20 @@
   // end on a bestmove token that isn't the start of its last complete line
   const bestOf = (r) => (r && r.pv && r.pv[0]) || (r && r.best) || null;
 
-  const ENGINE = { name: 'Stockfish 19 lite (browser)', depth: 24, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
+  // the browser engines (Settings › Engine): the vendored lite one, or the full one the viewer downloaded (sf-full.js)
+  const ENGINE_NAMES = { lite: 'Stockfish 19 lite (browser)', full: 'Stockfish 19 (browser)' };
+  const ENGINE = { name: ENGINE_NAMES.lite, depth: 24, time_limit: 3, lines: 1, threads: 1, hash_mb: 64 };
   // The engine settings a viewer can change (Settings → Engine), from the saved tweaks, kept in range; anything
   // missing or out of range falls back to the default. game: as ENGINE (written into the analysis JSON); own: the
-  // search of the viewer's own moves
+  // search of the viewer's own moves. kind: the engine that runs ('lite' or 'full'), whatever the setting asks for
   const SEARCH_LIMITS = { depth: [16, 30], seconds: [0.5, 10] }, HASH_MB = [16, 32, 64, 128, 256];
   const OWN = { depth: 24, time_limit: 3 };
-  function engineSettings(t = {}) {
+  function engineSettings(t = {}, kind = 'lite') {
     const pick = (v, [lo, hi], step, dflt) => { const x = +v; return Number.isFinite(x) && x >= lo && x <= hi ? Math.round(x / step) * step : dflt; };
+    const name = ENGINE_NAMES[kind] || ENGINE.name;
     return {
-      game: { ...ENGINE, depth: pick(t.sfDepth, SEARCH_LIMITS.depth, 1, ENGINE.depth), time_limit: pick(t.sfTime, SEARCH_LIMITS.seconds, 0.5, ENGINE.time_limit), hash_mb: HASH_MB.includes(+t.sfHash) ? +t.sfHash : ENGINE.hash_mb },
-      own: { depth: pick(t.sfOwnDepth, SEARCH_LIMITS.depth, 1, OWN.depth), time_limit: pick(t.sfOwnTime, SEARCH_LIMITS.seconds, 0.5, OWN.time_limit) },
+      game: { ...ENGINE, name, depth: pick(t.sfDepth, SEARCH_LIMITS.depth, 1, ENGINE.depth), time_limit: pick(t.sfTime, SEARCH_LIMITS.seconds, 0.5, ENGINE.time_limit), hash_mb: HASH_MB.includes(+t.sfHash) ? +t.sfHash : ENGINE.hash_mb },
+      own: { name, depth: pick(t.sfOwnDepth, SEARCH_LIMITS.depth, 1, OWN.depth), time_limit: pick(t.sfOwnTime, SEARCH_LIMITS.seconds, 0.5, OWN.time_limit) },
     };
   }
   // Rough seconds a game position takes: 1.3 s measured on a laptop at depth 22 / 3 s, each depth about 1.45 times
@@ -198,5 +201,5 @@
     return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis, startFen) : null, engine: { ...settings }, startFen });
   }
 
-  window.AnalysisCore = { C, ENGINE, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
+  window.AnalysisCore = { C, ENGINE, ENGINE_NAMES, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
 })();

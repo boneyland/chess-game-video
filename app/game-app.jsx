@@ -227,8 +227,14 @@ function GameApp() {
   const M = built.M || lastGood.current || window.ChessCore.buildGame(SAMPLE);
   const hf = useHfAuth();
   const Q = useQueen(M, mcp, hf);
-  const ES = React.useMemo(() => window.AnalysisCore.engineSettings(t), [t.sfDepth, t.sfTime, t.sfOwnDepth, t.sfOwnTime, t.sfHash]);
-  const engine = useEngine(ES.game.hash_mb);
+  // Settings › Engine: Full runs once its download is kept; until then (and on the artifact) Lite does
+  const full = useFullEngine();
+  // Remove the full engine asks first (getting it back is another 99 MB); any change to the download drops the question
+  const [askRemove, setAskRemove] = React.useState(false);
+  React.useEffect(() => setAskRemove(false), [full.state]);
+  const sfKind = t.sfEngine === 'Full' && full.state === 'ready' ? 'full' : 'lite';
+  const ES = React.useMemo(() => window.AnalysisCore.engineSettings(t, sfKind), [t.sfDepth, t.sfTime, t.sfOwnDepth, t.sfOwnTime, t.sfHash, sfKind]);
+  const engine = useEngine(ES.game.hash_mb, sfKind, full.broken);
   const queenInVideo = t.queenInVideo !== false;
   const showCommentary = t.commentary !== false;
   const sayFrom = { pgn: t.commentPgn !== false, claude: t.commentClaude !== false, notes: t.commentNotes !== false, queen: t.commentQueen !== false };
@@ -405,6 +411,11 @@ function GameApp() {
   const savePgn = () => saveFile(fileStem + '_annotated.pgn', window.ChessCore.annotatedPgn(withQueen(M, Q.resultAt)), 'application/x-chess-pgn');
   const saveQueen = () => saveFile(fileStem + '_queen.json', JSON.stringify(Q.saved(), null, 1), 'application/json');
   const analysis = useGameAnalysis(M, files, () => filesRef.current, commit, engine, ES.game);
+  // switching engines stops a running analysis (its searches so far are kept, to resume with the engine that made them)
+  const analysisStop = React.useRef(analysis.stop);
+  analysisStop.current = analysis.stop;
+  const kindSeen = React.useRef(sfKind);
+  React.useEffect(() => { if (kindSeen.current !== sfKind) { kindSeen.current = sfKind; analysisStop.current(); } }, [sfKind]);
   // Lichess's opening book per ply, built after the first paint (about 0.25 s the first time)
   const [book, setBook] = React.useState(null);
   React.useEffect(() => { setBook(null); const id = setTimeout(() => { try { setBook(window.Openings.book().byPly(M.plies.map((p) => p.uci), M.start.fen)); } catch (e) {} }, 50); return () => clearTimeout(id); }, [M]);
@@ -439,7 +450,8 @@ function GameApp() {
   const exportVideo = () => { setPanel(false); setQueenOpen(false); video.run({ start: clipT.start, end: clipT.end, suffix: clipSuffix, audio: t.sound === false || webp ? null
     : () => window.Sfx.renderTrack(window.SFX_DATA || {}, soundSet, window.Sfx.track(MV, clipOpts.S, clipT.start, clipT.end), soundVolume, clipT.end - clipT.start) }); };
   const SFL = window.AnalysisCore.SEARCH_LIMITS, SF_KEYS = ['sfDepth', 'sfTime', 'sfOwnDepth', 'sfOwnTime', 'sfHash'];
-  const sfChanged = JSON.stringify(ES) !== JSON.stringify(window.AnalysisCore.engineSettings(window.TWEAK_DEFAULTS));
+  const sfChanged = JSON.stringify(ES) !== JSON.stringify(window.AnalysisCore.engineSettings(window.TWEAK_DEFAULTS, sfKind));
+  const SF_ENGINE_OPTS = ['Lite · 1.8 MB', `Full · ${sfMB(window.SFFull.TOTAL)} MB`];
   const askQueen = () => { setQueenOpen((q) => !q); setPanel(false); };
   // the Queen panel opens centred over its button in the transport bar, or over the menu button when the dock is folded
   // into a menu (a phone frame, or a window under 900 px), kept on screen
@@ -601,7 +613,30 @@ function GameApp() {
           </TweakSection>}
         </> },
         { id: 'engine', label: 'Engine', body: <>
-          <div className="twk-note">Stockfish 19 lite runs in your browser, for your own moves and “Analyse with Stockfish”. Each search stops at its depth or time limit, whichever comes first.</div>
+          <div className="twk-note">{engineLabel(ES.game.name)} runs in your browser, for your own moves and “Analyse with Stockfish”. Each search stops at its depth or time limit, whichever comes first.</div>
+          {full.offered && <>
+            <TweakRadio id="tw-sf-engine" label="Engine" value={SF_ENGINE_OPTS[t.sfEngine === 'Full' ? 1 : 0]} options={SF_ENGINE_OPTS} onChange={(v) => setTweak('sfEngine', v === SF_ENGINE_OPTS[1] ? 'Full' : 'Lite')} />
+            {t.sfEngine === 'Full' && full.state === 'absent' && <>
+              <div className="twk-note">Full Stockfish 19 is stronger than Lite, with the big neural network. It is a {sfMB(window.SFFull.TOTAL)} MB download from unpkg.com, kept in this browser for next time and offline. Until it is downloaded, Lite runs.</div>
+              <TweakButton label={`Download full Stockfish · ${sfMB(window.SFFull.TOTAL)} MB`} onClick={full.download} />
+            </>}
+            {full.state === 'downloading' && <>
+              <div className="twk-note" role="status">Downloading full Stockfish · {sfMB(full.got)} of {sfMB(window.SFFull.TOTAL)} MB</div>
+              <div className="twk-progress"><i style={{ width: `${(100 * full.got / window.SFFull.TOTAL).toFixed(1)}%` }} /></div>
+              <TweakButton secondary label="Cancel the download" onClick={full.cancel} />
+            </>}
+            {full.err && <div className="twk-note twk-err">{full.err}</div>}
+            {full.state === 'ready' && <>
+              {t.sfEngine === 'Full' && <div className="twk-note">Full Stockfish is kept in this browser ({sfMB(window.SFFull.TOTAL)} MB) and takes a few seconds to start. It reaches less depth than Lite in the same time but judges positions better.</div>}
+              {askRemove ? <>
+                <div className="twk-note" role="alert">Remove the full engine? You’d need to download {sfMB(window.SFFull.TOTAL)} MB again to use it.</div>
+                <div className="twk-pair">
+                  <TweakButton danger label="Remove" onClick={full.remove} />
+                  <TweakButton secondary label="Keep" onClick={() => setAskRemove(false)} />
+                </div>
+              </> : <TweakButton secondary label={`Remove the full engine download · ${sfMB(window.SFFull.TOTAL)} MB`} onClick={() => setAskRemove(true)} />}
+            </>}
+          </>}
           <TweakSlider id="tw-sf-depth" label="Game analysis: depth" value={ES.game.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfDepth', v)} />
           <TweakSlider id="tw-sf-time" label="Game analysis: time limit per position" value={ES.game.time_limit} min={SFL.seconds[0]} max={SFL.seconds[1]} step={0.5} unit="s" onChange={(v) => setTweak('sfTime', v)} />
           <TweakSlider id="tw-sf-odepth" label="Your moves: depth" value={ES.own.depth} min={SFL.depth[0]} max={SFL.depth[1]} step={1} onChange={(v) => setTweak('sfOwnDepth', v)} />

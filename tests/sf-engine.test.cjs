@@ -244,3 +244,17 @@ test('setHash waits for the running search, then applies before the next one', a
   e.setHash(128); e.search({ moves: [], depth: 5, movetimeMs: 100 }); await tick();
   assert.equal(w.posted.filter((s) => s === 'setoption name Hash value 128').length, 1, 'only when it changes');
 });
+
+test('quit resolves the running and queued searches with null, and later ones at once (switching engines mid-search)', async () => {
+  const w = fakeWorker();
+  const e = SF.create(() => w);
+  await e.ready();
+  const a = e.search({ moves: [], depth: 10, movetimeMs: 1000, priority: 'game' });
+  const b = e.search({ moves: ['e2e4'], depth: 10, movetimeMs: 1000, priority: 'game' });
+  await tick();
+  e.quit();
+  assert.equal(await a.promise, null);
+  assert.equal(await b.promise, null);
+  assert.equal(await e.search({ moves: [], depth: 10, movetimeMs: 1000 }).promise, null);
+  assert.ok(w.posted.includes('quit'));
+});

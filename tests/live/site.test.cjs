@@ -1173,6 +1173,58 @@ for (const name of BROWSERS) for (const site of SITES) {
       await off.ctx.close();
     });
 
+    // Settings › Engine › Full: stockfish.js's full engine (99 MB) from unpkg, kept in its own cache, run from there, removed.
+    // The real download (a route can't answer with a body this big: Chromium drops Playwright's connection)
+    await t.test('desktop: the full engine downloads once, runs from its kept copy, and can be removed', { timeout: 300000 }, async () => {
+      const fe = await open(browser, { width: 1440, height: 900 });
+      const p = fe.page;
+      let hits = 0;
+      fe.ctx.on('request', (r) => { if (r.url().startsWith('https://unpkg.com/stockfish@19.0.1/bin/')) hits++; });
+      await p.goto(base, { waitUntil: 'load' });
+      await loadedOn(p);
+      const openEngine = async () => {
+        await p.getByRole('button', { name: 'Settings' }).click();
+        await p.getByRole('tab', { name: 'Engine' }).click();
+      };
+      await openEngine();
+      await p.getByRole('radiogroup', { name: 'Engine' }).getByRole('radio', { name: /^Full · 99 MB/ }).click();
+      await p.getByRole('button', { name: /^Download full Stockfish · 99 MB/ }).click();
+      const remove = p.getByRole('button', { name: /^Remove the full engine download/ });
+      await remove.waitFor({ timeout: 240000 });
+      assert.equal(hits, 2, 'both files fetched once');
+      await assert.doesNotReject(p.getByText(/^Stockfish 19 runs in your browser/).waitFor({ timeout: 3000 }));
+      await p.screenshot({ path: path.join(OUT, host + '-engine-full.png') });
+      await p.keyboard.press('Escape');
+      // an own move is rated by the full engine, and the Analysis header names it
+      const b = await boardBox(p);
+      const from = square(b, 'd2'), to = square(b, 'd4');
+      await p.mouse.move(from.x, from.y);
+      await p.mouse.down();
+      await p.mouse.move(to.x, to.y, { steps: 8 });
+      await p.mouse.up();
+      await p.waitForFunction(() => /your move · .*(stockfish’s choice|cp vs|as good as|can’t run here|stopped)/i.test(document.body.innerText), null, { timeout: 60000 });
+      assert.doesNotMatch(await p.getByText(/your move ·/i).innerText(), /can’t run here|stopped/i);
+      assert.match(await p.evaluate(() => document.body.innerText), /Stockfish 19 · depth \d+/i);
+      // a reload finds the kept copy: nothing fetched again
+      await p.reload({ waitUntil: 'load' });
+      await loadedOn(p);
+      await openEngine();
+      await remove.waitFor({ timeout: 10000 });
+      assert.equal(hits, 2, 'nothing fetched after a reload');
+      // Remove asks first: Keep leaves the copy, Remove deletes it
+      await remove.click();
+      await p.getByRole('button', { name: 'Keep', exact: true }).click();
+      assert.equal(await p.evaluate(async () => (await caches.keys()).includes('stockfish-full-19')), true, 'Keep keeps the copy');
+      await remove.click();
+      await assert.doesNotReject(p.getByText(/^Remove the full engine\? You’d need to download 99 MB again/).waitFor({ timeout: 3000 }));
+      await p.getByRole('button', { name: 'Remove', exact: true }).click();
+      await assert.doesNotReject(p.getByRole('button', { name: /^Download full Stockfish/ }).waitFor({ timeout: 5000 }));
+      await assert.doesNotReject(p.getByText(/^Stockfish 19 lite runs in your browser/).waitFor({ timeout: 3000 }));
+      assert.equal(await p.evaluate(async () => (await caches.keys()).includes('stockfish-full-19')), false, 'the copy is gone');
+      assert.deepEqual(fe.errors, []);
+      await fe.ctx.close();
+    });
+
     // a pinch doesn't zoom the page (Chromium only: the pinch is a DevTools gesture, and Firefox has no phone emulation)
     if (name === 'chromium') await t.test('phone: a pinch doesn\'t zoom the page', async () => {
       const ph = await open(browser, { width: 390, height: 844 }, { isMobile: true, hasTouch: true });

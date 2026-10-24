@@ -17,6 +17,7 @@ const units = [
   ['play-core.js', read(path.join(app, 'play-core.js'))],
   ['games-core.js', read(path.join(app, 'games-core.js'))],
   ['sf-engine.js', read(path.join(app, 'sf-engine.js'))],
+  ['sf-full.js', read(path.join(app, 'sf-full.js'))],
   ['queen-core.js', read(path.join(app, 'queen-core.js'))],
   ['sounds-data.js', 'window.SFX_DATA = ' + JSON.stringify(soundsData()) + ';'],
   ['sfx-core.js', read(path.join(app, 'sfx-core.js'))],

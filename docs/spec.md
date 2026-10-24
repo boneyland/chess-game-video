@@ -7,7 +7,7 @@ The one spec for the app: what it does now, what is planned, and the decisions b
 ## Contents
 
 - [Principles](#principles)
-- [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish
+- [Built](#built): replay and browser analysis, opening names, custom starts and flip, free board and explorer, play vs human, My games, play vs Stockfish, full Stockfish download
 - [Roadmap](#roadmap): Lichess data and multi-threaded Stockfish, player names, Chess960, typed commentary, Maia3, background music
 - [Known gaps](#known-gaps)
 - [Decisions log](#decisions-log)
@@ -18,7 +18,7 @@ These hold across every feature; a change that breaks one is a failure even if i
 
 - **Nothing leaves the browser** unless the viewer turns it on (Ask Queen, and the planned Lichess features, each behind a toggle or button). No accounts of our own, no online play.
 - **The playing video stays clean.** Buttons, progress lines and engine controls are for the paused page; the frames of a playing video look as they always have.
-- **Nothing heavy starts by itself.** The engine (1.8 MB) loads on first use; whole-game analysis runs only when asked.
+- **Nothing heavy starts by itself.** The engine (1.8 MB) loads on first use; the full engine (99 MB) downloads only when the viewer asks; whole-game analysis runs only when asked.
 - **No hints in a game.** During Play vs human or Play vs Stockfish no eval bar, arrows, verdicts, book moves or engine lines show.
 - **Replay doesn't regress.** A loaded game's title card, timeline, export and own-move exploration are untouched by free-board and game features (which is why the free board is a separate view).
 - **Bad input explains itself.** An illegal FEN or broken PGN gets a plain message, never a crash.
@@ -51,7 +51,7 @@ The page replays a game (the sample, or a loaded PGN) as an animated video with 
 
 **Engine plumbing.**
 
-- nmrugg/stockfish.js **v19.0.1 `stockfish-19-lite-single`** (28 KB `.js` + 1.8 MB `.wasm`, GPL-3.0), vendored in `vendor/`, SHA-256 pinned in README, with a GPL source link in the page. The site serves it next to the page and starts `new Worker(...)` lazily; the artifact inlines it as a blob Worker with the wasm in base64.
+- nmrugg/stockfish.js **v19.0.1 `stockfish-19-lite-single`** (28 KB `.js` + 1.8 MB `.wasm`, GPL-3.0), vendored in `vendor/`, SHA-256 pinned in LAYOUT.md, with a GPL source link in the page. The site can also run the full engine the viewer downloads (see [Full Stockfish download](#full-stockfish-download)). The site serves it next to the page and starts `new Worker(...)` lazily; the artifact inlines it as a blob Worker with the wasm in base64.
 - One engine for the page (`SFEngine`), Hash 64 MB set once, no `ucinewgame` within an analysis. Priorities: the Stockfish opponent's `play`, then own moves, then game analysis; a running search is never interrupted.
 - Search limits are Settings sliders (Game analysis, Your moves), defaults in `TWEAK_DEFAULTS`.
 - Robustness: 30 s start timeout, then the worker is terminated and "Try again" retries; a dead engine reports "Stockfish stopped · play a move to restart it" and is replaced on next use; the site checks the wasm exists first; a run is dropped only when the game changes, and results merge into the current files.
@@ -114,6 +114,19 @@ A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, st
 - Same ends, Take back (back to the player's previous turn, Stockfish's reply included) and time controls as vs human, minus draw offers and claims: threefold repetition and the fifty-move rule end the game by themselves.
 - Stockfish quietly rates the player's moves (`critique`: `{ j, cls, best, text }`); an inaccuracy, mistake or blunder is flagged in the Commentary box with a short line, and the better move and evals show only after the game.
 
+### Full Stockfish download
+
+Some viewers want the strongest engine, as Lichess offers for local analysis. Settings › Engine › **Engine**: **Lite · 1.8 MB** (the default) or **Full · 99 MB**, on the site only (the artifact keeps the inline lite engine and doesn't show the choice).
+
+- Full is stockfish.js v19.0.1 **`stockfish-19-single`** (28 KB `.js` + 99 MB `.wasm`, the big NNUE net inside), single-threaded: the multi-thread build needs cross-origin isolation (PR 5). Not committed to git (just under GitHub's 100 MB limit); fetched from `https://unpkg.com/stockfish@19.0.1/bin/` (CORS open), both files checked in the browser against SHA-256s pinned in `app/sf-full.js` (`SFFull`).
+- Picking Full shows the size, where it comes from and a **Download full Stockfish · 99 MB** button; nothing downloads before the click. Progress shows by the megabyte with Cancel. Before fetching, `navigator.storage.estimate()` must leave room for the files plus 10%. Nothing is kept unless both files arrive whole (no more, no less than the pinned size) and match.
+- The files are kept in the cache `stockfish-full-19`, which `sw.js` never deletes (it clears only `chess-replay-*` caches on a deploy), and the page calls `navigator.storage.persist()` (Chrome decides by itself, Firefox asks). So it is a one-time download, offline afterwards, unless the browser evicts it, the viewer clears site data, or (Safari) the site goes unvisited for 7 days outside a home-screen app.
+- Until the copy is kept, and whenever it goes missing, Lite runs. Starting Full reads the copy once per page, checks the hashes again (a damaged copy is deleted and the setting offers the download again with a note) and starts the worker from Blob URLs, the glue reading its wasm URL from the `#hash` as the artifact's inline engine does.
+- Switching engines quits the running engine (its searches answer null) and stops a running analysis; its partial run keeps its key, which includes the engine name, so it resumes only with the engine that made it.
+- The engine name follows the engine that runs: "Stockfish 19 (browser)" for Full (`AnalysisCore.ENGINE_NAMES`, `engineSettings(t, kind)`), so the Analysis header reads "Stockfish 19 · depth …" and the analysis JSON records it. The own-move eval cache and the pace estimate (`chess-video.sf-pace.v1.full`) are kept per engine. Play vs Stockfish plays with whichever engine runs.
+- A kept copy shows **Remove the full engine download · 99 MB** (with Lite selected too), which asks first: "Remove the full engine? You'd need to download 99 MB again to use it." with **Remove** and **Keep**.
+- Tests: `tests/sf-full.test.cjs` (fake unpkg, Cache Storage and Worker: checksum, size, quota, cancel, damaged copy, remove); the live suite downloads the real files from unpkg in each browser, rates a move with Full, reloads without fetching again and removes the copy.
+
 ## Roadmap
 
 Planned, roughly in this order; each item gets its own PR(s) on a `claude/<topic>` branch. Items marked *needs design* have open questions to settle with the user before a plan.
@@ -170,6 +183,8 @@ Ship 1 to 4 first; 5 last and alone, since its headers affect every external loa
 - Tests: parser, token header only when signed in, 401 → "Sign in to use the explorer", filters change the cache key.
 
 **PR 5: Multi-threaded Stockfish lite.** stockfish.js v19.0.1 multi-thread lite **verify** file names and sizes; vendored and pinned as now. The single-thread files stay as the artifact's engine and the site's fallback.
+
+- The full engine (built 2026-10-24, single-threaded) gains its threaded build the same way: `stockfish-19.js` + `stockfish-19.wasm` (99 MB) from unpkg, pinned in `sf-full.js`, used when the page is isolated, with the single-thread full engine as the fallback. A viewer who already downloaded Full downloads the threaded file once more.
 
 - Cross-origin isolation: `render.yaml` headers on `/*`: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`. Then audit every cross-origin load (`grep https:// app/`): cdnjs/jsdelivr scripts (already `crossorigin` with SRI), Google Fonts (`crossorigin` on the links), Lichess `fetch` (CORS), the HF sign-in (must be a redirect, not a popup, under COOP), the Queen `mcp` call.
 - `sw.js` re-serves responses with the isolation headers and keeps the new engine files; `tests/live/serve.cjs` sends the same headers and the live suite asserts `crossOriginIsolated`.
@@ -259,6 +274,11 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - Settings still shows the "Your moves" sliders during a Stockfish game, where they don't apply.
 - No draw offers against Stockfish; the player can resign while Stockfish thinks.
 
+**Full Stockfish download** (2026-10-24)
+- The time estimate for Full starts from the lite engine's model until a run with Full has timed enough positions; the benchmarks behind the limits were not redone for Full.
+- A cancelled or failed download starts over (no resume), and the whole 99 MB is held in memory while it is checked.
+- The live suite downloads the 99 MB from unpkg in each browser on every run (a Playwright route can't answer with a body that big: Chromium drops the connection).
+
 ## Decisions log
 
 - 2026-10-16: browser Stockfish approved: lite single-thread v19.0.1 (not lichess-org/stockfish-web), depth 22 / 3 s for games and 24 / 3 s for own moves (later Settings sliders), Hash 64 MB; Analyse is a button in the empty Analysis panel, shown only while paused; start paused; keep results both in the browser and as a download; site for sure, artifact best effort. Lichess opening names added.
@@ -273,3 +293,4 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - 2026-10-23: vs human, threefold repetition and the fifty-move rule are claimed (fivefold and 75 moves automatic); a reload charges the running clock; a game resumed from My games runs its clock from then. Against Stockfish they stay automatic. A takeback giving back the time spent was tried and dropped: it felt like cheating.
 - 2026-10-23: dead positions behind locked pawns end the game (both modes), proven by flood fills, not a search: a position it can't prove plays on. Bishops of one colour count too (after a game reached one with a dark bishop walled in behind its own pawns).
 - 2026-10-23: specs merged into this file. Background music added: plays on the replay (also paused), free board and games; not in exports; bundled tracks plus the viewer's own file.
+- 2026-10-24: full Stockfish download approved: Lite stays the default; Full is the single-thread `stockfish-19-single` (the threaded build needs PR 5's isolation, so it would not start today), served by unpkg (not Render, to keep its bandwidth) and checked by SHA-256 in the browser, kept in its own cache; site only.
