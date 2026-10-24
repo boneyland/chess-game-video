@@ -82,164 +82,7 @@
     }
     return false;
   }
-  // ---------- board facts for commentary (static rules, no search) ----------
-  const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
-  const PNAME = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
   const tOf = (p) => p.toLowerCase();
-  const nm = (b, i) => (tOf(b[i]) === 'p' ? 'pawn ' : b[i].toUpperCase()) + idxSq(i);
-  const sideName = (c) => (c === 'w' ? 'White' : 'Black');
-  function attackersOf(b, sq, by) {
-    const out = [];
-    for (let i = 0; i < 64; i++) {
-      const p = b[i]; if (!p || colorOf(p) !== by || i === sq) continue;
-      const t = tOf(p);
-      if (t === 'p') { if (fy(sq) - fy(i) === (by === 'w' ? -1 : 1) && Math.abs(fx(sq) - fx(i)) === 1) out.push(i); }
-      else if (geo(b, i, sq, t)) out.push(i);
-    }
-    return out;
-  }
-  const targetsOf = (b, i) => { const c = colorOf(b[i]), out = []; for (let j = 0; j < 64; j++) if (b[j] && colorOf(b[j]) !== c && attackersOf(b, j, c).includes(i)) out.push(j); return out; };
-  function hanging(b, color) {
-    const out = [], opp = color === 'w' ? 'b' : 'w';
-    for (let i = 0; i < 64; i++) {
-      const p = b[i]; if (!p || colorOf(p) !== color || tOf(p) === 'k') continue;
-      const att = attackersOf(b, i, opp); if (!att.length) continue;
-      const def = attackersOf(b, i, color), minAtt = Math.min(...att.map((a) => VAL[tOf(b[a])]));
-      if (!def.length || minAtt < VAL[tOf(p)]) out.push({ i, att, def: def.length });
-    }
-    return out;
-  }
-  const LINES = { r: [[1, 0], [-1, 0], [0, 1], [0, -1]], b: [[1, 1], [1, -1], [-1, 1], [-1, -1]] };
-  LINES.q = LINES.r.concat(LINES.b);
-  function lineTactics(b, color) {
-    const pins = [], skewers = [];
-    for (let i = 0; i < 64; i++) {
-      const p = b[i]; if (!p || colorOf(p) !== color || !LINES[tOf(p)]) continue;
-      LINES[tOf(p)].forEach(([dx, dy]) => {
-        let x = fx(i) + dx, y = fy(i) + dy, first = -1;
-        while (x >= 0 && x < 8 && y >= 0 && y < 8) {
-          const j = at(x, y);
-          if (b[j]) {
-            if (colorOf(b[j]) === color) break;
-            if (first < 0) { first = j; } else {
-              const v1 = VAL[tOf(b[first])], v2 = VAL[tOf(b[j])];
-              if (v2 > v1 && v2 > VAL[tOf(p)] - (tOf(b[j]) === 'k' ? 99 : 0)) pins.push({ by: i, pinned: first, to: j });
-              else if (v1 > v2 && (tOf(b[first]) === 'k' || tOf(b[first]) === 'q') && tOf(b[j]) !== 'p' && (v2 > VAL[tOf(p)] || !attackersOf(b, j, colorOf(b[j])).length)) skewers.push({ by: i, front: first, back: j });
-              break;
-            }
-          }
-          x += dx; y += dy;
-        }
-      });
-    }
-    return { pins, skewers };
-  }
-  function passedPawns(b, color) {
-    const out = [];
-    for (let i = 0; i < 64; i++) {
-      if (b[i] !== (color === 'w' ? 'P' : 'p')) continue;
-      let passed = true;
-      for (let j = 0; j < 64 && passed; j++) {
-        if (b[j] !== (color === 'w' ? 'p' : 'P') || Math.abs(fx(j) - fx(i)) > 1) continue;
-        if (color === 'w' ? fy(j) < fy(i) : fy(j) > fy(i)) passed = false;
-      }
-      if (passed) out.push(i);
-    }
-    return out;
-  }
-  const mobility = (b, i) => { let n = 0; const p = b[i], t = tOf(p), col = colorOf(p); for (let j = 0; j < 64; j++) if (j !== i && canReach(b, i, j, t, col, -1)) n++; return n; };
-  const sideMobility = (b, col) => { let n = 0; for (let i = 0; i < 64; i++) if (b[i] && colorOf(b[i]) === col && tOf(b[i]) !== 'p') n += mobility(b, i); return n; };
-  const fileName = (x) => FILES[x] + '-file';
-  function positional(before, b, mv, me, opp, moved) {
-    const out = [], x = fx(mv.to), y = fy(mv.to), fwd = me === 'w' ? -1 : 1;
-    const pawnsOn = (col, fx_) => { let n = 0; for (let yy = 0; yy < 8; yy++) if (b[at(fx_, yy)] === (col === 'w' ? 'P' : 'p')) n++; return n; };
-    if (moved !== 'p' && moved !== 'k') {
-      const m0 = mobility(before.b, mv.from), m1 = mobility(b, mv.to);
-      if (m1 - m0 >= 3) out.push(`more active: ${m0} → ${m1} squares`);
-      else if (m0 - m1 >= 4) out.push(`less active: ${m0} → ${m1} squares`);
-      const rel = me === 'w' ? 8 - y : y + 1;
-      const ownPawnDef = [x - 1, x + 1].some((xx) => b[at(xx, y - fwd)] === (me === 'w' ? 'P' : 'p'));
-      let kickable = false;
-      for (const xx of [x - 1, x + 1]) for (let yy = 0; yy < 8; yy++) if (b[at(xx, yy)] === (opp === 'w' ? 'P' : 'p') && (me === 'w' ? yy < y : yy > y)) kickable = true;
-      if (rel >= 4 && rel <= 6 && ownPawnDef && !kickable) out.push('outpost on ' + idxSq(mv.to) + ': protected by a pawn and no enemy pawn can chase it away');
-      if (moved === 'r' || moved === 'q') {
-        const own = pawnsOn(me, x), theirs = pawnsOn(opp, x);
-        if (!own && !theirs) out.push('on the open ' + fileName(x));
-        else if (!own) out.push('on the half-open ' + fileName(x) + ' facing Black'.replace('Black', opp === 'w' ? 'White' : 'Black') + "'s pawns");
-        if (rel === 7) out.push('reaches the 7th rank, behind the enemy pawns');
-        for (let yy = 0; yy < 8; yy++) { const j = at(x, yy); if (j !== mv.to && b[j] && colorOf(b[j]) === me && 'rq'.includes(tOf(b[j])) && geo(b, j, mv.to, 'r')) out.push('lines up with ' + nm(b, j) + ' on the ' + fileName(x)); }
-      }
-      if ((moved === 'n' || moved === 'b') && x >= 2 && x <= 5 && y >= 2 && y <= 5 && !(x >= 2 && x <= 5 && fy(mv.from) >= 2 && fy(mv.from) <= 5)) out.push('centralised');
-      const eyes = targetsOf(b, mv.to).filter((j) => tOf(b[j]) === 'p');
-      if (eyes.length) out.push('eyes pawn' + (eyes.length > 1 ? 's ' : ' ') + eyes.map((j) => idxSq(j)).join(', '));
-    }
-    if (moved === 'p') {
-      const rel = me === 'w' ? 8 - y : y + 1;
-      if (rel === 5 && x >= 2 && x <= 5) out.push('gains space in the centre');
-      const hits = [x - 1, x + 1].map((xx) => at(xx, y + fwd)).filter((j) => j >= 0 && b[j] === (opp === 'w' ? 'P' : 'p'));
-      if (hits.length) out.push('pawn break: challenges ' + hits.map((j) => 'pawn ' + idxSq(j)).join(' and '));
-      const k = kingIdx(b, me);
-      if (k >= 0 && Math.abs(fx(k) - fx(mv.from)) <= 1 && Math.abs(fy(k) - fy(mv.from)) <= 2 && (fx(k) <= 2 || fx(k) >= 5)) out.push('moves a pawn in front of its own king (loosens the shelter)');
-    }
-    for (const col of ['w', 'b']) {
-      const P = col === 'w' ? 'P' : 'p';
-      for (let xx = 0; xx < 8; xx++) {
-        const isoNow = pawnsOn(col, xx) && !pawnsOn(col, xx - 1 < 0 ? 9 : xx - 1) && !pawnsOn(col, xx + 1 > 7 ? 9 : xx + 1);
-        const cnt0 = before.b.filter((p, i) => p === P && fx(i) === xx).length;
-        const iso0 = cnt0 && ![xx - 1, xx + 1].some((f) => f >= 0 && f < 8 && before.b.some((p, i) => p === P && fx(i) === f));
-        if (isoNow && !iso0) out.push(sideName(col) + ' now has an isolated pawn on the ' + fileName(xx));
-        if (pawnsOn(col, xx) >= 2 && cnt0 < 2) out.push(sideName(col) + ' now has doubled pawns on the ' + fileName(xx));
-      }
-    }
-    const om0 = sideMobility(before.b, opp), om1 = sideMobility(b, opp);
-    if (om0 - om1 >= 4) out.push(`restricts ${sideName(opp)}: their pieces have ${om0 - om1} fewer squares`);
-    return out;
-  }
-  const material = (b) => b.reduce((s, p) => (p && tOf(p) !== 'k' ? s + (colorOf(p) === 'w' ? 1 : -1) * VAL[tOf(p)] : s), 0);
-  function boardFacts(before, after, mv) {
-    const b = after.b, me = colorOf(b[mv.to]), opp = me === 'w' ? 'b' : 'w', facts = [];
-    const moved = tOf(b[mv.to]);
-    const cap = before.b[mv.to] || (after.epCap >= 0 ? before.b[after.epCap] : null);
-    if (cap) facts.push('captures ' + PNAME[tOf(cap)]);
-    if (mv.promo) facts.push('promotes to ' + PNAME[mv.promo]);
-    if (moved === 'k' && Math.abs(fx(mv.to) - fx(mv.from)) === 2) facts.push(fx(mv.to) === 6 ? 'castles kingside' : 'castles queenside');
-    const k = kingIdx(b, opp);
-    if (k >= 0) {
-      const checkers = attackersOf(b, k, me);
-      if (checkers.length > 1) facts.push('double check');
-      else if (checkers.length === 1 && checkers[0] !== mv.to) facts.push('discovered check by ' + nm(b, checkers[0]));
-    }
-    const forkT = targetsOf(b, mv.to).filter((j) => tOf(b[j]) === 'k' || (VAL[tOf(b[j])] >= 3 && (VAL[tOf(b[j])] > VAL[moved] || !attackersOf(b, j, opp).length)));
-    if (forkT.length >= 2) facts.push('fork: ' + nm(b, mv.to) + ' attacks ' + forkT.map((j) => nm(b, j)).join(' and '));
-    else {
-      const threat = targetsOf(b, mv.to).filter((j) => tOf(b[j]) !== 'k' && (VAL[tOf(b[j])] > VAL[moved] || !attackersOf(b, j, opp).length));
-      if (threat.length) facts.push(nm(b, mv.to) + ' now attacks ' + threat.map((j) => nm(b, j) + (attackersOf(b, j, opp).length ? '' : ' (undefended)')).join(', '));
-    }
-    const key = (o) => Object.values(o).join('-');
-    const lb = lineTactics(before.b, me), la = lineTactics(b, me);
-    la.pins.filter((p) => !lb.pins.some((q) => key(q) === key(p))).forEach((p) => facts.push('pin: ' + nm(b, p.by) + ' pins ' + nm(b, p.pinned) + ' to ' + nm(b, p.to)));
-    la.skewers.filter((p) => !lb.skewers.some((q) => key(q) === key(p))).forEach((p) => facts.push('skewer: ' + nm(b, p.by) + ' hits ' + nm(b, p.front) + ' with ' + nm(b, p.back) + ' behind'));
-    const oppPins = lineTactics(b, opp).pins.filter((p) => colorOf(b[p.pinned]) === me);
-    oppPins.forEach((p) => facts.push(sideName(me) + "'s " + nm(b, p.pinned) + ' is pinned to ' + nm(b, p.to) + ' by ' + nm(b, p.by)));
-    const hMine = hanging(b, me);
-    const movedHang = hMine.find((h) => h.i === mv.to);
-    if (movedHang) {
-      const by = movedHang.att.map((a) => nm(b, a)).join(' or ');
-      const gain = cap ? VAL[tOf(cap)] : 0;
-      if (gain >= VAL[moved] - (movedHang.def ? 1 : 0)) facts.push('can be recaptured by ' + by + ' (a trade)');
-      else facts.push('the moved piece can be taken by ' + by + (movedHang.def ? ' (it is defended)' : ' (undefended)') + ' — a sacrifice or an oversight');
-    }
-    hMine.filter((h) => h.i !== mv.to && !hanging(before.b, me).some((x) => x.i === h.i)).forEach((h) => facts.push(sideName(me) + ' leaves ' + nm(b, h.i) + ' en prise to ' + h.att.map((a) => nm(b, a)).join(' or ')));
-    const hOpp = hanging(b, opp).filter((h) => VAL[tOf(b[h.i])] >= 3);
-    if (hOpp.length) facts.push(sideName(opp) + ' pieces under attack: ' + hOpp.map((h) => nm(b, h.i)).join(', '));
-    const pb = passedPawns(before.b, me), pa = passedPawns(b, me);
-    pa.filter((i) => !pb.includes(i) && !(moved === 'p' && i === mv.to && pb.includes(mv.from))).forEach((i) => facts.push('new passed pawn on ' + idxSq(i)));
-    if (moved === 'p' && pa.includes(mv.to)) { const r = me === 'w' ? 8 - fy(mv.to) : fy(mv.to) + 1; if (r >= 6) facts.push('passed pawn reaches the ' + r + 'th rank'); }
-    try { positional(before, b, mv, me, opp, moved).forEach((f) => facts.push(f)); } catch (e) {}
-    const m = material(b);
-    facts.push('material ' + (m === 0 ? 'level' : (m > 0 ? 'White +' : 'Black +') + Math.abs(m)));
-    return facts;
-  }
 
   function sanToMove(pos, san) {
     let s = san.replace(/[+#!?]+$/, '');
@@ -403,12 +246,12 @@
   }
 
   const ends = (N) => ({ intro: (N && N.intro) || '', conclusion: (N && (N.conclusion || N.result)) || '' });
-  const SAY_ORDER = ['notes', 'claude', 'pgn']; // a notes file wins over Claude, Claude over the PGN's comments
+  const SAY_ORDER = ['notes', 'pgn']; // a notes file wins over the PGN's comments
 
   // the sources of commentary this game has
   const commentarySources = (M) => SAY_ORDER.filter((k) => M.says && (M.says[k].intro || M.says[k].conclusion || M.plies.some((p) => p.says && p.says[k])));
 
-  // M with only the commentary of the sources show leaves on ({ pgn, claude, notes }; a missing key is on)
+  // M with only the commentary of the sources show leaves on ({ pgn, notes }; a missing key is on)
   function withCommentary(M, show) {
     if (!M.says || SAY_ORDER.every((k) => show[k] !== false)) return M;
     const on = SAY_ORDER.filter((k) => show[k] !== false);
@@ -425,12 +268,10 @@
     let P = null, gameCount = 1;
     if (pgn) { const games = splitGames(pgn); if (!games.length) throw new Error('The PGN has no games'); gameCount = games.length; P = parsePGN(games[Math.min(gameIndex, games.length - 1)]); }
     const A = analysis ? (typeof analysis === 'string' ? JSON.parse(analysis) : analysis) : null;
-    // commentary layers, lowest priority first: bundled sample notes, AI-written, user's notes file; each source is
+    // commentary layers, lowest priority first: bundled sample notes, user's notes file; each source is
     // kept apart too (ply.says, M.says), so withCommentary can show some of them
     const merge = (ls) => (ls.length ? ls.reduce((acc, n) => ({ ...acc, ...n, plies: { ...acc.plies, ...n.plies } }), { plies: {} }) : null);
-    const NC = files.aiNotes ? parseNotes(files.aiNotes) : null;
-    const NF = merge([files.sampleNotes, notes].filter(Boolean).map(parseNotes));
-    const NT = merge([files.sampleNotes, files.aiNotes, notes].filter(Boolean).map(parseNotes));
+    const NT = merge([files.sampleNotes, notes].filter(Boolean).map(parseNotes));
     const pgnHasEval = !!P && P.plies.some((p) => p.cp != null || p.mate != null);
     const useA = !!A && !(files.evalSource === 'pgn' && pgnHasEval);
     const H = P ? P.headers : {};
@@ -451,8 +292,6 @@
       if (A && P && am && am.move_san.replace(/[+#]/g, '') !== san.replace(/[+#]/g, '')) throw new Error(`The analysis file doesn't match this PGN at ply ${i + 1}`);
       const before = pos, mv = sanToMove(pos, san);
       pos = applyMove(pos, mv.from, mv.to, mv.promo);
-      let facts = [];
-      try { facts = boardFacts(before, pos, mv); } catch (e) {}
       const pp = P ? P.plies[i] : {};
       const check = inCheck(pos.b, pos.turn);
       const ply = { san: san.replace(/[#+]/g, '') + (check ? (hasLegal(pos) ? '+' : '#') : ''), uci: idxSq(mv.from) + idxSq(mv.to) + (mv.promo || ''), side: (ply0 + i) % 2 ? 'b' : 'w' };
@@ -461,7 +300,6 @@
       ply.fen = toFen(pos);
       ply.castle = pos.castle;
       ply.ep = pos.ep; // the FEN carries neither, so positions rebuilt from it need both
-      ply.facts = ply.checkmate ? ['checkmate'] : facts;
       ply.capture = !!before.b[mv.to] || pos.epCap >= 0;
       // analysis files encode mate in N as ±(10000 − 10·N), White's point of view
       if (am && typeof am.eval_after === 'number') { if (Math.abs(am.eval_after) >= 9000) ply.mate = Math.sign(am.eval_after) * Math.max(1, Math.round((10000 - Math.abs(am.eval_after)) / 10)); else ply.cp = am.eval_after; }
@@ -481,15 +319,13 @@
       if (am && am.mate_advice) ply.advice = am.mate_advice;
       // the search of the position after the move, as it actually ran
       if (am && am.search_depth_after) ply.search = { depth: am.search_depth_after, maxDepth: am.search_maxdepth_after || am.search_depth_after, timeMs: am.search_time_after_ms == null ? null : am.search_time_after_ms, nodes: am.search_nodes_after == null ? null : am.search_nodes_after };
-      const nextA = useA && A.moves[i + 1];
-      if (nextA && nextA.best_line && nextA.best_line.length) ply.expect = nextA.best_line.slice(0, 6);
       if (pp.clk != null) ply.clk = pp.clk;
       const note = NT && NT.plies[i + 1];
       if (pp.vars) ply.pgnVars = pp.vars;
       if (pp.nags) ply.nags = pp.nags;
       ply.pgnComment = pp.comment || '';
       ply.comment = note || pp.comment || '';
-      ply.says = { pgn: pp.comment || '', claude: (NC && NC.plies[i + 1]) || '', notes: (NF && NF.plies[i + 1]) || '' };
+      ply.says = { pgn: pp.comment || '', notes: (NT && NT.plies[i + 1]) || '' };
       plies.push(ply);
     });
     // PGN-only evals: rate unmarked moves by win-chance drop (Lichess thresholds)
@@ -541,8 +377,8 @@
       event: clean(H.Event) || (A && A.event) || '', round, site: clean(H.Site) || (A && A.site) || '', date: fmtDate(clean(H.Date) || (A && A.date)), pgnDate: clean(H.Date) || (A && clean(A.date)) || '',
       eco: opening.eco, opening: opening.name,
       result, intro: (NT && NT.intro) || (P && P.intro) || '', conclusion: (NT && (NT.conclusion || NT.result)) || '',
-      says: { pgn: { intro: (P && P.intro) || '', conclusion: '' }, claude: ends(NC), notes: ends(NF) },
-      engine, engineName: eng ? eng.name || '' : '', start: { fen: start.fen, pos: start.pos }, ply0, plies, evalStart, evalStartKnown, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, hasAiNotes: !!files.aiNotes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
+      says: { pgn: { intro: (P && P.intro) || '', conclusion: '' }, notes: ends(NT) },
+      engine, engineName: eng ? eng.name || '' : '', start: { fen: start.fen, pos: start.pos }, ply0, plies, evalStart, evalStartKnown, hasEval, hasClock, clockStart, gameCount, hasAnalysis: !!A, hasNotes: !!notes, headers: H, evalSource: useA ? 'analysis' : pgnHasEval ? 'pgn' : 'none', canChooseSource: !!A && pgnHasEval,
     };
   }
 
@@ -631,56 +467,6 @@
       const end = to >= N ? TM.total : to + 1 < N ? S.tp[to + 1] - 0.12 : Math.min(S.tp[to] + S.md[to] + 3, CUES.Outro - 0.1);
       return { start, end: Math.max(start, end) };
     };
-  }
-
-  // ---------- AI commentary ----------
-  const fmtCp = (p) => (p.checkmate ? 'checkmate' : p.mate != null ? (p.mate > 0 ? '+M' : '-M') + Math.abs(p.mate) : p.cp != null ? (p.cp >= 0 ? '+' : '') + (p.cp / 100).toFixed(2) : 'n/a');
-  const fmtClk = (s) => (s == null ? '' : Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'));
-  const numbered = (start, line, ply0) => line.map((m, j) => { const ply = (ply0 || 0) + start + j, w = ply % 2 === 0, n = Math.floor(ply / 2) + 1; return (w ? n + '. ' : j === 0 ? n + '... ' : '') + m; }).join(' ');
-  function commentaryPrompt(M, o) {
-    const tone = { Broadcast: 'lively live-broadcast commentary: vivid, confident, a little dramatic, but never hype for its own sake', Lesson: 'a coach teaching club players: explain the idea and the lesson behind each moment', Concise: 'terse, precise annotation in the style of a chess magazine' }[o.tone] || 'lively broadcast commentary';
-    const audience = { Beginners: 'viewers who know how the pieces move but not much strategy. Avoid jargon; when you must use a term (outpost, pin, open file, passed pawn), explain it in a few plain words', 'Club players': 'club players who know common terms (pins, outposts, open files) but want the ideas made clear', Experts: 'strong players; you may use technical language freely' }[o.audience || 'Beginners'];
-    const density = o.density === 'Detailed' ? 'about one comment every 2-3 moves on average, plus every critical moment' : 'only the key moments: roughly 10-18 comments for a typical game';
-    const system = [
-      'You write on-screen commentary captions for an animated chess game-review video.',
-      'Style: ' + tone + '.',
-      'Ground every claim in the data provided (moves, FEN positions, engine evals in pawns from White\'s point of view, move ratings, best lines, clocks, annotator notes). Do not invent facts about the players, the event or its history beyond the headers. If you are not sure a tactic exists, describe the evaluation change instead of guessing.',
-      '"board facts" are computed from each position by simple static rules (captures, checks, forks, pins, skewers, pieces left en prise, passed pawns, material). They are accurate statements about the position, but they do not prove a tactic works: a piece "en prise" may be a deliberate sacrifice, and a "fork" may be met by a counter-attack. Use the evals and best lines to judge which facts actually matter, and build the explanation around them. Never claim a tactic that is not in the board facts or best lines.',
-      'Audience: ' + audience + '.',
-      'Quiet moves (no capture, no check) are often the most confusing for viewers. When a quiet move matters — the engine rates it best and the eval rises, or it starts a plan, or it looks odd — explain its purpose: which square, file or rank it takes, what it attacks or prepares (use the "engine expects next" line to see the plan), and what it stops the opponent from doing. Use the positional board facts (activity, outposts, open files, pawn breaks, restriction) as your evidence.',
-      'Choose moments that matter: every rated mistake, the largest eval swings, sacrifices, decisive captures and checks, time trouble visible from the clocks, and the final move. Coverage: ' + density + '.',
-      'Each comment: at most 120 characters (up to 160 when explaining a quiet move), one or two short sentences, plain English. Explain the idea (why the move is good or bad, what it threatens, what was better) rather than just restating the number. For mistakes, name the better move from the best line. Refer to moves in SAN with their number, e.g. 28.Qxb5?? or 20...Qb7?!.',
-      'Also write an intro (at most 140 characters, shown on the title card before move 1) and a conclusion (at most 140 characters, shown on the end card).',
-      'Reply with JSON only, no prose, in this exact shape: {"intro":"...","conclusion":"...","comments":[{"ply":12,"text":"..."}]}. ply counts half-moves: 1 is the first move listed, 2 the next.',
-    ].join('\n');
-    const head = ['White: ' + [M.white.name, M.white.title, M.white.elo].filter(Boolean).join(' '), 'Black: ' + [M.black.name, M.black.title, M.black.elo].filter(Boolean).join(' '), 'Event: ' + [M.event, M.round && 'round ' + M.round, M.site, M.date].filter(Boolean).join(', '), 'Opening: ' + [M.eco, M.opening].filter(Boolean).join(' '), 'Result: ' + M.result].join('\n');
-    const lines = M.plies.map((p, i) => {
-      const mv = moveNo((M.ply0 || 0) + i).replace('…', '...') + p.san + (p.mark || '');
-      const prev = i ? M.plies[i - 1] : null;
-      const parts = ['ply ' + (i + 1), mv + ' (' + (p.side === 'w' ? 'White' : 'Black') + ')'];
-      if (M.hasEval) parts.push('eval ' + (prev ? fmtCp(prev) : M.start.fen === START_FEN ? '+0.20' : M.evalStartKnown ? fmtCp({ cp: M.evalStart }) : '?') + ' -> ' + fmtCp(p));
-      if (p.cls && p.cls !== 'none' && p.cls !== 'best') parts.push(p.cls + (p.loss ? ' (-' + p.loss + 'cp)' : ''));
-      if (p.best && p.cls !== 'best') parts.push('best: ' + numbered(i, p.best.line.slice(0, 8), M.ply0));
-      if (p.clk != null) parts.push('clock after move ' + fmtClk(p.clk));
-      if (p.expect) parts.push('engine expects next: ' + numbered(i + 1, p.expect, M.ply0));
-      if (p.facts && p.facts.length) parts.push('board facts: ' + p.facts.join('; '));
-      if (p.pgnComment) parts.push('annotator: "' + p.pgnComment.slice(0, 160) + '"');
-      parts.push('FEN ' + p.fen);
-      return parts.join(' | ');
-    });
-    return { system, user: head + '\n\nMoves:\n' + lines.join('\n') };
-  }
-  function parseCommentary(text, N) {
-    const s = text.indexOf('{'), e = text.lastIndexOf('}');
-    if (s < 0 || e < s) throw new Error('no JSON in the reply');
-    const j = JSON.parse(text.slice(s, e + 1));
-    const one = (t) => String(t || '').replace(/\s+/g, ' ').trim();
-    const out = [];
-    if (j.intro) out.push('[INTRO]\n' + one(j.intro));
-    (j.comments || []).filter((x) => x && +x.ply >= 1 && +x.ply <= N && x.text).sort((a, b) => a.ply - b.ply).forEach((x) => out.push('[' + +x.ply + '] ' + one(x.text)));
-    if (j.conclusion) out.push('[CONCLUSION]\n' + one(j.conclusion));
-    if (out.length < 2) throw new Error('the reply had no comments');
-    return out.join('\n\n') + '\n';
   }
 
   // ---------- annotated PGN ----------
@@ -846,5 +632,5 @@
     for (let m = step; 2 * m - ply0 <= N; m += step) if (2 * (m - 1) - ply0 >= 0) ticks.push({ m, at: 2 * (m - 1) - ply0 });
     return ticks;
   }
-  window.ChessCore = { START_FEN, fmtDate, hasLegal, inCheck, evalTicks, parseFen, fenAfter, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, commentaryPrompt, parseCommentary, buildGame, withCommentary, commentarySources, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
+  window.ChessCore = { START_FEN, fmtDate, hasLegal, inCheck, evalTicks, parseFen, fenAfter, moveNo, sqIndex: sqIdx, applySan, applyUci, stepFromUci, toFen, playLine, posFromFen, legalTargets, isPromotion, userMove, buildGame, withCommentary, commentarySources, classifyFile, plan, timing, schedule, cues, clipRange, winChance, plyCp, MARK_CLASS, annotatedPgn };
 })();

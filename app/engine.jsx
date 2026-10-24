@@ -1,5 +1,5 @@
 // Continuous-composition animation engine, trimmed from Claude Design's animations-v3.jsx
-// for a standalone artifact: no host timeline, no video export, no watercolor kit.
+// for a standalone page: no host timeline, no video export, no watercolor kit.
 // The whole video is one element tree rendered as a pure function of authored time T.
 
 const Easing = {

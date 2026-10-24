@@ -18,17 +18,17 @@ test('the sample commentary has an intro and comments on moves', () => {
   assert.ok((window.SAMPLE_NOTES.match(/^\[\d+\] /gm) || []).length >= 5);
 });
 
-// String.replace would expand $' or $& in a script; both pages must carry each plain unit's code as written
-test('the built pages inline the plain units verbatim', () => {
-  const pages = [['out', 'site', 'chess-game-video.html'], ['out', 'chess-game-video.html']].map((f) => fs.readFileSync(path.join(ROOT, ...f), 'utf8'));
+// String.replace would expand $' or $& in a script; the page must carry each plain unit's code as written
+test('the built page inlines the plain units verbatim', () => {
+  const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');
   const units = ['src/pieces.js', 'app/chess-core.js', 'app/analysis-core.js', 'app/openings-core.js', 'app/board-core.js', 'app/play-core.js', 'app/games-core.js', 'app/sf-engine.js', 'app/queen-core.js', 'app/sfx-core.js', 'app/webp-core.js', 'src/sample-game.js', 'src/game-data.js', 'app/sample-analysis.js'];
   for (const u of units) {
     const code = fs.readFileSync(path.join(ROOT, u), 'utf8');
-    pages.forEach((page, k) => assert.ok(page.includes(code), u + (k ? ' (artifact)' : ' (site)')));
+    assert.ok(page.includes(code), u);
   }
 });
 
-// The self-hosted page keeps a Hugging Face token in localStorage, so no CDN script may run unchecked
+// The page keeps a Hugging Face token in localStorage, so no CDN script may run unchecked
 test('every script from a CDN is pinned by an integrity hash', () => {
   const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');
   const tags = page.match(/<script\b[^>]*\ssrc="https:[^"]*"[^>]*>/g) || [];
@@ -39,9 +39,9 @@ test('every script from a CDN is pinned by an integrity hash', () => {
   assert.match(page, /\.integrity = EXPORT_LIBS\.html2canvasHash/);
 });
 
-// The Lichess sound sets travel inside the page (the artifact can't load files next to it)
+// The Lichess sound sets travel inside the page
 test('the built page carries the four Lichess sound sets as MP3s, and the Wood set needs no data', () => {
-  const page = fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8');
+  const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');
   const data = JSON.parse(page.match(/window\.SFX_DATA = (\{.*?\});\n/)[1]);
   assert.deepEqual(Object.keys(data), ['futuristic', 'nes', 'piano', 'sfx']);
   for (const [set, sounds] of Object.entries(data)) {
@@ -63,8 +63,8 @@ test('the page stylesheet opens and closes its braces in pairs', () => {
   assert.equal(depth, 0, 'unclosed {');
 });
 
-// claude.ai gives the artifact its tab title and preview; the self-hosted page carries its own
-test('the self-hosted page has a description, a preview title and an icon', () => {
+// the page carries its own tab title and link preview
+test('the page has a description, a preview title and an icon', () => {
   const head = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8').split('</head>')[0];
   assert.match(head, /<meta name="description" content="[^"]{40,}">/);
   assert.match(head, /<meta property="og:title" content="Chess Replay">/);
@@ -72,7 +72,7 @@ test('the self-hosted page has a description, a preview title and an icon', () =
 });
 
 // link previews: an absolute og:image URL ending in the 1653×944 PNG written next to the page
-test('the self-hosted page has a large link-preview image', () => {
+test('the page has a large link-preview image', () => {
   const site = path.join(ROOT, 'out', 'site');
   const head = fs.readFileSync(path.join(site, 'chess-game-video.html'), 'utf8').split('</head>')[0];
   assert.match(head, /<meta property="og:image" content="https:\/\/[^"\/]+\/og-image\.png">/);
@@ -83,8 +83,8 @@ test('the self-hosted page has a large link-preview image', () => {
   assert.ok(b.length < 1e6, 'under 1 MB');
 });
 
-// Add to Home Screen: the self-hosted page links a manifest whose icons are PNGs written next to it
-test('the self-hosted page links a web app manifest, and its icons are written next to it', () => {
+// Add to Home Screen: the page links a manifest whose icons are PNGs written next to it
+test('the page links a web app manifest, and its icons are written next to it', () => {
   const site = path.join(ROOT, 'out', 'site');
   const head = fs.readFileSync(path.join(site, 'chess-game-video.html'), 'utf8').split('</head>')[0];
   assert.match(head, /<link rel="manifest" href="manifest\.webmanifest">/);
@@ -102,11 +102,6 @@ test('the self-hosted page links a web app manifest, and its icons are written n
   assert.equal(png('apple-touch-icon.png'), '180x180');
 });
 
-// claude.ai provides the artifact's document shell, so the artifact carries no manifest
-test('the artifact links no manifest', () => {
-  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8'), /rel="manifest"/);
-});
-
 // the site serves the engine and the WebP encoder next to the page, unchanged
 test('the site carries the vendored wasm files as they are', () => {
   for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm']) {
@@ -115,7 +110,7 @@ test('the site carries the vendored wasm files as they are', () => {
   assert.match(fs.readFileSync(path.join(ROOT, 'app', 'export.jsx'), 'utf8'), /WEBP_LIB = \{ js: 'webp_enc_simd\.js', wasm: 'webp_enc_simd\.wasm' \}/);
 });
 
-// sw.js keeps every file the self-hosted page needs, so it works offline; the artifact (in claude.ai) registers none
+// sw.js keeps every file the page needs, so it works offline
 test('the service worker keeps the page, its files and every CDN file the page loads', () => {
   const site = path.join(ROOT, 'out', 'site'), page = fs.readFileSync(path.join(site, 'chess-game-video.html'), 'utf8');
   const sw = fs.readFileSync(path.join(site, 'sw.js'), 'utf8');
@@ -128,11 +123,10 @@ test('the service worker keeps the page, its files and every CDN file the page l
   for (const u of cdn) assert.ok(REMOTE.includes(u), u);
   assert.ok(REMOTE.some((u) => u.startsWith('https://fonts.googleapis.com/css2?')), 'the fonts');
   assert.match(page, /navigator\.serviceWorker\.register\('sw\.js'/);
-  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'out', 'chess-game-video.html'), 'utf8'), /serviceWorker\.register/);
 });
 
-// the self-hosted page doesn't zoom; a browser set to ignore that still can
-test('the self-hosted page asks the browser not to zoom', () => {
+// the page doesn't zoom; a browser set to ignore that still can
+test('the page asks the browser not to zoom', () => {
   const page = fs.readFileSync(path.join(ROOT, 'out', 'site', 'chess-game-video.html'), 'utf8');
   const vp = page.match(/<meta name="viewport" content="([^"]*)">/)[1].split(/,\s*/);
   for (const v of ['width=device-width', 'initial-scale=1', 'maximum-scale=1', 'user-scalable=no']) assert.ok(vp.includes(v), v);
