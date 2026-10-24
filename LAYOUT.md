@@ -8,6 +8,7 @@ What each part of the repo is, with the pinned SHA-256 of every vendored file. B
   - `engine.jsx`: the animation engine (the replay is one element tree drawn as a function of time); `game-video-core.jsx` the replay's scenes and layouts (`LAYOUTS.wide`, `tallLayout`)
   - `chess-core.js`: PGN, analysis and notes turned into the game model the replay draws
   - `analysis-core.js`, `sf-engine.js`, `stockfish.jsx`: Stockfish in the browser (a Web Worker over UCI) and the move ratings, ported from chess-animator's Python
+  - `sf-full.js`: the full engine the viewer can download (Settings › Engine), checked and kept in the browser
   - `openings-core.js`: opening names and book continuations (the opening explorer)
   - `board-core.js`, `free-board.jsx`: the free board (Play/Explore); `play-core.js` its games (rules, clocks, takebacks, the end); `games-core.js` My games
   - `queen-core.js`, `queen.jsx`: Ask Queen and its Hugging Face sign-in
@@ -20,6 +21,9 @@ What each part of the repo is, with the pinned SHA-256 of every vendored file. B
 - `vendor/`: stockfish.js v19.0.1 `lite-single` (GPL-3.0, https://github.com/nmrugg/stockfish.js), unchanged release files
   - `stockfish-19-lite-single.js` sha256 `ccb130d7ff29408531c47d859a49f91d59d4f482d05a53eb1a3231a4f624c91a`
   - `stockfish-19-lite-single.wasm` sha256 `ee4f115bdb2d32cadf96cada104a05b5ec257d7ad6f57582190b49bc71f096de`
+- Not vendored: the full engine, stockfish.js v19.0.1 `single` (GPL-3.0), which the browser downloads from `https://unpkg.com/stockfish@19.0.1/bin/` when the viewer asks and checks against these (pinned in `app/sf-full.js`)
+  - `stockfish-19-single.js` (28,130 bytes) sha256 `8071dee87312f74805a859de933e1a1ef465579ab1a51fbd597388cdce9d444d`
+  - `stockfish-19-single.wasm` (99,169,054 bytes) sha256 `991bede2f253ebb08ff01fcc48270f4b9c8e66b12d5bd5f8d6f52eb3e3b3a740`
 - `vendor/webp_enc_simd.*`: the WebP export's encoder, libwebp 1.1.0 (BSD-3-Clause, `webp_enc_simd.LICENSE`) built to WebAssembly by Squoosh, unchanged files from `codec/enc/` in @jsquash/webp 1.5.0 (Apache-2.0, https://github.com/jamsinclair/jSquash); the site serves them next to the page. `tests/fixtures/webp_dec.*` is the same package's decoder, used only by the tests
   - `webp_enc_simd.js` sha256 `3038e60ebba6252baba08c691e31d1efe5036a185435daa7b4afaef3cc9273f9`
   - `webp_enc_simd.wasm` sha256 `39c279269ec1163b987b6d69749458e3d5b03b9585f58b6ca5455b76b504a305`
