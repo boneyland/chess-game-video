@@ -178,14 +178,15 @@ function SideScroll({ style, children }) {
       style={{ ...style, whiteSpace: 'nowrap', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', touchAction: 'pan-x', WebkitMaskImage: fade, maskImage: fade }}>{children}</span>
   );
 }
-function Panel({ box, title, right, a, style, children }) {
+// extra: a node after right that never scrolls with it (Analysis: Go deeper beside the search's depth)
+function Panel({ box, title, right, extra, a, style, children }) {
   const { x, y, w, h, k } = box;
   return (
     <div style={{ position: 'absolute', left: x, top: y, width: w / k, height: h / k, boxSizing: 'border-box', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: '16px 22px', opacity: a, transform: `translateY(${(1 - a) * 18}px) scale(${k})`, transformOrigin: '0 0', overflow: 'hidden', ...(box.scroll && { overflowY: 'auto', overscrollBehavior: 'contain', scrollbarWidth: 'thin' }), ...style }}>
       {title && (
         // the same heading size in every panel, whatever its magnification k; box.right sizes the text on the right
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: (L.titleGap || 16) / k, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
-          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', fontSize: `${box.right || 0.85}em` }}>{right}</SideScroll>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: (L.titleGap || 16) / k, font: `600 ${L.title / k}px ${MONO}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.dim, marginBottom: 12 / k }}>
+          <span style={{ flex: 'none' }}>{title}</span><SideScroll style={{ minWidth: 0, flex: 1, textAlign: 'right', letterSpacing: '0.04em', fontSize: `${box.right || 0.85}em` }}>{right}</SideScroll>{extra}
         </div>
       )}
       {children}
@@ -663,7 +664,7 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
   const right = deeper ? searchStats(sfName, deeper) : c >= 0 && M.plies[c].search ? searchStats(M.engineName, M.plies[c].search) : M.engine;
   if (own && vline && vline.src === 'you' && vline.upto >= 0) {
     return (
-      <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(sfName, own.after)}>
+      <Panel box={L.analysis} a={a} title="Analysis" right={sf && (sf.status === 'unavailable' || sf.status === 'stopped') ? null : searchStats(sfName, own.after)} extra={<DeeperButton ev={own} />}>
         <OwnMoveAnalysis M={M} vline={vline} own={own} status={sf ? sf.status : 'idle'} onReply={onReply} />
         <span style={{ display: 'block', marginTop: 8, font: `500 15px ${MONO}`, color: C.dim }}>
           <span style={{ color: lineAccent('you') }}>Your moves: {vline.moves.slice(0, vline.upto + 1).map((m, j) => (j === 0 || (M.ply0 + vline.at + j) % 2 === 0 ? lineLabel(M, vline.at, j, m.san) : m.san)).join(' ')}</span> · ← → step · Esc returns to the game
@@ -697,21 +698,17 @@ function Analysis({ M, T, S, a, vline, onLine, paused, sf, own, onReply, deep })
   const qLine = Qp.before && Qp.before.line ? Qp.before.line.split(/\s+/).filter((x) => x && !/^\d+\.+$/.test(x) && !/^\d+\.\.\.$/.test(x)).map((x) => x.replace(/^\d+\.+/, '')).filter(Boolean).slice(0, 6) : [];
   const qLegal = qLine.length ? playLineCached(M, c, qLine) : [];
   return (
-    <Panel box={L.analysis} a={a} title="Analysis" right={right}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28, opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <Panel box={L.analysis} a={a} title="Analysis" right={right} extra={M.hasEval && paused && <DeeperButton ev={deep} />}>
+      <div style={{ opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28 }}>
           <span style={{ font: `700 ${big}px ${MONO}`, color: col }}>{label(M, c)}</span>
-          {/* spaced parts rather than " · " separators, so the line stays one line in a narrow panel */}
-          <span style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>
-            {[P.checkmate ? 'Checkmate' : CLASS_LABEL[cls], P.loss > 0 && `−${P.loss} cp`, cls === 'best' && P.best && P.best.line[0] && `as good as ${P.best.line[0]}`].filter(Boolean).map((t) => <span key={t} style={{ whiteSpace: 'nowrap' }}>{t}</span>)}
-          </span>
+          {M.hasEval && <span style={{ marginLeft: 'auto', font: `700 ${big}px ${MONO}`, color: C.ink }}>{deeper ? fmtSf(deeper.cp) : P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>}
         </div>
-        {M.hasEval && (
-          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ font: `600 13px ${MONO}`, color: C.dim, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', minHeight: 30 }}>EVAL{deeper && deeper.partial ? ` · DEPTH ${deeper.depth}` : ''}{paused && <DeeperButton ev={deep} />}</span>
-            <span style={{ font: `700 ${big}px ${MONO}`, color: C.ink }}>{deeper ? fmtSf(deeper.cp) : P.mate != null && k >= 1 ? fmtEval(P) : fmtEval({ cp })}</span>
-          </div>
-        )}
+        {/* the verdict spans the panel under the move and the eval; spaced parts rather than " · " separators, so a
+            line too long for a narrow panel breaks between them */}
+        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', columnGap: 14, font: `600 16px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase', color: col }}>
+          {[P.checkmate ? 'Checkmate' : CLASS_LABEL[cls], P.loss > 0 && `−${P.loss} cp`, cls === 'best' && P.best && P.best.line[0] && `as good as ${P.best.line[0]}`].filter(Boolean).map((t) => <span key={t} style={{ whiteSpace: 'nowrap' }}>{t}</span>)}
+        </div>
       </div>
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}`, font: `500 18px ${MONO}`, color: C.dim, display: 'flex', flexDirection: 'column', gap: 8, opacity: k }}>
         {P.best && P.best.line.length ? (
