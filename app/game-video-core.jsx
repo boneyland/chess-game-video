@@ -385,12 +385,12 @@ function BoardTouch({ pos, sel, targets, drag, promo, onDown, onMove, onUp, onCa
 }
 
 // Move chips for a line; legal moves can be clicked to show the line on the board up to that move
-// nowrap: one row, cut off at the panel's edge; tip: what the moves' tooltips call the line (name, when that is text)
-function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick, nowrap, tip }) {
+// name: null for none (the caller labels the line); tip: what the moves' tooltips call the line (else the name)
+function LineChips({ name, nameColor, accent, moves, ply0, c, legal, sel, onPick, tip }) {
   const what = tip || String(name).toLowerCase();
   return (
-    <div style={{ display: 'flex', flexWrap: nowrap ? 'nowrap' : 'wrap', overflow: nowrap ? 'hidden' : undefined, alignItems: 'center', columnGap: 6, rowGap: 6 }}>
-      <span style={{ color: nameColor, marginRight: 8 }}>{name}</span>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 6 }}>
+      {name != null && <span style={{ color: nameColor, marginRight: 8 }}>{name}</span>}
       {moves.map((m, j) => {
         const ply = ply0 + c + j, white = ply % 2 === 0, num = Math.floor(ply / 2) + 1, ok = j < legal, on = sel === j;
         return (

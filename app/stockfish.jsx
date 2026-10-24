@@ -309,8 +309,8 @@ function engineSteps(pos, pv, max = 8) {
   return out;
 }
 
-// Settings › Engine › Lines above one: each line's eval and first moves, one row each (a row cut short rather than
-// wrapped, so five lines fit the panel); a move plays the line on the board up to it. c: the ply the lines start at
+// Settings › Engine › Lines above one: each line's eval and first moves, the moves wrapping under each other beside
+// the eval (a narrow panel scrolls to the later lines); a move plays the line on the board up to it. c: the ply the lines start at
 function EngineLines({ lines, pos, ply0, c, onPick }) {
   const top = lines[0].depth;
   return (
@@ -318,9 +318,13 @@ function EngineLines({ lines, pos, ply0, c, onPick }) {
       {lines.map((l) => {
         const st = engineSteps(pos, l.pv, 6), ev = fmtSf(l.cp);
         return (
-          <LineChips key={l.k} nowrap name={<span style={{ display: 'inline-block', minWidth: 74 }}>{ev}{l.depth < top && <span style={{ font: `500 13px ${MONO}`, color: C.dim }}> d{l.depth}</span>}</span>}
-            tip={`Stockfish's line ${l.k} (${ev})`} nameColor={l.k === 1 ? C.ink : C.dim} accent={l.k === 1 ? C.best : C.line}
-            moves={st.map((m) => m.san)} ply0={ply0} c={c} legal={st.length} sel={null} onPick={(j) => onPick(st.slice(0, j + 1))} />
+          <div key={l.k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ flex: '0 0 auto', width: 118, whiteSpace: 'nowrap', lineHeight: '30px', color: l.k === 1 ? C.ink : C.dim }}>{ev}{l.depth < top && <span style={{ font: `500 13px ${MONO}`, color: C.dim }}> d{l.depth}</span>}</span>
+            <div style={{ flex: '1 1 0', minWidth: 0 }}>
+              <LineChips name={null} tip={`Stockfish's line ${l.k} (${ev})`} accent={l.k === 1 ? C.best : C.line}
+                moves={st.map((m) => m.san)} ply0={ply0} c={c} legal={st.length} sel={null} onPick={(j) => onPick(st.slice(0, j + 1))} />
+            </div>
+          </div>
         );
       })}
     </div>
