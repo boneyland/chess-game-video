@@ -1,11 +1,19 @@
 // Stockfish over UCI in a Web Worker: one search at a time, picked by priority: 'play' (Stockfish's own move in a game against
 // the viewer, which must never wait behind analysis), then 'own' (the viewer's own moves), then 'game' (queued game positions);
 // in queue order within a priority. A running search is never interrupted for a higher one.
+// A search can ask for several lines (MultiPV): the option is sent between searches, only when it changes.
 // Positions go to the engine as move lists from the start: the standard one, or a game's start FEN (the page's FENs carry no castling or en passant).
 (function () {
   const positionCommand = (moves, fen) => {
     const base = fen && fen !== window.ChessCore.START_FEN ? 'position fen ' + fen : 'position startpos';
     return moves.length ? base + ' moves ' + moves.join(' ') : base;
+  };
+
+  // A search's lines in rank order, [{ k, cp, depth, pv }]: one still at a depth below line 1's last but one has
+  // stopped being reported (Stockfish reports every line at each depth, line 1 first), so it is dropped
+  const linesOf = (q) => {
+    const top = q.byK[1];
+    return top ? q.byK.filter((l) => l && l.depth >= top.depth - 1) : [];
   };
 
   // makeWorker: () => a Worker (or anything with postMessage, onmessage, onerror, terminate)
@@ -19,6 +27,7 @@
     const queue = [];
     let cur = null, readyP = null, rejectReady = null, isReady = false, failed = null;
     let hashWant = hashMB, hashSet = null; // a new hash size waits for the engine to be between searches
+    let linesSet = 1; // MultiPV, Stockfish's default until a search asks for more
 
     const pump = () => {
       if (cur || !isReady || failed) return;
@@ -29,6 +38,7 @@
       const q = queue.splice(i, 1)[0];
       if (!q) return;
       cur = q;
+      if (q.lines !== linesSet) { worker.postMessage(`setoption name MultiPV value ${q.lines}`); linesSet = q.lines; }
       worker.postMessage(positionCommand(q.moves, q.fen));
       worker.postMessage(`go depth ${q.depth} movetime ${q.movetimeMs}`);
     };
@@ -45,12 +55,13 @@
           if (st.timeMs != null) cur.timeMs = st.timeMs;
         }
         const s = window.AnalysisCore.infoToScore(line, (cur.moves.length % 2 === 0) === (cur.fen ? cur.fen.split(' ')[1] !== 'b' : true) ? 'w' : 'b');
-        if (s) cur.last = s;
-        if (cur.onInfo && cur.last && (s || st)) cur.onInfo({ ...cur.last, nodes: cur.nodes, timeMs: cur.timeMs, maxDepth: cur.maxDepth });
+        // line 1 is the search's result; every line's last complete score is kept by its rank
+        if (s && s.multipv <= cur.lines) { cur.byK[s.multipv] = { k: s.multipv, cp: s.cp, depth: s.depth, pv: s.pv }; if (s.multipv === 1) cur.last = s; }
+        if (cur.onInfo && cur.last && (s || st)) cur.onInfo({ ...cur.last, lines: linesOf(cur), nodes: cur.nodes, timeMs: cur.timeMs, maxDepth: cur.maxDepth });
       } else if (line.startsWith('bestmove')) {
         const best = line.split(/\s+/)[1], q = cur, l = q.last;
         cur = null;
-        q.resolve({ cp: l ? l.cp : null, depth: l ? l.depth : 0, maxDepth: q.maxDepth == null ? (l ? l.depth : 0) : q.maxDepth, pv: l ? l.pv : [], nodes: q.nodes == null ? null : q.nodes, timeMs: q.timeMs == null ? null : q.timeMs, best: !best || best === '(none)' ? null : best });
+        q.resolve({ cp: l ? l.cp : null, depth: l ? l.depth : 0, lines: linesOf(q), maxDepth: q.maxDepth == null ? (l ? l.depth : 0) : q.maxDepth, pv: l ? l.pv : [], nodes: q.nodes == null ? null : q.nodes, timeMs: q.timeMs == null ? null : q.timeMs, best: !best || best === '(none)' ? null : best });
         pump();
       }
     };
@@ -84,9 +95,10 @@
       return readyP;
     }
 
-    function search({ moves, fen, depth, movetimeMs, priority = 'game', onInfo }) {
+    // lines: how many lines to search (MultiPV); the result's cp, pv and best stay line 1's, and lines lists them all
+    function search({ moves, fen, depth, movetimeMs, priority = 'game', onInfo, lines = 1 }) {
       let q;
-      const promise = new Promise((resolve) => { q = { moves, fen, depth, movetimeMs, priority, onInfo, resolve, last: null }; });
+      const promise = new Promise((resolve) => { q = { moves, fen, depth, movetimeMs, priority, onInfo, resolve, last: null, lines, byK: [] }; });
       if (failed) q.resolve(null); else { queue.push(q); pump(); }
       return {
         promise,

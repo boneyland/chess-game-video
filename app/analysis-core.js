@@ -12,7 +12,7 @@
   };
   const winningChances = (cp) => 2 / (1 + Math.exp(-C.WIN_CHANCES_K * cp)) - 1;
 
-  // A UCI info line with a score → { cp (White POV), depth, pv } ; null for other lines and bound-only scores
+  // A UCI info line with a score → { cp (White POV), depth, pv, multipv (the line's rank, 1 without MultiPV) } ; null for other lines and bound-only scores
   function infoToScore(line, sideToMove) {
     if (!/^info\b/.test(line) || !/\sscore\s/.test(line) || /\s(lowerbound|upperbound)\b/.test(line)) return null;
     const cp = line.match(/\sscore cp (-?\d+)/), mate = line.match(/\sscore mate (-?\d+)/);
@@ -20,8 +20,8 @@
     if (cp) v = +cp[1];
     else if (mate) { const n = +mate[1]; v = n > 0 ? C.MATE_SCORE_CP - C.MATE_STEP_CP * n : -(C.MATE_SCORE_CP - C.MATE_STEP_CP * Math.abs(n)); }
     else return null;
-    const depth = line.match(/\sdepth (\d+)/), pv = line.match(/\spv (.+)$/), nodes = line.match(/\snodes (\d+)/), time = line.match(/\stime (\d+)/);
-    return { cp: sideToMove === 'w' ? v : -v, depth: depth ? +depth[1] : 0, pv: pv ? pv[1].trim().split(/\s+/) : [], nodes: nodes ? +nodes[1] : null, timeMs: time ? +time[1] : null };
+    const depth = line.match(/\sdepth (\d+)/), pv = line.match(/\spv (.+)$/), nodes = line.match(/\snodes (\d+)/), time = line.match(/\stime (\d+)/), k = line.match(/\smultipv (\d+)/);
+    return { cp: sideToMove === 'w' ? v : -v, depth: depth ? +depth[1] : 0, pv: pv ? pv[1].trim().split(/\s+/) : [], nodes: nodes ? +nodes[1] : null, timeMs: time ? +time[1] : null, multipv: k ? +k[1] : 1 };
   }
 
   // How far a search has got, from any info line with a depth (bound-only lines included): depth, nodes, time
@@ -123,13 +123,15 @@
   // missing or out of range falls back to the default. game: as ENGINE (written into the analysis JSON); own: the
   // search of the viewer's own moves. kind: the engine that runs ('lite' or 'full'), whatever the setting asks for
   const SEARCH_LIMITS = { depth: [16, 30], seconds: [0.5, 10] }, HASH_MB = [16, 32, 64, 128, 256];
-  const OWN = { depth: 24, time_limit: 3 };
+  // own.lines: the lines (MultiPV) the viewer's own searches show; a game's analysis always searches one
+  const LINES = [1, 2, 3, 4, 5];
+  const OWN = { depth: 24, time_limit: 3, lines: 1 };
   function engineSettings(t = {}, kind = 'lite') {
     const pick = (v, [lo, hi], step, dflt) => { const x = +v; return Number.isFinite(x) && x >= lo && x <= hi ? Math.round(x / step) * step : dflt; };
     const name = ENGINE_NAMES[kind] || ENGINE.name;
     return {
       game: { ...ENGINE, name, depth: pick(t.sfDepth, SEARCH_LIMITS.depth, 1, ENGINE.depth), time_limit: pick(t.sfTime, SEARCH_LIMITS.seconds, 0.5, ENGINE.time_limit), hash_mb: HASH_MB.includes(+t.sfHash) ? +t.sfHash : ENGINE.hash_mb },
-      own: { name, depth: pick(t.sfOwnDepth, SEARCH_LIMITS.depth, 1, OWN.depth), time_limit: pick(t.sfOwnTime, SEARCH_LIMITS.seconds, 0.5, OWN.time_limit) },
+      own: { name, depth: pick(t.sfOwnDepth, SEARCH_LIMITS.depth, 1, OWN.depth), time_limit: pick(t.sfOwnTime, SEARCH_LIMITS.seconds, 0.5, OWN.time_limit), lines: LINES.includes(+t.sfLines) ? +t.sfLines : OWN.lines },
     };
   }
   // Rough seconds a game position takes: 1.3 s measured on a laptop at depth 22 / 3 s, each depth about 1.45 times
@@ -201,5 +203,5 @@
     return buildAnalysisJson({ headers, moves, opening: window.Openings ? window.Openings.book().identify(ucis, startFen) : null, engine: { ...settings }, startFen });
   }
 
-  window.AnalysisCore = { C, ENGINE, ENGINE_NAMES, SEARCH_LIMITS, HASH_MB, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
+  window.AnalysisCore = { C, ENGINE, ENGINE_NAMES, SEARCH_LIMITS, HASH_MB, LINES, engineSettings, secondsPerPosition, paceFactor, blendPace, deeperSearch, canGoDeeper, bestOf, winningChances, infoToScore, infoStats, rateMove, mateLine, playerStats, buildAnalysisJson, runAnalysis };
 })();
