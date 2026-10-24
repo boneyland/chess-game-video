@@ -10,8 +10,7 @@ const EXPORT_LIBS = {
   html2canvasHash: 'sha384-IT/7L8+t0nqitKnKyUD1rh3hC/qPQehh1Et4A2dTqUuxKbomoRs73yhSQoALaYeI',
   mediabunny: 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.0/dist/bundles/mediabunny.min.mjs',
 };
-// the WebP encoder is served next to the page, which a claude.ai artifact has nothing beside: there it's MP4 only
-const EXPORT_FORMATS = IN_CLAUDE ? ['MP4'] : ['MP4', 'WebP'];
+const EXPORT_FORMATS = ['MP4', 'WebP'];
 // WebP widths offered besides the frame's own (1920, or the portrait frame's 840): 1676 fills GitHub's 838 px README
 // column on 2× screens. Quality is 50–95 (lossy). Encoded straight from the drawn frames, a WebP looks better than one
 // converted from the MP4, though it is larger than the MP4 of the same clip
@@ -138,8 +137,8 @@ function useVideoExport({ fps, format, webp, save, stem }) {
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       const cx = cv.getContext('2d', { willReadFrequently: format === 'WebP' }); // the WebP encoder reads every frame back
       enc = format === 'WebP' ? await webpEncoder(cv, W, H, fps, webp) : await mp4Encoder(cv, W, H, fps, audio);
-      // html2canvas copies the whole document every frame: leave out the scripts (the artifact inlines a 2.4 MB
-      // engine) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
+      // html2canvas copies the whole document every frame: leave out the scripts (the page inlines its sounds
+      // and opening tables) and the page around the stage, but keep the head and every stylesheet (fonts and base styles)
       const keep = (n) => n.tagName === 'STYLE' || n.tagName === 'LINK' || n.tagName === 'HEAD' || n.closest('head');
       const skip = (n) => n.tagName === 'SCRIPT' || (!keep(n) && n !== el && !n.contains(el) && !el.contains(n));
       const N = Math.floor((end - start) * fps) + 1, t0 = performance.now();

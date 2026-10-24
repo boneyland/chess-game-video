@@ -1,4 +1,4 @@
-// Assemble the artifact: plain scripts inlined as-is, JSX precompiled with Babel, each unit in its own scope.
+// Assemble the page (out/site): plain scripts inlined as-is, JSX precompiled with Babel, each unit in its own scope.
 const fs = require('fs'), path = require('path');
 const dir = __dirname, src = path.join(dir, 'src'), app = path.join(dir, 'app');
 const Babel = require(path.join(dir, 'babel', 'babel.min.js'));
@@ -35,32 +35,13 @@ const scripts = units.map(([name, code]) => {
 }).join('\n');
 const page = read(path.join(app, 'shell.html'));
 const out = page.replace('<!--SCRIPTS-->', () => scripts); // a function, so $' or $& in the code stay as they are
-// claude.ai can't load a worker from a file next to the page: the artifact carries the engine inline and
-// starts it from Blob URLs (the glue reads its wasm URL from the worker's #hash)
-const esc = (str) => JSON.stringify(str).replace(/</g, '\\u003c');
-const sfInline = `<script>
-// stockfish.js v19.0.1 lite-single (GPL-3.0, https://github.com/nmrugg/stockfish.js), inlined
-(function () {
-  const GLUE = ${esc(read(path.join(dir, 'vendor', 'stockfish-19-lite-single.js')))};
-  const WASM = ${esc(fs.readFileSync(path.join(dir, 'vendor', 'stockfish-19-lite-single.wasm')).toString('base64'))};
-  window.SF_MAKE_WORKER = () => {
-    const bytes = Uint8Array.from(atob(WASM), (ch) => ch.charCodeAt(0));
-    const wasm = URL.createObjectURL(new Blob([bytes], { type: 'application/wasm' }));
-    const glue = URL.createObjectURL(new Blob([GLUE], { type: 'text/javascript' }));
-    return new Worker(glue + '#' + encodeURIComponent(wasm));
-  };
-})();
-</script>`;
-const artifactOut = page.replace('<!--SCRIPTS-->', () => sfInline + '\n' + scripts);
 fs.mkdirSync(path.join(dir, 'out', 'site'), { recursive: true });
-fs.writeFileSync(path.join(dir, 'out', 'chess-game-video.html'), artifactOut);
-// what a shared link and the browser tab show (the artifact gets these from claude.ai)
+// what a shared link and the browser tab show
 const DESCRIPTION = 'Replay an annotated chess game as a broadcast-style video: move ratings, best lines, commentary and an eval graph, with Stockfish in your browser.';
 // A link preview's image needs an absolute URL: the host's own (Render sets RENDER_EXTERNAL_URL; a local build points at Render)
 const SITE_URL = (process.env.RENDER_EXTERNAL_URL || 'https://chess-replay.onrender.com').replace(/\/$/, '');
 const ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#9a6a1c"/><circle cx="16" cy="9.5" r="4" fill="#fffaf2"/><path d="M12.5 14h7l1.5 9h-10z M8.5 24h15v3h-15z" fill="#fffaf2"/></svg>');
-// Self-hosted copy: claude.ai wraps artifacts in this document shell itself, so a standalone file needs its own.
-// The page doesn't zoom (maximum-scale, user-scalable): a browser set to ignore that (iPhone Safari, Chrome's Force
+// The document shell around the page. It doesn't zoom (maximum-scale, user-scalable): a browser set to ignore that (iPhone Safari, Chrome's Force
 // enable zoom) still lets the viewer pinch
 // Firefox for Android reports the gesture bar as a bottom safe-area inset though it never draws the page under it, so
 // in a browser tab (not full screen, which reports 0 anyway) the bottom padding would leave that strip empty
@@ -100,7 +81,7 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => { naviga
 </html>
 `;
 fs.writeFileSync(path.join(dir, 'out', 'site', 'chess-game-video.html'), site);
-// the engine and the WebP export's encoder, served next to the self-hosted page, and the link preview's image (a
+// the engine and the WebP export's encoder, served next to the page, and the link preview's image (a
 // 1653×944 frame from the player)
 fs.copyFileSync(path.join(app, 'og-image.png'), path.join(dir, 'out', 'site', 'og-image.png'));
 for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'webp_enc_simd.js', 'webp_enc_simd.wasm']) fs.copyFileSync(path.join(dir, 'vendor', f), path.join(dir, 'out', 'site', f));
@@ -130,4 +111,4 @@ const swHash = require('crypto').createHash('sha256').update(swSrc).update(JSON.
 for (const f of SW_LOCAL.slice(1)) swHash.update(fs.readFileSync(path.join(dir, 'out', 'site', f)));
 fs.writeFileSync(path.join(dir, 'out', 'site', 'sw.js'), swSrc.replace('__VERSION__', swHash.digest('hex').slice(0, 16))
   .replace('__LOCAL__', JSON.stringify(SW_LOCAL)).replace('__REMOTE__', JSON.stringify(SW_REMOTE, null, 2)));
-console.log('wrote', artifactOut.length, 'bytes (artifact),', site.length, 'bytes (site)');
+console.log('wrote', site.length, 'bytes (site)');

@@ -1,10 +1,7 @@
 // ---------- loader ----------
-// Replaces the Claude Design host hooks: commentary goes through the artifact `sample`
-// capability, the notes file through `downloads`, and settings open from a page button.
+// Replaces the Claude Design host hooks: files load and save in the browser, and settings open from a page button.
 const STORE = 'chess-video.files.v1';
 const SAMPLE = { pgn: window.SAMPLE_PGN, analysis: window.SAMPLE_ANALYSIS, sampleNotes: window.SAMPLE_NOTES, sample: true };
-// the published claude.ai artifact, where the `sample` capability lets Claude write commentary
-const CLAUDE_URL = 'https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT';
 // a free board is stored as { board: BoardCore.save(…) } in the loaded game's place; one that no longer restores gives the sample
 function readStored() {
   try {
@@ -71,16 +68,6 @@ function useOnline() {
   return { online, note, clearNote: () => setNote(null) };
 }
 
-function useCapability(name) {
-  const [cap, setCap] = React.useState(null);
-  React.useEffect(() => {
-    let live = true;
-    if (window.claude && typeof window.claude.use === 'function') window.claude.use(name).then((c) => { if (live) setCap(c || null); }, () => {});
-    return () => { live = false; };
-  }, [name]);
-  return cap;
-}
-
 // An embedding page on another origin (the notes site) can't be read, so it posts its scheme instead:
 // this page sends { type: 'chess-replay:scheme?' } (again after 0.5 s and 2 s while unanswered, in case the parent's
 // listener wasn't attached yet), and the parent answers, then posts again on each toggle,
@@ -88,7 +75,7 @@ function useCapability(name) {
 const SCHEME_MSG = 'chess-replay:scheme';
 let postedScheme = null;
 const schemeListeners = new Set();
-if (window.parent !== window && !IN_CLAUDE) {
+if (window.parent !== window) {
   window.addEventListener('message', (e) => {
     const d = e.data;
     if (e.source !== window.parent || !d || d.type !== SCHEME_MSG || (d.scheme !== 'dark' && d.scheme !== 'light')) return;
@@ -99,7 +86,7 @@ if (window.parent !== window && !IN_CLAUDE) {
   ask(); setTimeout(ask, 500); setTimeout(ask, 2000);
 }
 
-// Auto follows the embedding page, the viewer's claude.ai theme (data-theme on the root) or the system setting; Light/Dark override all
+// Auto follows the embedding page or the system setting; Light/Dark override both
 function useScheme(pref) {
   // a same-origin embed with a Material palette toggle (data-md-color-scheme) is read directly
   const parentScheme = () => {
@@ -111,8 +98,6 @@ function useScheme(pref) {
     if (pref === 'Dark') return 'dark';
     const ps = parentScheme();
     if (ps) return ps;
-    const host = document.documentElement.getAttribute('data-theme');
-    if (host === 'light' || host === 'dark') return host;
     try { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { return 'dark'; }
   };
   const [mode, setMode] = React.useState(read);
@@ -127,7 +112,6 @@ function useScheme(pref) {
     let mq = null;
     try { mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', update); } catch (e) {}
     const mo = new MutationObserver(update);
-    mo.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
     try { if (window.parent !== window && window.parent.document.body) mo.observe(window.parent.document.body, { attributes: true, attributeFilter: ['data-md-color-scheme'] }); } catch (e) {}
     schemeListeners.add(update);
     return () => { try { if (mq) mq.removeEventListener('change', update); } catch (e) {} mo.disconnect(); schemeListeners.delete(update); };
@@ -149,12 +133,7 @@ function GameApp() {
   const [drag, setDrag] = React.useState(false);
   const [panel, setPanel] = React.useState(false);
   const [panelTab, setPanelTab] = React.useState('game'); // Settings' open tab, kept while the page is open
-  const [ai, setAi] = React.useState({ busy: false, err: '', chars: 0 });
-  const [saveMsg, setSaveMsg] = React.useState('');
   const inputRef = React.useRef(null);
-  const sample = useCapability('sample');
-  const downloads = useCapability('downloads');
-  const mcp = useCapability('mcp');
   const probe = React.useRef(null);
   const nav = React.useRef(null);
   const fullscreen = useFullscreen();
@@ -227,8 +206,8 @@ function GameApp() {
   guardRef.current = guard;
   const M = built.M || lastGood.current || window.ChessCore.buildGame(SAMPLE);
   const hf = useHfAuth();
-  const Q = useQueen(M, mcp, hf);
-  // Settings › Engine: Full runs once its download is kept; until then (and on the artifact) Lite does
+  const Q = useQueen(M, hf);
+  // Settings › Engine: Full runs once its download is kept; until then Lite does
   const full = useFullEngine();
   // Remove the full engine asks first (getting it back is another 99 MB); any change to the download drops the question
   const [askRemove, setAskRemove] = React.useState(false);
@@ -238,7 +217,7 @@ function GameApp() {
   const engine = useEngine(ES.game.hash_mb, sfKind, full.broken);
   const queenInVideo = t.queenInVideo !== false;
   const showCommentary = t.commentary !== false;
-  const sayFrom = { pgn: t.commentPgn !== false, claude: t.commentClaude !== false, notes: t.commentNotes !== false, queen: t.commentQueen !== false };
+  const sayFrom = { pgn: t.commentPgn !== false, notes: t.commentNotes !== false, queen: t.commentQueen !== false };
   const sources = React.useMemo(() => window.ChessCore.commentarySources(M), [M]);
   // commentary off (or a source off): no comments, intro or conclusion from it, so the video's timing drops their reading time too
   const MV = React.useMemo(() => {
@@ -247,7 +226,7 @@ function GameApp() {
     const C = !showCommentary ? { ...G, intro: '', conclusion: '', plies: G.plies.map((p) => ({ ...p, comment: '' })) } : window.ChessCore.withCommentary(G, sayFrom);
     const D = showCommentary && sayFrom.queen ? C : { ...C, plies: C.plies.map((p) => (p.queenText ? { ...p, queenText: '' } : p)) };
     return hidden ? { ...D, commentaryHidden: true } : D;
-  }, [M, Q.cache, queenInVideo, showCommentary, sources, sayFrom.pgn, sayFrom.claude, sayFrom.notes, sayFrom.queen]);
+  }, [M, Q.cache, queenInVideo, showCommentary, sources, sayFrom.pgn, sayFrom.notes, sayFrom.queen]);
   const queenSays = queenInVideo && M.plies.some((p, i) => { const r = Q.resultAt(i + 1); return r && r.evalText; });
   const TM = React.useMemo(() => window.ChessCore.timing(MV, { secondsPerMove: t.secondsPerMove, keyHold: t.keyHold, fastOpening: t.fastOpening }), [MV, t.secondsPerMove, t.keyHold, t.fastOpening]);
   const scenes = JSON.stringify(TM.scenes);
@@ -260,7 +239,7 @@ function GameApp() {
   const commit = (next) => {
     if (!next.board) try { window.ChessCore.buildGame(next); } catch (e) { setErr(e.message); return false; }
     setErr(''); setFiles(next);
-    try { if (next.sample && !next.evalSource && !next.aiNotes) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr(next.board ? 'The board couldn’t be remembered after reload: the browser’s storage is full.' : 'Loaded, but the files are too large to remember after reload.'); return false; }
+    try { if (next.sample && !next.evalSource) localStorage.removeItem(STORE); else localStorage.setItem(STORE, JSON.stringify(next)); } catch (e) { setErr(next.board ? 'The board couldn’t be remembered after reload: the browser’s storage is full.' : 'Loaded, but the files are too large to remember after reload.'); return false; }
     return true;
   };
   // a game is kept in My games as it goes; a full storage doesn't stop the board. The new list, or null when it couldn't
@@ -349,7 +328,7 @@ function GameApp() {
     commit(next);
   };
   // Drag-and-drop: dragover repeats every few ms while a file is over the page, so the overlay hides itself
-  // shortly after those stop (dropped elsewhere, cancelled, or swallowed by the frame around the artifact)
+  // shortly after those stop (dropped elsewhere, cancelled, or swallowed by an embedding page's frame)
   const dragTimer = React.useRef(null);
   const loadRef = React.useRef(loadFiles);
   loadRef.current = loadFiles; // the listeners below are registered once and always load with the current files
@@ -370,39 +349,13 @@ function GameApp() {
     return () => { window.removeEventListener('dragover', over); window.removeEventListener('dragleave', leave); window.removeEventListener('drop', drop); window.removeEventListener('dragend', end); clearTimeout(dragTimer.current); };
   }, []);
 
-  const writeCommentary = async () => {
-    if (!sample || ai.busy) return;
-    setAi({ busy: true, err: '', chars: 0 });
-    try {
-      const base = window.ChessCore.buildGame({ ...files, aiNotes: null, sampleNotes: null });
-      const p = window.ChessCore.commentaryPrompt(base, { tone: t.aiTone || window.TWEAK_DEFAULTS.aiTone, density: t.aiDensity || window.TWEAK_DEFAULTS.aiDensity, audience: t.aiAudience || window.TWEAK_DEFAULTS.aiAudience });
-      const res = await sample(p.system + '\n\n' + p.user, { modelTier: 'default', onText: ({ text }) => setAi((a) => ({ ...a, chars: text.length })) });
-      if (res.truncated) throw new Error('the reply was cut off. Try "Key moments" for fewer comments.');
-      const aiNotes = window.ChessCore.parseCommentary(res.text, base.plies.length);
-      commit({ ...filesRef.current, aiNotes, sampleNotes: null });
-      setAi({ busy: false, err: '', chars: 0 });
-    } catch (e) {
-      const code = e && e.code;
-      const msg = code === 'not_granted' ? 'Claude was not allowed for this page.' : code === 'rate_limited' ? 'Claude is busy. Wait a minute, then try again.' : 'Commentary failed: ' + ((e && e.message) || e);
-      setAi({ busy: false, err: msg, chars: 0 });
-    }
-  };
   // txt is a string or a Blob
-  const saveFile = async (name, txt, type) => {
-    if (!downloads) {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([txt], { type })); a.download = name;
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      return;
-    }
-    try { const r = await downloads.save({ filename: name, data: txt }); setSaveMsg(r.status === 'saved' ? 'Saved ' + name : ''); }
-    catch (e) { setSaveMsg(e && e.code === 'declined' ? '' : 'Could not save the file here.'); }
+  const saveFile = (name, txt, type) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const fileStem = (M.white.short + '_' + M.black.short).replace(/[^\w-]+/g, '_');
-  const downloadNotes = () => {
-    if (!downloads && IN_CLAUDE) return;
-    if (files.aiNotes) saveFile(fileStem + '_notes.txt', files.aiNotes, 'text/plain');
-  };
   const browserAnalysis = React.useMemo(() => sfIsBrowserAnalysis(files.analysis), [files.analysis]);
   const saveAnalysis = () => {
     const a = typeof files.analysis === 'string' ? files.analysis : JSON.stringify(files.analysis, null, 2);
@@ -475,7 +428,7 @@ function GameApp() {
   const gameName = (g) => (g.mode === 'stockfish' ? `Play vs Stockfish · you play ${g.you === 'w' ? 'White' : 'Black'}` : 'Play vs human');
   const boardStatus = board && board.game ? `${gameName(board.game)} · ${board.game.tc || 'no clock'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}${board.game.result ? ' · ' + window.PlayCore.resultText(board.game.result).score : ''}`
     : board && `Free board · ${board.fen === window.ChessCore.START_FEN ? 'from the starting position' : 'from a FEN'} · ${board.steps.length} move${board.steps.length === 1 ? '' : 's'}`;
-  const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
+  const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
   const newGroups = [{ label: 'Explore', items: [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Copy FEN', run: copyFen }] },
@@ -564,7 +517,7 @@ function GameApp() {
       {playOpen && <PlayDialog key={playOpen} mode={playOpen} setUpFen={board && board.fen !== window.ChessCore.START_FEN ? board.fen : null} clock={t.playClock} side={t.playSide} onStart={playStart} onClose={closePlay} />}
       {gamesOpen && <MyGamesDialog games={gamesOpen} current={board && window.PlayCore.inProgress(board) ? board.game.id : null} onReplay={replayGame} onResume={resumeGame} onDelete={deleteGame} onClose={closeGames} />}
       {leave && <LeaveDialog onStay={() => setLeave(null)} onLeave={() => { const run = leave.run; setLeave(null); keepLeft(board); run(); }} />}
-      {queenOpen && !board && <QueenPanel M={M} Q={Q} mcp={mcp} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={downloads || !IN_CLAUDE ? saveQueen : null} left={queenLeft} />}
+      {queenOpen && !board && <QueenPanel M={M} Q={Q} hf={hf} probe={probe} onClose={closeQueen} onOverlay={setQueenArrow} onSave={saveQueen} left={queenLeft} />}
       <TweaksPanel open={panel} onClose={closePanel} tab={panelTab} onTab={setPanelTab} tabs={[
         { id: 'game', label: 'Game', body: <>
           <div className={shownErr ? 'twk-note twk-err' : 'twk-note'}>{shownErr || status}</div>
@@ -660,45 +613,26 @@ function GameApp() {
           <TweakToggle id="tw-comm" label="Show commentary" value={showCommentary} onChange={(v) => setTweak('commentary', v)} />
           {showCommentary && <>
             {sources.includes('pgn') && <TweakToggle id="tw-comm-pgn" label="From the PGN" value={sayFrom.pgn} onChange={(v) => setTweak('commentPgn', v)} />}
-            {sources.includes('claude') && <TweakToggle id="tw-comm-claude" label="From Claude" value={sayFrom.claude} onChange={(v) => setTweak('commentClaude', v)} />}
             {sources.includes('notes') && <TweakToggle id="tw-comm-notes" label={files.sample && !files.notes ? 'From the sample notes' : 'From the notes file'} value={sayFrom.notes} onChange={(v) => setTweak('commentNotes', v)} />}
             {queenSays && <TweakToggle id="tw-comm-queen" label="From Queen" value={sayFrom.queen} onChange={(v) => setTweak('commentQueen', v)} />}
-            {sources.length + (queenSays ? 1 : 0) > 1 && <div className="twk-note">Where several comment on a move, the first one on wins: notes file, then Claude, then the PGN; Queen’s sentence follows.</div>}
+            {sources.length + (queenSays ? 1 : 0) > 1 && <div className="twk-note">Where several comment on a move, the first one on wins: notes file, then the PGN; Queen’s sentence follows.</div>}
           </>}
-          {sample && <>
-            <TweakRadio id="tw-tone" label="Style" value={t.aiTone || window.TWEAK_DEFAULTS.aiTone} options={['Broadcast', 'Lesson', 'Concise']} onChange={(v) => setTweak('aiTone', v)} />
-            <TweakRadio id="tw-aud" label="Audience" value={t.aiAudience || window.TWEAK_DEFAULTS.aiAudience} options={['Beginners', 'Club players', 'Experts']} onChange={(v) => setTweak('aiAudience', v)} />
-            <TweakRadio id="tw-dens" label="Amount" value={t.aiDensity || window.TWEAK_DEFAULTS.aiDensity} options={['Key moments', 'Detailed']} onChange={(v) => setTweak('aiDensity', v)} />
-          </>}
-          {sample
-            ? <TweakButton disabled={ai.busy} label={ai.busy ? `Writing commentary…${ai.chars ? ' ' + ai.chars + ' chars' : ''}` : M.hasAiNotes ? 'Rewrite commentary with Claude' : 'Write commentary with Claude'} onClick={writeCommentary} />
-            : !IN_CLAUDE && <div className="twk-note">To have Claude write the commentary, <a href={CLAUDE_URL} target="_blank" rel="noopener">open this page on claude.ai</a> and load the game there.</div>}
-          {ai.err && <div className="twk-note twk-err">{ai.err}</div>}
-          {M.hasAiNotes && <TweakButton secondary label="Remove Claude's commentary" onClick={() => commit({ ...files, aiNotes: null, sampleNotes: files.sample ? window.SAMPLE_NOTES : null })} />}
-          {M.hasAiNotes && (downloads || !IN_CLAUDE) && <>
-            <TweakButton secondary label="Save Claude's commentary as a notes file" onClick={downloadNotes} />
-            <div className="twk-note">Load the notes file with the PGN to restore Claude’s commentary; the annotated PGN includes all of it.</div>
-          </>}
-          {browserAnalysis && (downloads || !IN_CLAUDE) && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
-          {(downloads || !IN_CLAUDE) && <TweakButton secondary label="Save as annotated PGN" onClick={savePgn} />}
-          {saveMsg && <div className="twk-note">{saveMsg}</div>}
+          {browserAnalysis && <TweakButton secondary label="Save analysis" onClick={saveAnalysis} />}
+          <TweakButton secondary label="Save as annotated PGN" onClick={savePgn} />
         </> },
-        !board && (downloads || !IN_CLAUDE) && { id: 'export', label: 'Export', body: <>
-          {!IN_CLAUDE && <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />}
-          {IN_CLAUDE && downloads && <div className="twk-note">Exports an MP4 here. Animated WebP export is on the <a href={SF_SITE_URL} target="_blank" rel="noopener">self-hosted copy</a>: claude.ai can’t load its encoder.</div>}
-          {(downloads || !IN_CLAUDE) && webp && <>
+        !board && { id: 'export', label: 'Export', body: <>
+          <TweakRadio id="tw-format" label="Export as" value={exportFormat} options={EXPORT_FORMATS} onChange={(v) => setTweak('exportFormat', v)} />
+          {webp && <>
             <TweakSelect id="tw-webp-width" label="WebP width" value={webpPx(webpWidth)} options={webpWidths.map(webpPx)} onChange={(v) => setTweak('webpWidth', webpWidths.find((x) => webpPx(x) === v))} />
             <TweakSlider id="tw-webp-q" label="WebP quality" value={webpQuality} min={WEBP_QUALITY.min} max={WEBP_QUALITY.max} step={WEBP_QUALITY.step} onChange={(v) => setTweak('webpQuality', v)} />
           </>}
-          {(downloads || !IN_CLAUDE) && <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />}
-          {(downloads || !IN_CLAUDE) && <>
-            <div className="twk-pair">
-              <TweakSelect id="tw-clip-from" label="From" aria="Export from" value={clipFromOpts.find((o) => o.i === clipFrom).s} options={clipFromOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, from: clipFromOpts.find((o) => o.s === v).i }))} />
-              <TweakSelect id="tw-clip-to" label="To" aria="Export to" value={clipToOpts.find((o) => o.i === clipTo).s} options={clipToOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, to: clipToOpts.find((o) => o.s === v).i }))} />
-            </div>
-            <TweakButton label={`${webp ? 'Export animated WebP (' : 'Export video (MP4, '}${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
-            <div className="twk-note">Renders every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. Higher frame rates are smoother but slower. Each move’s clip runs from just before it until the board settles. {webp ? 'No sound, and it loops; a smaller width or quality makes a smaller file.' : 'Includes move sounds when on.'} No camera push.</div>
-          </>}
+          <TweakSelect id="tw-fps" label="Export frame rate" value={exportFps + ' fps'} options={EXPORT_FPS_OPTIONS.map((f) => f + ' fps')} onChange={(v) => setTweak('exportFps', parseInt(v, 10))} />
+          <div className="twk-pair">
+            <TweakSelect id="tw-clip-from" label="From" aria="Export from" value={clipFromOpts.find((o) => o.i === clipFrom).s} options={clipFromOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, from: clipFromOpts.find((o) => o.s === v).i }))} />
+            <TweakSelect id="tw-clip-to" label="To" aria="Export to" value={clipToOpts.find((o) => o.i === clipTo).s} options={clipToOpts.map((o) => o.s)} onChange={(v) => setClip((c) => ({ ...c, to: clipToOpts.find((o) => o.s === v).i }))} />
+          </div>
+          <TweakButton label={`${webp ? 'Export animated WebP (' : 'Export video (MP4, '}${exportFps} fps, ${fmtLen(clipT.end - clipT.start)})`} disabled={video.busy} onClick={exportVideo} />
+          <div className="twk-note">Renders every frame in this tab: about {fmtLen(Math.ceil((clipT.end - clipT.start) * exportFps * 0.17))} for {clipSuffix ? 'these moves' : 'this game'}, longer on a phone. Higher frame rates are smoother but slower. Each move’s clip runs from just before it until the board settles. {webp ? 'No sound, and it loops; a smaller width or quality makes a smaller file.' : 'Includes move sounds when on.'} No camera push.</div>
         </> },
         { id: 'sound', label: 'Sound', body: <>
           <TweakToggle id="tw-sound" label="Move sounds" value={t.sound !== false} onChange={(v) => setTweak('sound', v)} />

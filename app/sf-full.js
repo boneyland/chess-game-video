@@ -1,7 +1,7 @@
 // The full Stockfish 19 (single-threaded, with the big NNUE net) for the site, downloaded only when the viewer asks
 // (Settings › Engine): stockfish.js v19.0.1 from unpkg, both files checked against pinned SHA-256s, then kept in their own
 // cache, which sw.js never clears on a deploy. The engine then starts from the kept copy, offline too, as Blob URLs
-// (the glue reads its wasm URL from the worker's #hash, as the artifact's inline engine does).
+// (the glue reads its wasm URL from the worker's #hash).
 (function () {
   const BASE = 'https://unpkg.com/stockfish@19.0.1/bin/';
   const FILES = [

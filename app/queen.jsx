@@ -1,6 +1,4 @@
-// ---------- Queen (chess LM on the boneyland/queen-pawn-8 Space, via the viewer's Hugging Face connector) ----------
-const QUEEN_SERVER = 'Hugging Face';
-const QUEEN_TOOL = 'gr3_queen_pawn_8_analyse_position';
+// ---------- Queen (chess LM on the boneyland/queen-pawn-8 Space, called through its Gradio API) ----------
 const QUEEN_STORE = 'chess-video.queen.v1';
 const QUEEN_SPACE = 'https://huggingface.co/spaces/boneyland/queen-pawn-8';
 // The Space reserves 15 s + 0.03 s per token of ZeroGPU for each call: 1536 tokens reserves 61 s instead of 76 s.
@@ -13,12 +11,6 @@ const fmtPawns = (v) => (v == null ? '—' : (v > 0.004 ? '+' : v < -0.004 ? '�
 
 function queenError(e) {
   const code = e && e.code;
-  if (code === 'selection_required') return 'You have more than one Hugging Face connector. Choose which one this page uses when claude.ai asks, then try again.';
-  if (code === 'server_not_connected' || code === 'server_not_found')
-    return 'This page can’t reach a Hugging Face connector with the Queen tool. The details below show what it can see.';
-  if (code === 'needs_reauth') return 'Reconnect Hugging Face in claude.ai Settings → Connectors, then try again.';
-  if (code === 'not_in_manifest' || code === 'approval_required' || code === 'consent_required' || code === 'blocked_by_policy')
-    return 'Hugging Face is not allowed for this page. Allow it from the page’s permissions, then try again.';
   if (code === 'tool_error') return 'The Queen Space reported an error: ' + String((e && e.message) || '').slice(0, 300);
   if (code === 'server_unavailable' || code === 'upstream_error')
     return `No answer from the Queen Space${e.secs != null ? ` after ${e.secs} s` : ''}${e.retryable ? ', even after a retry' : ''}. It may be busy, waking up or out of ZeroGPU quota. Try again in a minute.`;
@@ -40,9 +32,7 @@ const uciToSan = (M, i, uci) => {
 };
 
 // ---------- direct connection to the Space ----------
-// On claude.ai the page can only reach other hosts through a connector; on its own website it can call the
-// Space's Gradio API itself, signed in with Hugging Face (the visitor's ZeroGPU quota) or anonymously.
-const IN_CLAUDE = !!window.claude;
+// The page calls the Space's Gradio API itself, signed in with Hugging Face (the visitor's ZeroGPU quota) or anonymously.
 const DIRECT_API = 'https://boneyland-queen-pawn-8.hf.space/gradio_api';
 // Public OAuth app (no secret) registered at huggingface.co/settings/applications. Sign-in returns to the folder the
 // page is served from (https://chess-replay.onrender.com/); each host's URL must be a redirect URL there. A static HF Space
@@ -78,7 +68,7 @@ function readAuth() { try { const a = JSON.parse(localStorage.getItem(AUTH_STORE
 function useHfAuth() {
   const [auth, setAuth] = React.useState(readAuth);
   const [note, setNote] = React.useState('');
-  const enabled = !IN_CLAUDE && !!HF_OAUTH.clientId;
+  const enabled = !!HF_OAUTH.clientId;
   const start = async () => {
     if (!enabled) return;
     if (window.top !== window) { window.open(HF_OAUTH.redirect + '#hf-signin', '_blank'); return; }
@@ -106,7 +96,6 @@ function useHfAuth() {
   };
   const signOut = () => { try { localStorage.removeItem(AUTH_STORE); } catch (e) {} setAuth(null); };
   React.useEffect(() => {
-    if (IN_CLAUDE) return;
     const onStorage = (e) => { if (e.key === AUTH_STORE) setAuth(readAuth()); };
     window.addEventListener('storage', onStorage);
     const q = new URLSearchParams(location.search);
@@ -126,9 +115,7 @@ function writeQueenCache(c) {
 }
 
 // at = number of plies played; the position is the one before ply index `at`
-function useQueen(M, mcp, hf) {
-  // connector on claude.ai; the Space's own API anywhere else
-  const via = mcp ? 'connector' : !IN_CLAUDE ? 'direct' : null;
+function useQueen(M, hf) {
   const [cache, setCache] = React.useState(readQueenCache);
   const cacheRef = React.useRef(cache);
   const [busy, setBusy] = React.useState(null); // {at, started}
@@ -151,16 +138,13 @@ function useQueen(M, mcp, hf) {
   const analyse = async (at) => {
     const key = keyAt(at);
     if (cacheRef.current[key]) return cacheRef.current[key];
-    if (!via) throw { code: 'not_granted', message: 'Queen isn’t available here. See the steps above.' };
     const ctrl = new AbortController(); ctrlRef.current = ctrl;
     try {
       for (let attempt = 1; ; attempt++) {
         const started = Date.now();
         setBusy({ at, started, attempt });
         try {
-          const res = via === 'connector'
-            ? await mcp.callTool(QUEEN_SERVER, QUEEN_TOOL, { fen: startFen, moves: movesAt(at), max_tokens: QUEEN_TOKENS }, { signal: ctrl.signal })
-            : await directCall(movesAt(at), hf && hf.auth ? hf.auth.token : null, ctrl.signal, startFen);
+          const res = await directCall(movesAt(at), hf && hf.auth ? hf.auth.token : null, ctrl.signal, startFen);
           const p = queenPayload(res);
           const str = (v) => (typeof v === 'string' ? v : '');
           const r = queenAnswer({
@@ -206,23 +190,11 @@ function useQueen(M, mcp, hf) {
   };
   const saved = () => queenFile(cacheRef.current, M.plies.map((p) => p.uci), M.start.fen);
   const forGame = Object.keys(queenFile(cache, M.plies.map((p) => p.uci), M.start.fen).answers).length;
-  return { via, cache, analyse, resultAt, has, busy, err, setErr, msg, setMsg, stopRef, stop, forget, merge, saved, forGame, log, cached: Object.keys(cache).length };
+  return { cache, analyse, resultAt, has, busy, err, setErr, msg, setMsg, stopRef, stop, forget, merge, saved, forGame, log, cached: Object.keys(cache).length };
 }
 
-const DIAG_CODES = ['server_not_connected', 'server_not_found', 'selection_required', 'not_in_manifest', 'bad_answer'];
-async function queenDiagnose(mcp, e) {
-  const lines = ['error: ' + ((e && e.code) || '?') + (e && e.message ? ' — ' + String(e.message).slice(0, 300) : '')];
-  try {
-    const all = await mcp.listTools();
-    const servers = (all && all.servers) || [];
-    if (!servers.length) lines.push('listTools: no servers visible to this page');
-    servers.forEach((sv) => lines.push(`server "${sv.server}" (${sv.kind || 'connector'}, ${sv.authStatus}): ` + ((sv.tools || []).map((t) => t.name).join(', ') || 'no tools')));
-  } catch (err) { lines.push('listTools failed: ' + ((err && err.code) || '?') + ' ' + ((err && err.message) || '')); }
-  try { const d = await mcp.describeTool(QUEEN_SERVER, QUEEN_TOOL); lines.push('describeTool: ok, ' + d.name); }
-  catch (err) { lines.push('describeTool: ' + ((err && err.code) || '?') + ' ' + ((err && err.message) || '')); }
-  if (e && e.code === 'bad_answer' && e.raw) lines.push('answer: ' + String(e.raw).slice(0, 400));
-  return lines.join('\n');
-}
+// an answer the page can't read is shown as it came, to copy
+const queenDiagnose = (e) => ['error: ' + ((e && e.code) || '?') + (e && e.message ? ' — ' + String(e.message).slice(0, 300) : ''), e && e.raw ? 'answer: ' + String(e.raw).slice(0, 400) : ''].filter(Boolean).join('\n');
 
 const posLabel = (M, at) => (at === 0 ? 'the starting position' : `after ${plyLabel(M, at - 1)}${sanOf(M, at - 1)}`);
 const sfAt = (M, at) => (M.hasEval && (at > 0 || M.evalStartKnown) ? (at === 0 ? M.evalStart : cpOf(M, at - 1)) / 100 : null);
@@ -287,7 +259,7 @@ function withQueen(M, resultAt) {
 }
 const fmtQ = (v) => fmtPawns(v);
 
-function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) {
+function QueenPanel({ M, Q, hf, probe, onClose, onOverlay, onSave, left }) {
   const [sel, setSel] = React.useState(null); // at: the position before the selected move
   const [running, setRunning] = React.useState(false);
   const [diag, setDiag] = React.useState('');
@@ -298,11 +270,9 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  const fail = async (e) => {
+  const fail = (e) => {
     Q.setErr(queenError(e));
-    setDiag(DIAG_CODES.includes(e && e.code) ? 'Checking the connector…' : '');
-    if (DIAG_CODES.includes(e && e.code)) setDiag(await queenDiagnose(mcp, e));
-    else setDiag('');
+    setDiag(e && e.code === 'bad_answer' ? queenDiagnose(e) : '');
   };
   const N = M.plies.length;
   const marked = React.useMemo(() => M.plies.map((p, i) => i).filter((i) => ['inaccuracy', 'mistake', 'blunder'].includes(M.plies[i].cls)), [M]);
@@ -386,30 +356,16 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
       <div className="twk-hd"><span className="q-hd"><b>Queen</b><span className="q-exp">Experimental</span></span><button type="button" className="twk-x" aria-label="Close Queen" onClick={onClose}>✕</button></div>
       <div className="twk-body">
         <div className="twk-note">A chess language model on the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8 Space</a>. It is not an engine: its evaluations are estimates and it can get tactics wrong. Each new position uses about 20–35 s of your daily Hugging Face ZeroGPU quota (5 min free, 40 min PRO); positions it has already answered are free.</div>
-        {Q.via === 'connector' && <div className="twk-note q-via">Using your Hugging Face connector on claude.ai.</div>}
-        {Q.via === 'direct' && (
-          <div className="q-via-box">
-            <div className="twk-note q-via">
-              {hf.auth ? <>Signed in{hf.auth.name ? <> as <b className="q-strong">{hf.auth.name}</b></> : null}: calls use your ZeroGPU quota.</>
-                : <>Not signed in: calls use Hugging Face’s anonymous allowance (about 2 min of GPU a day, shared across your network).</>}
-            </div>
-            {hf.enabled && (hf.auth
-              ? <TweakButton secondary label="Sign out of Hugging Face" onClick={hf.signOut} />
-              : <TweakButton label="Sign in with Hugging Face" onClick={hf.start} />)}
+        <div className="q-via-box">
+          <div className="twk-note q-via">
+            {hf.auth ? <>Signed in{hf.auth.name ? <> as <b className="q-strong">{hf.auth.name}</b></> : null}: calls use your ZeroGPU quota.</>
+              : <>Not signed in: calls use Hugging Face’s anonymous allowance (about 2 min of GPU a day, shared across your network).</>}
           </div>
-        )}
-        {!Q.via && (
-          <div className="q-off" role="note">
-            <b>Queen isn’t available here.</b> It needs:
-            <ol>
-              <li>this page open on claude.ai, signed in (some shared links can’t use connectors);</li>
-              <li>the Hugging Face connector (claude.ai Settings → Connectors);</li>
-              <li>the <a href={QUEEN_SPACE} target="_blank" rel="noopener">boneyland/queen-pawn-8</a> Space added at <a href="https://huggingface.co/settings/mcp" target="_blank" rel="noopener">huggingface.co/settings/mcp</a>.</li>
-            </ol>
-            Saved answers still show below and in the video.
-          </div>
-        )}
-        <TweakButton disabled={!Q.via || !!Q.busy || running} label="Analyse the position on the board" onClick={askHere} />
+          {hf.enabled && (hf.auth
+            ? <TweakButton secondary label="Sign out of Hugging Face" onClick={hf.signOut} />
+            : <TweakButton label="Sign in with Hugging Face" onClick={hf.start} />)}
+        </div>
+        <TweakButton disabled={!!Q.busy || running} label="Analyse the position on the board" onClick={askHere} />
         {Q.busy && (
           <div className="q-busy"><span className="q-dot" aria-hidden="true" />
             {Q.busy.retryAt
@@ -422,7 +378,7 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
         {Q.msg && !Q.err && <div className="twk-note" role="status">{Q.msg}</div>}
         {diag && (
           <div className="q-diag">
-            <div className="twk-note">What this page sees (copy this to Claude if it doesn’t make sense):</div>
+            <div className="twk-note">The answer as it came:</div>
             <pre>{diag}</pre>
             <TweakButton secondary label="Copy details" onClick={(ev) => {
               const pre = ev.currentTarget.previousSibling;
@@ -441,7 +397,7 @@ function QueenPanel({ M, Q, mcp, hf, probe, onClose, onOverlay, onSave, left }) 
             </div>
             {missing > 0 && (running
               ? <TweakButton secondary label="Stop after this position" onClick={() => { Q.stopRef.current = true; }} />
-              : <TweakButton disabled={!Q.via || !!Q.busy} label={`Test Queen on ${missing === total ? `the ${rows.length} marked moves` : 'the rest'} (${missing} position${missing > 1 ? 's' : ''}, ~${Math.ceil(missing * 40 / 60)} min)`} onClick={runTest} />)}
+              : <TweakButton disabled={!!Q.busy} label={`Test Queen on ${missing === total ? `the ${rows.length} marked moves` : 'the rest'} (${missing} position${missing > 1 ? 's' : ''}, ~${Math.ceil(missing * 40 / 60)} min)`} onClick={runTest} />)}
             <table className="q-table">
               <thead><tr><th>Move</th><th>Played</th><th>Stockfish</th><th>Queen</th></tr></thead>
               <tbody>

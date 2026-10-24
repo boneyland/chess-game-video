@@ -242,7 +242,6 @@ test('a FEN game does not invent a +0.20 position before its first move', () => 
   assert.ok(!M.plies[0].mark);
   assert.equal(M.evalStart, 910);
   assert.equal(M.evalStartKnown, false);
-  assert.doesNotMatch(CC.commentaryPrompt(M, { tone: 'Concise' }).user, /\+0\.20/);
 });
 test('plan does not pick a FEN game\'s first ply as its biggest swing', () => {
   const mv = ['Kf7', 'Qd2', 'Ke8', 'Qd3', 'Kf7', 'Qd4', 'Ke8', 'Qd5'];
@@ -255,10 +254,6 @@ test('a standard game still rates its first move against +0.20', () => {
   const M = CC.buildGame({ pgn: '[Result "*"]\n\n1. e4 {[%eval -3.50]} *' });
   assert.equal(M.evalStart, 20); assert.equal(M.evalStartKnown, true);
   assert.equal(M.plies[0].mark, '??');
-});
-test('commentaryPrompt does not call ply 1 the first White move', () => {
-  const M = CC.buildGame({ pgn: '[FEN "4k3/8/8/8/8/8/8/3QK3 b - - 0 40"]\n\n40... Kf7 *' });
-  assert.doesNotMatch(CC.commentaryPrompt(M, { tone: 'Concise' }).system, /1 is White/);
 });
 test('evalTicks are absolute move numbers, and unchanged for a standard game', () => {
   assert.deepEqual(CC.evalTicks(0, 45).map((t) => [t.m, t.at]), [[10, 18], [20, 38]]);
@@ -273,19 +268,18 @@ test('an analysis file with the same start_fen attaches', () => {
   assert.equal(CC.buildGame({ pgn: `[FEN "${fen}"]\n\n1. e4 *`, analysis: A }).hasAnalysis, true);
 });
 
-test('withCommentary shows only the sources left on, notes file first, then Claude, then the PGN', () => {
-  const M = CC.buildGame({ pgn: '{PGN intro} 1. e4 {pgn 1} e5 {pgn 2} 2. Nf3 {pgn 3} *', aiNotes: '[INTRO]\nClaude intro\n[1]\nclaude 1\n[3]\nclaude 3', notes: '[1]\nnotes 1\n[CONCLUSION]\nNotes end' });
-  assert.deepEqual(CC.commentarySources(M), ['notes', 'claude', 'pgn']);
-  assert.deepEqual(M.plies.map((p) => p.comment), ['notes 1', 'pgn 2', 'claude 3']);
+test('withCommentary shows only the sources left on, notes file first, then the PGN', () => {
+  const M = CC.buildGame({ pgn: '{PGN intro} 1. e4 {pgn 1} e5 {pgn 2} 2. Nf3 {pgn 3} *', notes: '[1]\nnotes 1\n[3]\nnotes 3\n[CONCLUSION]\nNotes end' });
+  assert.deepEqual(CC.commentarySources(M), ['notes', 'pgn']);
+  assert.deepEqual(M.plies.map((p) => p.comment), ['notes 1', 'pgn 2', 'notes 3']);
   assert.equal(CC.withCommentary(M, {}), M);
-  const noNotes = CC.withCommentary(M, { notes: false });
-  assert.deepEqual(noNotes.plies.map((p) => p.comment), ['claude 1', 'pgn 2', 'claude 3']);
-  assert.equal(noNotes.intro, 'Claude intro');
-  assert.equal(noNotes.conclusion, '');
-  const pgnOnly = CC.withCommentary(M, { notes: false, claude: false });
+  const pgnOnly = CC.withCommentary(M, { notes: false });
   assert.deepEqual(pgnOnly.plies.map((p) => p.comment), ['pgn 1', 'pgn 2', 'pgn 3']);
   assert.equal(pgnOnly.intro, 'PGN intro');
-  assert.deepEqual(CC.withCommentary(M, { pgn: false }).plies.map((p) => p.comment), ['notes 1', '', 'claude 3']);
+  assert.equal(pgnOnly.conclusion, '');
+  const notesOnly = CC.withCommentary(M, { pgn: false });
+  assert.deepEqual(notesOnly.plies.map((p) => p.comment), ['notes 1', '', 'notes 3']);
+  assert.equal(notesOnly.conclusion, 'Notes end');
   assert.deepEqual(CC.commentarySources(CC.buildGame({ pgn: '1. e4 e5 *' })), []);
 });
 

@@ -1,13 +1,11 @@
 // ---------- Stockfish in the browser ----------
 // One engine per page, started on first use; a full-game analysis on request; the viewer's own moves.
-const SF_SITE_URL = 'https://chess-replay.onrender.com/';
-// the engine sits next to the page on the self-hosted copy; the claude.ai build sets window.SF_MAKE_WORKER
+// the engine sits next to the page
 const SF_FILE = 'stockfish-19-lite-single';
-const sfMakeWorker = () => (window.SF_MAKE_WORKER ? window.SF_MAKE_WORKER() : new Worker(SF_FILE + '.js'));
+const sfMakeWorker = () => new Worker(SF_FILE + '.js');
 // A missing engine file only shows up inside the worker (it never reaches the page as an error), so the
-// self-hosted copy checks the wasm is there first rather than waiting out the start timeout
-const sfFilesPresent = () => (window.SF_MAKE_WORKER ? Promise.resolve(true)
-  : fetch(SF_FILE + '.wasm', { method: 'HEAD', cache: 'no-store' }).then((r) => r.ok, () => false));
+// page checks the wasm is there first rather than waiting out the start timeout
+const sfFilesPresent = () => fetch(SF_FILE + '.wasm', { method: 'HEAD', cache: 'no-store' }).then((r) => r.ok, () => false);
 
 // kind: 'lite' (next to the page) or 'full' (the viewer's download, sf-full.js); a change quits the engine running, and
 // the next use starts the other. onBroken: the full engine's kept copy turned out missing (it is dropped)
@@ -54,9 +52,9 @@ function useEngine(hashMB, kind = 'lite', onBroken) {
   return { get, status };
 }
 
-// The full engine's download (Settings › Engine): the site only, as the artifact carries the lite engine inline.
+// The full engine's download (Settings › Engine).
 // state: 'checking', 'absent', 'downloading' (got: bytes so far) or 'ready'; err: why the last download or start failed
-const SF_FULL_OFFERED = !window.SF_MAKE_WORKER && !!(window.SFFull && window.SFFull.supported());
+const SF_FULL_OFFERED = !!(window.SFFull && window.SFFull.supported());
 const sfMB = (bytes) => Math.round(bytes / 1e6);
 function useFullEngine() {
   const [st, setSt] = React.useState({ state: SF_FULL_OFFERED ? 'checking' : 'absent', got: 0, err: '' });
@@ -220,7 +218,7 @@ function EngineEmptyState({ M, sf, paused, compact }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {text}
-        <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Stockfish can't run here.{IN_CLAUDE && <> Open the <a href={SF_SITE_URL} target="_blank" rel="noopener" style={{ color: C.best }}>self-hosted copy</a> to analyse.</>}</span>
+        <span style={{ font: `500 17px ${MONO}`, color: C.dim }}>Stockfish can't run here.</span>
         <div><FrameButton onClick={sf.start} label="Try starting Stockfish again">Try again</FrameButton></div>
       </div>
     );
