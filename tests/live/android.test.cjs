@@ -43,8 +43,10 @@ test('android · chrome · local build', async (t) => {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(e.message));
   // a phone kept from an earlier run starts from the defaults. The reload that follows waits for Chrome's download of
-  // the manifest: a reload cutting it off once had Chrome report "Manifest: Line: 1, column: 1, Syntax error."
-  const manifest = page.waitForEvent('requestfinished', { predicate: (r) => r.url().endsWith('/manifest.webmanifest'), timeout: 30000 });
+  // the manifest: a reload cutting it off once had Chrome report "Manifest: Line: 1, column: 1, Syntax error." Chrome
+  // doesn't always fetch it on load, though (3 of 7 CI runs timed out waiting), and then there is nothing to cut off
+  const manifest = page.waitForEvent('requestfinished', { predicate: (r) => r.url().endsWith('/manifest.webmanifest'), timeout: 15000 })
+    .catch(() => t.diagnostic('Chrome fetched no manifest on load'));
   await page.goto(local.url, { waitUntil: 'load' });
   await manifest;
   await page.evaluate(() => localStorage.clear());
