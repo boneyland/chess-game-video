@@ -26,25 +26,10 @@ https://github.com/user-attachments/assets/d15445d0-b356-4954-b791-e700a717ab14
 Needs Node 22 or later; nothing to install (Babel and Stockfish are in the repo) and no network.
 
 1. `git clone https://github.com/boneyland/chess-replay && cd chess-replay`
-2. `node build.cjs`, which writes
-   - `out/chess-game-video.html`: the [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT), ~3.9 MB with the engine and sounds inlined (base64 wasm, started from Blob URLs)
-   - `out/site/`: the self-hosted copy, which Render builds from this repo (`render.yaml`) and serves at https://chess-replay.onrender.com/: `chess-game-video.html`, plus the Stockfish and WebP encoder files (`.js` and `.wasm`, loaded from next to the page), the service worker `sw.js`, a web app manifest with its icons (from `app/icons/`), so Add to Home Screen opens it without the browser's bars, and the link-preview image `og-image.png`
+2. `node build.cjs`, which writes `out/site/` (Render builds it from this repo, `render.yaml`, and serves it at https://chess-replay.onrender.com/): `chess-game-video.html`, plus the Stockfish and WebP encoder files (`.js` and `.wasm`, loaded from next to the page), the service worker `sw.js`, a web app manifest with its icons (from `app/icons/`), so Add to Home Screen opens it without the browser's bars, and the link-preview image `og-image.png`
 3. Serve `out/site/` over HTTP, e.g. `python3 -m http.server 8765 --directory out/site`, and open http://localhost:8765/chess-game-video.html (don't open the file directly: browsers won't load the engine from a `file://` page)
 
 Hosting `out/site/` anywhere static works the same. Ask Queen's Hugging Face sign-in only returns to URLs registered with an OAuth app, so on your own host it calls Queen without signing in, unless you register an app and put its client ID in `HF_OAUTH` (`app/queen.jsx`); a static Hugging Face Space with `hf_oauth: true` in its README supplies its own.
-
-## The claude.ai artifact
-
-The [claude.ai artifact](https://claude.ai/artifact/5yXwsRkre66WZZ8AEmLrqT) is the same page in one file, but it does less than the site. Its current limitations:
-
-- **No WebP export**: the page encodes WebP with libwebp in WebAssembly (the browsers' own `toBlob` encoder blurred some frames with its strongest deblocking filter), loaded from next to the page, and the artifact has nothing next to it, so Settings offers MP4 only, with a link to the site for WebP
-- **Saving files goes through claude.ai**: PGNs, analysis, notes and videos are saved through the artifact's `downloads` capability; where that isn't granted, the save and export buttons are hidden
-- **Ask Queen only through the Hugging Face connector**: it calls the Space through the viewer's own Hugging Face connector on claude.ai; Hugging Face sign-in isn't offered
-- **No offline use or Add to Home Screen**: the artifact registers no service worker and has no web app manifest, so it needs a connection and opens inside claude.ai
-- **Updated by hand**: it is republished from `out/chess-game-video.html` when asked, so it can lag behind `main`, which deploys to the site on every merge
-- **Larger**: ~3.9 MB, with the engine and sounds inlined, against ~1.5 MB for the site's page
-
-What only the artifact has: Claude can write commentary for a loaded game (the artifact's `sample` capability).
 
 ## Tests
 

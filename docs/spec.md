@@ -2,7 +2,7 @@
 
 The one spec for the app: what it does now, what is planned, and the decisions behind both. Merged on 2026-10-23 from three specs (browser Stockfish, 2026-10-16; free board, 2026-10-19; Lichess data and threads, 2026-10-23), which are in git history under `docs/`. Implementation plans for the built parts are in `docs/plans/`.
 
-**Scope.** Only the Render site (https://chess-replay.onrender.com/) matters since 2026-10-18. The claude.ai artifact still builds, but needs no parity: new features may be missing there, as long as it doesn't break.
+**Scope.** The Render site (https://chess-replay.onrender.com/) is the only target.
 
 ## Contents
 
@@ -51,7 +51,7 @@ The page replays a game (the sample, or a loaded PGN) as an animated video with 
 
 **Engine plumbing.**
 
-- nmrugg/stockfish.js **v19.0.1 `stockfish-19-lite-single`** (28 KB `.js` + 1.8 MB `.wasm`, GPL-3.0), vendored in `vendor/`, SHA-256 pinned in LAYOUT.md, with a GPL source link in the page. The site can also run the full engine the viewer downloads (see [Full Stockfish download](#full-stockfish-download)). The site serves it next to the page and starts `new Worker(...)` lazily; the artifact inlines it as a blob Worker with the wasm in base64.
+- nmrugg/stockfish.js **v19.0.1 `stockfish-19-lite-single`** (28 KB `.js` + 1.8 MB `.wasm`, GPL-3.0), vendored in `vendor/`, SHA-256 pinned in LAYOUT.md, with a GPL source link in the page. The site can also run the full engine the viewer downloads (see [Full Stockfish download](#full-stockfish-download)). The site serves it next to the page and starts `new Worker(...)` lazily.
 - One engine for the page (`SFEngine`), Hash 64 MB set once, no `ucinewgame` within an analysis. Priorities: the Stockfish opponent's `play`, then own moves, then game analysis; a running search is never interrupted.
 - Search limits are Settings sliders (Game analysis, Your moves), defaults in `TWEAK_DEFAULTS`.
 - Robustness: 30 s start timeout, then the worker is terminated and "Try again" retries; a dead engine reports "Stockfish stopped · play a move to restart it" and is replaced on next use; the site checks the wasm exists first; a run is dropped only when the game changes, and results merge into the current files.
@@ -116,12 +116,12 @@ A plain board with Stockfish, separate from the replay (`app/free-board.jsx`, st
 
 ### Full Stockfish download
 
-Some viewers want the strongest engine, as Lichess offers for local analysis. Settings › Engine › **Engine**: **Lite · 1.8 MB** (the default) or **Full · 99 MB**, on the site only (the artifact keeps the inline lite engine and doesn't show the choice).
+Some viewers want the strongest engine, as Lichess offers for local analysis. Settings › Engine › **Engine**: **Lite · 1.8 MB** (the default) or **Full · 99 MB**.
 
 - Full is stockfish.js v19.0.1 **`stockfish-19-single`** (28 KB `.js` + 99 MB `.wasm`, the big NNUE net inside), single-threaded: the multi-thread build needs cross-origin isolation (PR 5). Not committed to git (just under GitHub's 100 MB limit); fetched from `https://unpkg.com/stockfish@19.0.1/bin/` (CORS open), both files checked in the browser against SHA-256s pinned in `app/sf-full.js` (`SFFull`).
 - Picking Full shows the size, where it comes from and a **Download full Stockfish · 99 MB** button; nothing downloads before the click. Progress shows by the megabyte with Cancel. A connection that sends nothing for 30 s (before the answer or between chunks) is given up with "unpkg.com stopped sending …", so a stall can't hang the download; Download tries again. Before fetching, `navigator.storage.estimate()` must leave room for the files plus 10%. Nothing is kept unless both files arrive whole (no more, no less than the pinned size) and match.
 - The files are kept in the cache `stockfish-full-19`, which `sw.js` never deletes (it clears only `chess-replay-*` caches on a deploy), and the page calls `navigator.storage.persist()` (Chrome decides by itself, Firefox asks). So it is a one-time download, offline afterwards, unless the browser evicts it, the viewer clears site data, or (Safari) the site goes unvisited for 7 days outside a home-screen app.
-- Until the copy is kept, and whenever it goes missing, Lite runs. Starting Full trusts the copy checked at download: once per page it compares only the sizes (a missing or cut-short copy is deleted and the setting offers the download again with a note), never reading the 99 MB into the page or hashing it again, and starts the worker from the cache's Blobs as Blob URLs, the glue reading its wasm URL from the `#hash` as the artifact's inline engine does.
+- Until the copy is kept, and whenever it goes missing, Lite runs. Starting Full trusts the copy checked at download: once per page it compares only the sizes (a missing or cut-short copy is deleted and the setting offers the download again with a note), never reading the 99 MB into the page or hashing it again, and starts the worker from the cache's Blobs as Blob URLs, the glue reading its wasm URL from the `#hash`.
 - Switching engines quits the running engine (its searches answer null) and stops a running analysis. The engine wanted is known while rendering, so a panel searching again after the switch gets the new engine, never the one being quit; its partial run keeps its key, which includes the engine name, so it resumes only with the engine that made it.
 - The engine name follows the engine that runs: "Stockfish 19 (browser)" for Full (`AnalysisCore.ENGINE_NAMES`, `engineSettings(t, kind)`), so the Analysis header reads "Stockfish 19 · depth …" and the analysis JSON records it. The own-move eval cache (Go deeper on a stored move too) and the pace estimate (`chess-video.sf-pace.v1.full`) are kept per engine. Play vs Stockfish plays with whichever engine runs.
 - A kept copy shows **Remove the full engine download · 99 MB** (with Lite selected too), which asks first: "Remove the full engine? You'd need to download 99 MB again to use it." with **Remove** and **Keep**.
@@ -129,7 +129,7 @@ Some viewers want the strongest engine, as Lichess offers for local analysis. Se
 
 ### Lines (MultiPV)
 
-Settings › Engine › **Your moves: lines**, 1 to 5 (`sfLines`, default 1), for the searches of the viewer's own moves (the replay's own line and the free board), on the site and the artifact.
+Settings › Engine › **Your moves: lines**, 1 to 5 (`sfLines`, default 1), for the searches of the viewer's own moves (the replay's own line and the free board).
 
 - `SFEngine.search({ lines })` sends `setoption name MultiPV value N` between searches, only when it changes; every other search (the position before the viewer's move, which only rates it, so it goes as deep as one line can; a game's analysis; the Stockfish opponent and its "before" search; Go deeper on a stored move) asks for 1, so the analysis JSON is unchanged (`lines: 1`). Results gain `lines: [{ k, cp, depth, pv }]`, by rank; `cp`, `pv` and `best` stay line 1's. A line more than one depth behind line 1 has stopped being reported and is dropped.
 - With more than one line the Analysis panel lists them, one row each (eval, a dim `d17` when a line is shallower than line 1, its first moves in SAN, wrapping under each other beside the eval column); a move plays the line on the board up to it, as Stockfish's replies did. The board shows an arrow per line's first move: line 1 as the best-move arrow, the others thinner and fainter (Settings › Best-move arrows turns them off). One line looks as before.
@@ -143,7 +143,7 @@ Planned, roughly in this order; each item gets its own PR(s) on a `claude/<topic
 
 ### Lichess data and multi-threaded Stockfish
 
-Site only; the artifact's build is unchanged and the new UI is hidden there (`window.SF_MAKE_WORKER` is set only in the artifact build, so it is the switch). Unverified facts are marked **verify**.
+Unverified facts are marked **verify**.
 
 | # | PR | Depends on | Risk |
 |---|----|-----------|------|
@@ -163,7 +163,7 @@ Ship 1 to 4 first; 5 last and alone, since its headers affect every external loa
 - `sw.js`: `lichess.org`, `explorer.lichess.ovh`, `tablebase.lichess.ovh` stay out of `KEEP_HOSTS` (live data, never served stale); check they pass through offline.
 - Privacy: the player's positions leave the browser, so each feature is a Settings toggle under a new **Online data** section. Explorer and cloud eval default **off**; tablebase may default on (it only fires at 7 pieces or fewer). README gets a "Lichess data" note (what is sent, endpoints).
 
-**PR 1: Lines (MultiPV).** Built 2026-10-24 as below, except: the setting is "Your moves: lines" and applies to the artifact too (it needs no isolation); clicking a line plays it, as the replies did.
+**PR 1: Lines (MultiPV).** Built 2026-10-24 as below, except: the setting is "Your moves: lines"; clicking a line plays it, as the replies did.
 
 - `analysis-core.js`: `LINES = [1..5]`, `sfLines` in `engineSettings(t)` for the live engine (`own`); batch analysis keeps `lines: 1`, its JSON unchanged (Python check stays green).
 - `sf-engine.js`: `search({ lines })` sends `setoption name MultiPV value N` only on change, between searches in `pump()` (like `hashWant`/`hashSet`). Parse `multipv k` in `info` (`infoToScore`, `infoStats` get `multipv`, default 1); keep the last complete line per k; results gain `lines: [{ k, cp, depth, pv }]` while `cp`, `pv`, `best` stay line 1. `bestmove` is line 1.
@@ -192,13 +192,13 @@ Ship 1 to 4 first; 5 last and alone, since its headers affect every external loa
 - An Explorer panel (replay and free board, not in games): moves with game counts and a white/draw/black bar, click to play on the free board; name and ECO from the response, the local book as fallback and as the default when off. Database (Lichess, Masters) and rating/speed filters in settings.
 - Tests: parser, token header only when signed in, 401 → "Sign in to use the explorer", filters change the cache key.
 
-**PR 5: Multi-threaded Stockfish lite.** stockfish.js v19.0.1 multi-thread lite **verify** file names and sizes; vendored and pinned as now. The single-thread files stay as the artifact's engine and the site's fallback.
+**PR 5: Multi-threaded Stockfish lite.** stockfish.js v19.0.1 multi-thread lite **verify** file names and sizes; vendored and pinned as now. The single-thread files stay as the fallback.
 
 - The full engine (built 2026-10-24, single-threaded) gains its threaded build the same way: `stockfish-19.js` + `stockfish-19.wasm` (99 MB) from unpkg, pinned in `sf-full.js`, used when the page is isolated, with the single-thread full engine as the fallback. A viewer who already downloaded Full downloads the threaded file once more.
 
-- Cross-origin isolation: `render.yaml` headers on `/*`: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`. Then audit every cross-origin load (`grep https:// app/`): cdnjs/jsdelivr scripts (already `crossorigin` with SRI), Google Fonts (`crossorigin` on the links), Lichess `fetch` (CORS), the HF sign-in (must be a redirect, not a popup, under COOP), the Queen `mcp` call.
+- Cross-origin isolation: `render.yaml` headers on `/*`: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`. Then audit every cross-origin load (`grep https:// app/`): cdnjs/jsdelivr scripts (already `crossorigin` with SRI), Google Fonts (`crossorigin` on the links), Lichess `fetch` (CORS), the HF sign-in (must be a redirect, not a popup, under COOP), the Queen Space's Gradio API.
 - `sw.js` re-serves responses with the isolation headers and keeps the new engine files; `tests/live/serve.cjs` sends the same headers and the live suite asserts `crossOriginIsolated`.
-- `stockfish.jsx` `sfFiles()` picks the threaded build when `crossOriginIsolated && SharedArrayBuffer` and not the artifact; any failure falls back silently to single-thread, with Threads disabled and the reason shown.
+- `stockfish.jsx` `sfFiles()` picks the threaded build when `crossOriginIsolated && SharedArrayBuffer`; any failure falls back silently to single-thread, with Threads disabled and the reason shown.
 - Settings › Engine: **Threads** 1 to `min(hardwareConcurrency − 1, 8)`, default half the cores up to 4 (`sfThreads`); `setoption Threads` applied between searches like Hash/MultiPV, restarting the worker when idle if the build needs it **verify**. Hash is shared by all threads.
 - Batch JSON records threads; `sfPartialKey` includes them; the Python check runs with 1 thread (multi-thread results aren't reproducible). Pace estimates keyed by thread count. Check the Stockfish opponent's movetime and critique timing.
 - Tests: fake-worker option order and restart, settings, file choice; live: isolated page, Threads 4 + Lines 3 shows three lines and higher nps, offline reload keeps the headers, fonts/React load, HF sign-in returns. Manual: phone, iOS Safari (silent fallback), desktop Firefox.
@@ -216,7 +216,7 @@ From a FEN with X-FEN or Shredder-FEN castling, using Stockfish's `UCI_Chess960`
 
 ### Typed commentary (*needs design*)
 
-The user types their own comment on a move. Open: where (replay, free board, a game from My games, all); how it sits with PGN comments, Claude's commentary, the notes file and Queen in the Commentary box (each now a Settings toggle) and in the video; whether Save PGN writes it as `{ }`; where it is kept (with the loaded game, with a My games entry, which ties in with replayed games losing their analysis and commentary today).
+The user types their own comment on a move. Open: where (replay, free board, a game from My games, all); how it sits with PGN comments, the notes file and Queen in the Commentary box (each now a Settings toggle) and in the video; whether Save PGN writes it as `{ }`; where it is kept (with the loaded game, with a My games entry, which ties in with replayed games losing their analysis and commentary today).
 
 ### Maia3 (*needs design*)
 
@@ -240,7 +240,6 @@ Proposed (my calls, to confirm when designing):
 - **Pauses while the tab is hidden** and resumes on return (battery on phones).
 - **Bundled tracks**: 3 to 5 calm instrumental loops, licences that allow redistribution with a GPL-3.0 app (CC0 preferred; CC-BY credited in README and Settings), listed with source and licence in README like the Lichess sounds. MP3 or AAC (plays on iOS Safari), ~96–128 kbps, a few MB each, in `vendor/music/` and served next to the page, never inlined; a track downloads only when chosen. The service worker keeps a track once played, so it works offline after that; tracks aren't precached.
 - **Viewer's file**: a file picker for `audio/*`, played locally and never uploaded. Kept in IndexedDB (too big for localStorage), one file at a time, with a size cap (e.g. 30 MB) and a plain message when it's over or won't decode. Clear saved data removes it.
-- **Not on the artifact.**
 
 Open questions:
 
@@ -306,3 +305,4 @@ Deferred by the per-plan reviews; each was true when recorded and may since have
 - 2026-10-24: full Stockfish download approved: Lite stays the default; Full is the single-thread `stockfish-19-single` (the threaded build needs PR 5's isolation, so it would not start today), served by unpkg (not Render, to keep its bandwidth) and checked by SHA-256 in the browser, kept in its own cache; site only.
 - 2026-10-24, after the Lines PR preview: Your moves' time limit defaults to 5 s (was 3 s); engine lines wrap on the phone rather than being cut off.
 - 2026-10-24, after reviewing PRs 37 and 38: the full engine is checked by SHA-256 only at download, then trusted (re-hashing 99 MB on every page load cost a few hundred MB of memory, too much for a phone); the position before the viewer's move searches one line whatever Lines says, as its lines are never shown and it is what the move is rated against.
+- 2026-10-24: the claude.ai artifact dropped, with what only it used: Claude-written commentary (the `sample` capability), saving through `downloads`, Queen through the Hugging Face connector, the inline engine.
