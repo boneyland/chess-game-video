@@ -68,6 +68,19 @@ Benchmarks behind the limits (2026-10-16, Node 22 on this laptop, reference nati
 
 Every setting flags all of game 2's blunders; none finds 30.Qf8?! or 35.Kg1?! (the lite net, not depth). Deeper search mostly narrows the eval gap; one-mark rating differences are run-to-run noise. Hash 16–128 MB made no difference at depth 20; at depth 24 uncapped 32 MB filled to 95%, hence 64 MB. Peak RSS ~210 MB.
 
+Hash re-checked with no depth limit (2026-10-25, Node 22 on this laptop, one search per fresh engine, `go movetime`, hashfull as Stockfish reports it; two made-up middlegames, one roughly ±6, and KBN v K `7k/8/8/8/8/8/8/KBN5 w`):
+
+| Search | Engine | 32 MB | 64 MB | 128 MB | 256 MB |
+|---|---|---|---|---|---|
+| 3 s (game analysis default) | lite | 30–36% | 16–18% | 9% | 4–5% |
+| | full | 16–17% | 8% | 4% | 2% |
+| 5 s (your moves default) | lite | 53–55% | 30% | 15–16% | 7–8% |
+| | full | 27–29% | 12–15% | 7% | 3–4% |
+| 20 s (Go deeper, 3rd press) | lite | 99% | 85% | 54% | 29% |
+| | full | 83–85% | 52–57% | 27–29% | 14% |
+
+Full searches about half the nodes a second of lite in a middlegame (0.25 M against 0.5 M), so it fills the hash half as fast. No size made a consistent difference to depth or eval. In KBN v K at 20 s both engines found mate in 30–33 only at 64 and 128 MB, not at 32 or 256 (single-threaded Stockfish is deterministic for one hash size, and the size changes the tree, so a deep mate turning up is luck of the size, not more memory). Peak RSS in Node, full: ~500 MB up to 64 MB of hash, ~640 MB at 128 MB, ~750 MB at 256 MB (above 64 MB each doubling adds its size). Hence 64 MB stays the default for both engines; the bigger sizes are in Settings for long searches on a desktop.
+
 ### Opening names
 
 `openings/*.tsv` is a verbatim copy of Lichess's chess-openings tables (CC0), shared with chess-animator; updating it updates both. `openings-core.js` ports chess-animator's `OpeningBook`: positions keyed by EPD (so move orders and FEN starts both match), each named by the deepest named position on its line.
