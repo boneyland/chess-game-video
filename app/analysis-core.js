@@ -125,7 +125,7 @@
   const SEARCH_LIMITS = { depth: [16, 30], seconds: [0.5, 10] }, HASH_MB = [16, 32, 64, 128, 256];
   // own.lines: the lines (MultiPV) the viewer's own searches show; a game's analysis always searches one
   const LINES = [1, 2, 3, 4, 5];
-  const OWN = { depth: 24, time_limit: 3, lines: 1 };
+  const OWN = { depth: 24, time_limit: 5, lines: 1 };
   function engineSettings(t = {}, kind = 'lite') {
     const pick = (v, [lo, hi], step, dflt) => { const x = +v; return Number.isFinite(x) && x >= lo && x <= hi ? Math.round(x / step) * step : dflt; };
     const name = ENGINE_NAMES[kind] || ENGINE.name;

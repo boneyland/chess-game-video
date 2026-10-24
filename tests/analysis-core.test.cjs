@@ -173,7 +173,7 @@ test('runAnalysis resumes from earlier searches and reports each search so far',
 test('engineSettings: the defaults, the viewer’s values in range, and the defaults again for anything else', () => {
   const d = A.engineSettings({});
   assert.deepEqual(d.game, A.ENGINE);
-  assert.deepEqual(d.own, { name: A.ENGINE.name, depth: 24, time_limit: 3, lines: 1 });
+  assert.deepEqual(d.own, { name: A.ENGINE.name, depth: 24, time_limit: 5, lines: 1 });
   const s = A.engineSettings({ sfDepth: 16, sfTime: 0.5, sfOwnDepth: 30, sfOwnTime: 10, sfHash: 256, sfLines: 5 });
   assert.deepEqual([s.game.depth, s.game.time_limit, s.game.hash_mb, s.game.name], [16, 0.5, 256, A.ENGINE.name]);
   assert.deepEqual(s.own, { name: A.ENGINE.name, depth: 30, time_limit: 10, lines: 5 });
@@ -181,7 +181,7 @@ test('engineSettings: the defaults, the viewer’s values in range, and the defa
   for (const bad of [0, 6, 2.5, 'x', null]) assert.equal(A.engineSettings({ sfLines: bad }).own.lines, 1, String(bad));
   assert.equal(A.engineSettings({ sfLines: '3' }).own.lines, 3);
   const bad = A.engineSettings({ sfDepth: 15, sfTime: 11, sfOwnDepth: 'x', sfOwnTime: null, sfHash: 100 });
-  assert.deepEqual([bad.game.depth, bad.game.time_limit, bad.game.hash_mb, bad.own.depth, bad.own.time_limit], [24, 3, 64, 24, 3]);
+  assert.deepEqual([bad.game.depth, bad.game.time_limit, bad.game.hash_mb, bad.own.depth, bad.own.time_limit], [24, 3, 64, 24, 5]);
   assert.equal(A.engineSettings({ sfTime: 1.3 }).game.time_limit, 1.5); // snapped to the slider's half seconds
 });
 
