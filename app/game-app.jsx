@@ -465,23 +465,24 @@ function GameApp() {
   const status = boardStatus || `${M.white.short} – ${M.black.short} · ${M.plies.length} plies` + (M.evalSource === 'analysis' ? ' · analysis evals' : M.evalSource === 'pgn' ? ' · PGN evals' : '') + (M.hasNotes ? ' · notes' : '') + (M.hasAiNotes ? ' · AI commentary' : '') + (files.sample ? ' (sample)' : '') + ' · ' + fmtLen(TM.total);
   const shownErr = err || built.error;
 
-  const newItems = [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Copy FEN', run: copyFen }, { label: 'Play vs human…', run: playHuman }, { label: 'Play vs Stockfish…', run: playSf },
-    { label: 'My games…', run: myGames }];
+  const newGroups = [{ label: 'Explore', items: [{ label: 'Starting position', run: newBoard }, { label: 'Paste FEN…', run: pasteFen }, { label: 'Copy FEN', run: copyFen }] },
+    { label: 'Play', items: [{ label: 'Play vs human…', run: playHuman }, { label: 'Play vs Stockfish…', run: playSf }, { label: 'My games…', run: myGames }] }];
+  const newItems = newGroups.map((g) => <React.Fragment key={g.label}>
+    <span className="dock-menu-label">{g.label}</span>
+    {g.items.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
+  </React.Fragment>);
   const fsLabel = fullscreen.on ? 'Exit full screen' : 'Full screen';
   const dockItems = (
     <div id="dock-items" className="dock-items">
       {tall && <span className="dock-menu-status">{shownErr || status}</span>}
       <button type="button" className="dock-btn dock-primary" onClick={() => { setMenu(false); loadGame(); }}>Load game…</button>
-      {/* a list of starting points, a heading over them on the phone */}
-      {tall ? <React.Fragment>
-        <span className="dock-menu-label">Play/Explore</span>
-        {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
-      </React.Fragment> : (
+      {/* a list of starting points in two groups, each under its heading; on the phone they sit in the folded menu */}
+      {tall ? newItems : (
         <div ref={newRef} className="dock-new">
           <button ref={newBtn} type="button" className="dock-btn" aria-expanded={newMenu} aria-controls="dock-new-items" onClick={() => { setNewMenu((m) => !m); setPanel(false); setQueenOpen(false); }}>Play/Explore</button>
           {newMenu && (
             <div id="dock-new-items" className="dock-pop">
-              {newItems.map((it) => <button key={it.label} type="button" className="dock-btn" onClick={it.run}>{it.label}</button>)}
+              {newItems}
             </div>
           )}
         </div>
